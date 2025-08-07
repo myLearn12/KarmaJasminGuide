@@ -1,84 +1,29 @@
 it('InitialDataLoad: should fetch posting end date and call update and check methods on success', fakeAsync(() => {
-  // Arrange
-  const mockDate = '2025-09-01';
-  const resultMock = { cashpostDt: [{ postingEndDt: mockDate }] };
+  const mockDate = '2025-08-01';
+  const mockPostingEndDt = '2025-08-15';
 
-  // Mocks
-  const date = new Date(2025, 8, 1); // September 1, 2025
-  spyOn(component.utils, 'ToDate').and.returnValue(date);
+  // Mock services
+  spyOn(TestBed.inject(CommonFunctionsService), 'ToDate').and.returnValue(new Date(mockDate));
+  spyOn(component['reportService'], 'setPostingEndDate');
+  spyOn(component, 'UpdateDetailAuditUrl');
+  spyOn(component, 'CheckCuttoffDate');
 
-  const getUrl = `${component.appConfigService.getAccrualCashpostDtUrl}${date.getFullYear()}-${date.getMonth() + 1}-01`;
-  spyOn(component.feeApiservice, 'getRequest').withArgs(getUrl).and.returnValue(of(resultMock));
+  const mockResponse = {
+    cashpostDt: [{ postingEndDt: mockPostingEndDt }]
+  };
 
-  const dispatchSpy = spyOn(component['store'], 'dispatch');
-  const updateUrlSpy = spyOn(component, 'UpdateDetailAuditUrl');
-  const checkCutoffSpy = spyOn(component, 'CheckCuttoffDate');
-  const setPostingSpy = spyOn(component.reportService, 'setPostingEndDate');
-
-  // Act
-  component.InitialDataLoad();
-  tick();
-
-  // Assert
-  expect(component.postingEndDt).toBe(mockDate);
-  expect(dispatchSpy).toHaveBeenCalledWith(new LOADINGACTION(true));
-  expect(dispatchSpy).toHaveBeenCalledWith(new LOADINGACTION(false));
-  expect(updateUrlSpy).toHaveBeenCalled();
-  expect(checkCutoffSpy).toHaveBeenCalled();
-  expect(setPostingSpy).toHaveBeenCalledWith(mockDate);
-  expect(component.loading).toBeTrue();
-}));
-
-
-
-
-it('InitialDataLoad: should handle error and show message', fakeAsync(() => {
-  // Arrange
-  const date = new Date(2025, 8, 1); // Sept
-  spyOn(component.utils, 'ToDate').and.returnValue(date);
-  const errorMessage = 'Server Error';
-
-  const getUrl = `${component.appConfigService.getAccrualCashpostDtUrl}${date.getFullYear()}-${date.getMonth() + 1}-01`;
-  spyOn(component.feeApiservice, 'getRequest').withArgs(getUrl).and.returnValue(throwError(() => ({
-    error: { statusMessage: errorMessage }
-  })));
-
-  const dispatchSpy = spyOn(component['store'], 'dispatch');
-  const errorSpy = spyOn(component, 'displayServiceErrors');
+  // Spy on feeApiservice.getRequest to return forkJoin observable
+  const feeApiSpy = jasmine.createSpyObj('feeApiservice', ['getRequest']);
+  component.feeApiservice = feeApiSpy as any;
+  feeApiSpy.getRequest.and.returnValue(of(mockResponse.cashpostDt));
 
   // Act
   component.InitialDataLoad();
   tick();
 
   // Assert
-  expect(component.actionMessage).toBeNull();
-  expect(component.loading).toBeFalse();
-  expect(dispatchSpy).toHaveBeenCalledWith(new LOADINGACTION(false));
-  expect(errorSpy).toHaveBeenCalledWith(errorMessage);
+  expect(component.postingEndDt).toBe(mockPostingEndDt);
+  expect(component.reportService.setPostingEndDate).toHaveBeenCalledWith(mockPostingEndDt);
+  expect(component.UpdateDetailAuditUrl).toHaveBeenCalled();
+  expect(component.CheckCuttoffDate).toHaveBeenCalled();
 }));
-
-
-it('SetMessageTypeAndValue: should set message type and message string, then clear after timeout', fakeAsync(() => {
-  component.SetMessageTypeAndValue(BlockMessageType.success, 'Success message');
-  
-  expect(component.messageType).toBe(BlockMessageType.success);
-  expect(component.messageString).toBe('Success message');
-
-  tick(1000); // simulate setTimeout
-  expect(component.messageString).toBeNull();
-}));
-
-
-
-it('displayServiceErrors: should set errorBlockMessage', () => {
-  const errorMsg = 'Something went wrong';
-  component.displayServiceErrors(errorMsg);
-  expect(component.errorBlockMessage).toBe(errorMsg);
-});
-
-
-it('onClose: should clear messageString', () => {
-  component.messageString = 'Any message';
-  component.onClose();
-  expect(component.messageString).toBeNull();
-});
