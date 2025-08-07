@@ -1,0 +1,74 @@
+it('ShowReport: should fetch and set all report data, then show report screen', fakeAsync(() => {
+  // Arrange
+  const mockData = {
+    detailaudittable: [{ id: 1 }],
+    detailauditbyactpp: [{ id: 2 }],
+    detailauditbydivision: [{ id: 3 }],
+    detailauditbycashmiscff: [{ id: 4 }],
+    detailauditbycategory: [{ id: 5 }],
+  };
+
+  spyOn(component.feeApiservice, 'getRequest').and.callFake((url: string) => {
+    switch (url) {
+      case component.detailaudittableUrl: return of(mockData.detailaudittable);
+      case component.detailauditbyactppUrl: return of(mockData.detailauditbyactpp);
+      case component.detailauditbydivisionUrl: return of(mockData.detailauditbydivision);
+      case component.detailauditbycashmiscffurl: return of(mockData.detailauditbycashmiscff);
+      case component.detailauditbycategoryUrl: return of(mockData.detailauditbycategory);
+      default: return of([]);
+    }
+  });
+
+  const setDetailTableSpy = spyOn(component.reportService, 'setDetailaudittable');
+  const setActppSpy = spyOn(component.reportService, 'setDetailauditbyactpp');
+  const setDivSpy = spyOn(component.reportService, 'setDetailauditbydivision');
+  const setCashSpy = spyOn(component.reportService, 'setDetailauditbycashmiscff');
+  const setCatSpy = spyOn(component.reportService, 'setDetailauditbycategory');
+
+  const dispatchSpy = spyOn(component['store'], 'dispatch');
+
+  // Act
+  component.ShowReport();
+  tick();
+
+  // Assert
+  expect(component.detailaudittable).toEqual(mockData.detailaudittable);
+  expect(component.detailauditbyactpp).toEqual(mockData.detailauditbyactpp);
+  expect(component.detailauditbydivision).toEqual(mockData.detailauditbydivision);
+  expect(component.detailauditbycashmiscff).toEqual(mockData.detailauditbycashmiscff);
+  expect(component.detailauditbycategory).toEqual(mockData.detailauditbycategory);
+
+  expect(setDetailTableSpy).toHaveBeenCalledWith(mockData.detailaudittable);
+  expect(setActppSpy).toHaveBeenCalledWith(mockData.detailauditbyactpp);
+  expect(setDivSpy).toHaveBeenCalledWith(mockData.detailauditbydivision);
+  expect(setCashSpy).toHaveBeenCalledWith(mockData.detailauditbycashmiscff);
+  expect(setCatSpy).toHaveBeenCalledWith(mockData.detailauditbycategory);
+
+  expect(component.showReportScreens).toBeTrue();
+  expect(component.actionMessage).toBeNull();
+  expect(component.loading).toBeFalse();
+  expect(dispatchSpy).toHaveBeenCalledWith(new LOADINGACTION(false));
+}));
+
+
+
+it('ShowReport: should handle error when any API call fails', fakeAsync(() => {
+  const errorMessage = 'Server error';
+
+  spyOn(component.feeApiservice, 'getRequest').and.returnValue(throwError(() => ({
+    error: { statusMessage: errorMessage }
+  })));
+
+  const dispatchSpy = spyOn(component['store'], 'dispatch');
+  const errorSpy = spyOn(component, 'displayServiceErrors');
+
+  // Act
+  component.ShowReport();
+  tick();
+
+  // Assert
+  expect(component.actionMessage).toBeNull();
+  expect(component.loading).toBeFalse();
+  expect(errorSpy).toHaveBeenCalledWith(errorMessage);
+  expect(dispatchSpy).toHaveBeenCalledWith(new LOADINGACTION(false));
+}));
