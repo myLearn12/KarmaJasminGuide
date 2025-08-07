@@ -1,61 +1,45 @@
-it('ShowReport: should fetch and set all report data, then show report screen', fakeAsync(() => {
+it('InitialDataLoad: should fetch posting end date and call update and check methods on success', fakeAsync(() => {
   // Arrange
-  const mockData = {
-    detailaudittable: [{ id: 1 }],
-    detailauditbyactpp: [{ id: 2 }],
-    detailauditbydivision: [{ id: 3 }],
-    detailauditbycashmiscff: [{ id: 4 }],
-    detailauditbycategory: [{ id: 5 }],
-  };
+  const mockDate = '2025-09-01';
+  const resultMock = { cashpostDt: [{ postingEndDt: mockDate }] };
 
-  spyOn(component.feeApiservice, 'getRequest').and.callFake((url: string) => {
-    switch (url) {
-      case component.detailaudittableUrl: return of(mockData.detailaudittable);
-      case component.detailauditbyactppUrl: return of(mockData.detailauditbyactpp);
-      case component.detailauditbydivisionUrl: return of(mockData.detailauditbydivision);
-      case component.detailauditbycashmiscffurl: return of(mockData.detailauditbycashmiscff);
-      case component.detailauditbycategoryUrl: return of(mockData.detailauditbycategory);
-      default: return of([]);
-    }
-  });
+  // Mocks
+  const date = new Date(2025, 8, 1); // September 1, 2025
+  spyOn(component.utils, 'ToDate').and.returnValue(date);
 
-  const setDetailTableSpy = spyOn(component.reportService, 'setDetailaudittable');
-  const setActppSpy = spyOn(component.reportService, 'setDetailauditbyactpp');
-  const setDivSpy = spyOn(component.reportService, 'setDetailauditbydivision');
-  const setCashSpy = spyOn(component.reportService, 'setDetailauditbycashmiscff');
-  const setCatSpy = spyOn(component.reportService, 'setDetailauditbycategory');
+  const getUrl = `${component.appConfigService.getAccrualCashpostDtUrl}${date.getFullYear()}-${date.getMonth() + 1}-01`;
+  spyOn(component.feeApiservice, 'getRequest').withArgs(getUrl).and.returnValue(of(resultMock));
 
   const dispatchSpy = spyOn(component['store'], 'dispatch');
+  const updateUrlSpy = spyOn(component, 'UpdateDetailAuditUrl');
+  const checkCutoffSpy = spyOn(component, 'CheckCuttoffDate');
+  const setPostingSpy = spyOn(component.reportService, 'setPostingEndDate');
 
   // Act
-  component.ShowReport();
+  component.InitialDataLoad();
   tick();
 
   // Assert
-  expect(component.detailaudittable).toEqual(mockData.detailaudittable);
-  expect(component.detailauditbyactpp).toEqual(mockData.detailauditbyactpp);
-  expect(component.detailauditbydivision).toEqual(mockData.detailauditbydivision);
-  expect(component.detailauditbycashmiscff).toEqual(mockData.detailauditbycashmiscff);
-  expect(component.detailauditbycategory).toEqual(mockData.detailauditbycategory);
-
-  expect(setDetailTableSpy).toHaveBeenCalledWith(mockData.detailaudittable);
-  expect(setActppSpy).toHaveBeenCalledWith(mockData.detailauditbyactpp);
-  expect(setDivSpy).toHaveBeenCalledWith(mockData.detailauditbydivision);
-  expect(setCashSpy).toHaveBeenCalledWith(mockData.detailauditbycashmiscff);
-  expect(setCatSpy).toHaveBeenCalledWith(mockData.detailauditbycategory);
-
-  expect(component.showReportScreens).toBeTrue();
-  expect(component.actionMessage).toBeNull();
-  expect(component.loading).toBeFalse();
+  expect(component.postingEndDt).toBe(mockDate);
+  expect(dispatchSpy).toHaveBeenCalledWith(new LOADINGACTION(true));
   expect(dispatchSpy).toHaveBeenCalledWith(new LOADINGACTION(false));
+  expect(updateUrlSpy).toHaveBeenCalled();
+  expect(checkCutoffSpy).toHaveBeenCalled();
+  expect(setPostingSpy).toHaveBeenCalledWith(mockDate);
+  expect(component.loading).toBeTrue();
 }));
 
 
 
-it('ShowReport: should handle error when any API call fails', fakeAsync(() => {
-  const errorMessage = 'Server error';
 
-  spyOn(component.feeApiservice, 'getRequest').and.returnValue(throwError(() => ({
+it('InitialDataLoad: should handle error and show message', fakeAsync(() => {
+  // Arrange
+  const date = new Date(2025, 8, 1); // Sept
+  spyOn(component.utils, 'ToDate').and.returnValue(date);
+  const errorMessage = 'Server Error';
+
+  const getUrl = `${component.appConfigService.getAccrualCashpostDtUrl}${date.getFullYear()}-${date.getMonth() + 1}-01`;
+  spyOn(component.feeApiservice, 'getRequest').withArgs(getUrl).and.returnValue(throwError(() => ({
     error: { statusMessage: errorMessage }
   })));
 
@@ -63,12 +47,38 @@ it('ShowReport: should handle error when any API call fails', fakeAsync(() => {
   const errorSpy = spyOn(component, 'displayServiceErrors');
 
   // Act
-  component.ShowReport();
+  component.InitialDataLoad();
   tick();
 
   // Assert
   expect(component.actionMessage).toBeNull();
   expect(component.loading).toBeFalse();
-  expect(errorSpy).toHaveBeenCalledWith(errorMessage);
   expect(dispatchSpy).toHaveBeenCalledWith(new LOADINGACTION(false));
+  expect(errorSpy).toHaveBeenCalledWith(errorMessage);
 }));
+
+
+it('SetMessageTypeAndValue: should set message type and message string, then clear after timeout', fakeAsync(() => {
+  component.SetMessageTypeAndValue(BlockMessageType.success, 'Success message');
+  
+  expect(component.messageType).toBe(BlockMessageType.success);
+  expect(component.messageString).toBe('Success message');
+
+  tick(1000); // simulate setTimeout
+  expect(component.messageString).toBeNull();
+}));
+
+
+
+it('displayServiceErrors: should set errorBlockMessage', () => {
+  const errorMsg = 'Something went wrong';
+  component.displayServiceErrors(errorMsg);
+  expect(component.errorBlockMessage).toBe(errorMsg);
+});
+
+
+it('onClose: should clear messageString', () => {
+  component.messageString = 'Any message';
+  component.onClose();
+  expect(component.messageString).toBeNull();
+});
