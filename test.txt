@@ -1,1 +1,311 @@
+changeReport
 
+it('should fetch postingEndDt and load changeReportTabData when showReportScreen is true', fakeAsync(() => {
+  // Arrange
+  const postingEndDt = '2025-08-14';
+  feeApiservice.getRequest.and.returnValues(
+    of({ cashpostDt: [{ postingEndDt }] }), // first API
+    of({ changeReportTabData: { someKey: 'value' } }) // second API
+  );
+  spyOn(reportService, 'showReportScreen').and.returnValue(true);
+
+  // Act
+  component.InitialDataLoad();
+  tick(); // simulate async
+
+  // Assert
+  expect(reportService.setPostingEndDate).toHaveBeenCalledWith(postingEndDt);
+  expect(reportService.setDetailAuditReportTab)
+    .toHaveBeenCalledWith({ someKey: 'value' });
+  expect(component.showReportScreens).toBeTrue();
+  expect(component.loading).toBeFalse();
+}));
+
+it('should set actionMessage when showReportScreen is false', fakeAsync(() => {
+  const postingEndDt = '2025-08-14';
+  feeApiservice.getRequest.and.returnValue(of({ cashpostDt: [{ postingEndDt }] }));
+  spyOn(reportService, 'showReportScreen').and.returnValue(false);
+
+  component.InitialDataLoad();
+  tick();
+
+  expect(component.actionMessage).toContain('Change Report');
+  expect(component.showReportScreens).toBeFalse();
+  expect(component.loading).toBeFalse();
+}));
+
+// Add tests for error flows similarly...
+
+
+
+---------------------------
+
+it('should set message type and value, then clear messageString after 1 second', fakeAsync(() => {
+  const testType = BlockMessageType.Error; // replace with actual enum type
+  const testMessage = 'Test error message';
+
+  component.SetMessageTypeAndValue(testType, testMessage);
+
+  expect(component.messageType).toBe(testType);
+  expect(component.messageString).toBe(testMessage);
+
+  tick(1000); // fast-forward the setTimeout
+  expect(component.messageString).toBeNull();
+}));
+--------
+
+it('should set errorBlockMessage when displayServiceErrors is called', () => {
+  const errorMessage = 'Service failed!';
+  
+  component.displayServiceErrors(errorMessage);
+
+  expect(component.errorBlockMessage).toBe(errorMessage);
+});
+
+
+----
+
+it('should clear messageString when onClose is called', () => {
+  component.messageString = 'Some message';
+
+  component.onClose();
+
+  expect(component.messageString).toBeNull();
+});
+
+---------
+
+it('should overwrite message and clear it again after timeout', fakeAsync(() => {
+  component.SetMessageTypeAndValue(BlockMessageType.Warning, 'First message');
+  tick(500); // half timeout
+  component.SetMessageTypeAndValue(BlockMessageType.Info, 'Second message');
+  
+  expect(component.messageString).toBe('Second message');
+  
+  tick(1000); // after second timeout
+  expect(component.messageString).toBeNull();
+}));
+
+-----
+
+beforeEach(() => {
+  feeApiservice = jasmine.createSpyObj('FeeApiService', ['getRequest']);
+  reportService = jasmine.createSpyObj('ReportService', ['setDetailAuditReportTab', 'exportChangeReportToExcel']);
+  store = jasmine.createSpyObj('Store', ['dispatch']);
+  
+  component = new DetailauditreportComponent(feeApiservice, reportService, store);
+
+  spyOn(component, 'displayServiceErrors'); // to verify error handling
+});
+
+it('should set changeReportTabData and call reportService methods on success', fakeAsync(() => {
+  const mockResponse = { changeReportTabData: { data: 'test data' } };
+  feeApiservice.getRequest.and.returnValue(of(mockResponse.changeReportTabData));
+
+  component.getExcelExportData();
+  tick(); // resolve forkJoin
+
+  expect(component.changeReportTabData).toEqual(mockResponse.changeReportTabData);
+  expect(reportService.setDetailAuditReportTab).toHaveBeenCalledWith(mockResponse.changeReportTabData);
+  expect(reportService.exportChangeReportToExcel).toHaveBeenCalled();
+  expect(store.dispatch).toHaveBeenCalledWith(new LOADINGACTION(false));
+  expect(component.loading).toBeFalse();
+}));
+
+
+
+it('should handle error and call displayServiceErrors', fakeAsync(() => {
+  const mockError = { error: { statusMessage: 'Something went wrong' } };
+  feeApiservice.getRequest.and.returnValue(throwError(() => mockError));
+
+  component.getExcelExportData();
+  tick(); // resolve forkJoin
+
+  expect(component.displayServiceErrors).toHaveBeenCalledWith('Something went wrong');
+  expect(store.dispatch).toHaveBeenCalledWith(new LOADINGACTION(false));
+  expect(component.loading).toBeFalse();
+}));
+
+
+
+it('should reset changeReportTabData before setting new data', fakeAsync(() => {
+  const mockResponse = { changeReportTabData: { data: 'new data' } };
+  component.changeReportTabData = { data: 'old data' };
+  feeApiservice.getRequest.and.returnValue(of(mockResponse.changeReportTabData));
+
+  component.getExcelExportData();
+  tick();
+
+  expect(component.changeReportTabData).toEqual(mockResponse.changeReportTabData);
+}));
+
+
+
+-----------------------------------------------------------
+
+Exception formula
+--------
+
+
+
+import { YourComponentOrService } from './your-component-or-service-file';
+import { ExceptionFormula } from './exception-formula.model';
+
+describe('YourComponentOrService', () => {
+  let component: YourComponentOrService;
+
+  beforeEach(() => {
+    component = new YourComponentOrService();
+
+    // Mock the account object
+    component.account = {
+      endIncomeErndNotColAmt: 100,
+      cashFeeAmt: 200,
+      miscFeeAmt: 300,
+      ytdCashAmt: 400,
+      stiCurrentAmt: 500,
+      stiHoldAmt: 600,
+      prevStiHoldYtdAmt: 700,
+      stiCurLastAmt: 800,
+      updatedBy: 'TestUser',
+      updatedDt: new Date('2025-08-14')
+    };
+  });
+
+  it('should create an updated ExceptionFormula model with correct values', () => {
+    const result = component['getUpdatedModel']();
+
+    expect(result instanceof ExceptionFormula).toBeTrue();
+
+    expect(result.endIncomeErndNotColAmt).toBe(100);
+    expect(result.cashFeeAmt).toBe(200);
+    expect(result.miscFeeAmt).toBe(300);
+    expect(result.ytdCashAmt).toBe(400);
+    expect(result.stiCurrentAmt).toBe(500);
+    expect(result.stiHoldAmt).toBe(600);
+    expect(result.prevStiHoldYtdAmt).toBe(700);
+    expect(result.stiCurLastAmt).toBe(800);
+    expect(result.updatedBy).toBe('TestUser');
+    expect(result.updatedDt).toEqual(new Date('2025-08-14'));
+  });
+
+  it('should not mutate the original account object', () => {
+    const originalAccount = { ...component.account }; // shallow copy for comparison
+    component['getUpdatedModel']();
+    expect(component.account).toEqual(originalAccount);
+  });
+});
+
+
+
+-----------------
+
+describe('calculateValue', () => {
+  let component: YourComponent;
+
+  beforeEach(() => {
+    component = new YourComponent();
+    component.utils = {
+      numberUnformatter: (val: any) => val // mock to just return input
+    };
+    component.account = {
+      cashFeeAmt: 0,
+      stiCurrentAmt: 0,
+      formulaCd: 0,
+      statusIndic: 0,
+      prevStiHoldYtdAmt: 100,
+      stiHoldYtdAmt: 200,
+      priorff: null,
+      postFf: null
+    };
+  });
+
+  it('should set priorff from prevStiHoldYtdAmt when formulaCd is 4 and statusIndic is 2', () => {
+    component.account.formulaCd = 4;
+    component.account.statusIndic = 2;
+    component.account.cashFeeAmt = 10;
+
+    component.calculateValue();
+    expect(component.account.priorff).toBe(100);
+  });
+
+  it('should set priorff from stiHoldYtdAmt when cashFeeAmt>0 and statusIndic=1', () => {
+    component.account.formulaCd = 2;
+    component.account.statusIndic = 1;
+    component.account.cashFeeAmt = 50;
+    component.account.stiHoldYtdAmt = 200;
+
+    component.calculateValue();
+    expect(component.account.priorff).toBe(200);
+  });
+
+  it('should set priorff to 0 when no condition matches', () => {
+    component.account.formulaCd = 3;
+    component.account.statusIndic = 0;
+    component.account.cashFeeAmt = 0;
+
+    component.calculateValue();
+    expect(component.account.priorff).toBe(0);
+  });
+
+  it('should set postFf when formulaCd is 8, statusIndic=2, cashFeeAmt>0, stiCurrentAmt<0', () => {
+    component.account.formulaCd = 8;
+    component.account.statusIndic = 2;
+    component.account.cashFeeAmt = 100;
+    component.account.stiCurrentAmt = -50;
+
+    component.calculateValue();
+    expect(component.account.postFf).toBe(-50);
+  });
+
+  it('should set postFf when formulaCd is 7, statusIndic=2, stiCurrentAmt<0', () => {
+    component.account.formulaCd = 7;
+    component.account.statusIndic = 2;
+    component.account.cashFeeAmt = 0;
+    component.account.stiCurrentAmt = -30;
+
+    component.calculateValue();
+    expect(component.account.postFf).toBe(-30);
+  });
+
+  it('should set postFf when statusIndic=1 and stiCurrentAmt<0', () => {
+    component.account.formulaCd = 2;
+    component.account.statusIndic = 1;
+    component.account.cashFeeAmt = 0;
+    component.account.stiCurrentAmt = -40;
+
+    component.calculateValue();
+    expect(component.account.postFf).toBe(-40);
+  });
+
+  it('should set postFf to 0 when formulaCd=4 and statusIndic=2 but stiCurrentAmt not negative', () => {
+    component.account.formulaCd = 4;
+    component.account.statusIndic = 2;
+    component.account.cashFeeAmt = 100;
+    component.account.stiCurrentAmt = 20;
+
+    component.calculateValue();
+    expect(component.account.postFf).toBe(0);
+  });
+
+  it('should set postFf when stiCurrentAmt>0 and cashFeeAmt>0', () => {
+    component.account.formulaCd = 3;
+    component.account.statusIndic = 1;
+    component.account.cashFeeAmt = 100;
+    component.account.stiCurrentAmt = 60;
+
+    component.calculateValue();
+    expect(component.account.postFf).toBe(60);
+  });
+
+  it('should set postFf to 0 when no condition matches', () => {
+    component.account.formulaCd = 9;
+    component.account.statusIndic = 0;
+    component.account.cashFeeAmt = 0;
+    component.account.stiCurrentAmt = 0;
+
+    component.calculateValue();
+    expect(component.account.postFf).toBe(0);
+  });
+});
+-------------------------
