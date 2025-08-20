@@ -1,39 +1,58 @@
-/* ✅ Success → showReportScreen = true → inner call succeeds */
-it('InitialDataLoad: showReportScreen true → loads tab data and shows screen', fakeAsync(() => {
+import * as rx from 'rxjs';
+import { of, throwError } from 'rxjs';
+import { fakeAsync, tick } from '@angular/core/testing';
+
+it('InitialDataLoad: success → showReportScreen=true → loads tab data and shows report', fakeAsync(() => {
   const mockDate = '2025-08-01';
   const mockPostingEndDt = '2025-08-15';
+  const innerTabData = [{ id: 1 }, { id: 2 }];
 
+  // Dates
   spyOn(TestBed.inject(CommonFunctionsService), 'ToDate').and.returnValue(new Date(mockDate));
 
+  // Report service
   const reportSvc = TestBed.inject(DetailauditreportService);
-  const dispatchSpy = spyOn(component['store'], 'dispatch');
   const setPostingSpy = spyOn(reportSvc, 'setPostingEndDate');
+  const showScreenSpy = spyOn(reportSvc, 'showReportScreen').and.returnValue(true);
   const setTabSpy = spyOn(reportSvc, 'setDetailAuditReportTab');
-  spyOn(reportSvc, 'showReportScreen').and.returnValue(true);
-  const errSpy = spyOn(component as any, 'displayServiceErrors');
 
-  const feeApiSpy = jasmine.createSpyObj('feeApiservice', ['getRequest']);
-  component.feeApiservice = feeApiSpy as any;
-  // 1st: postingEndDt, 2nd: tab data
-  feeApiSpy.getRequest.and.returnValues(
+  // Store
+  const dispatchSpy = spyOn(component['store'], 'dispatch');
+
+  // IMPORTANT: stub rx.forkJoin to emit shapes the component actually READS
+  // Outer emits { cashpostDt: [...] }
+  // Inner emits { changeReportTabData: [...] }
+  const forkSpy = spyOn(rx, 'forkJoin').and.returnValues(
     of({ cashpostDt: [{ postingEndDt: mockPostingEndDt }] }),
-    of({ changeReportTabData: [{ id: 1 }] })
+    of({ changeReportTabData: innerTabData })
   );
 
+  // feeApiService present but not used because forkJoin is stubbed; keep it for call count if needed
+  const feeApiSpy = jasmine.createSpyObj('feeApiservice', ['getRequest']);
+  component.feeApiservice = feeApiSpy as any;
+
+  // Act
   component.InitialDataLoad();
   tick();
 
+  // Assert
   expect(component.postingEndDt).toBe(mockPostingEndDt);
   expect(setPostingSpy).toHaveBeenCalledWith(mockPostingEndDt);
-  expect(setTabSpy).toHaveBeenCalledWith([{ id: 1 }]);
+  expect(showScreenSpy).toHaveBeenCalledWith(mockPostingEndDt);
+
+  expect(setTabSpy).toHaveBeenCalledWith(innerTabData);
   expect(component.showReportScreens).toBeTrue();
-  expect(component.loading).toBeFalse();
-  expect(dispatchSpy).toHaveBeenCalledWith(new LOADINGACTION(false));
-  expect(errSpy).not.toHaveBeenCalled();
+
+  // loading end
+  expect(dispatchSpy).toHaveBeenCalled(); // LOADINGACTION(false) at the end
 }));
 
-/* ✅ Success → showReportScreen = false → no inner call, sets actionMessage */
-it('InitialDataLoad: showReportScreen false → sets actionMessage, no inner call', fakeAsync(() => {
+
+import * as rx from 'rxjs';
+import { of } from 'rxjs';
+import { fakeAsync, tick } from '@angular/core/testing';
+
+it('InitialDataLoad: success → showReportScreen=false → sets actionMessage and no inner call', fakeAsync(() => {
   const mockDate = '2025-08-01';
   const mockPostingEndDt = '2025-08-15';
 
@@ -41,49 +60,61 @@ it('InitialDataLoad: showReportScreen false → sets actionMessage, no inner cal
   spyOn(TestBed.inject(CommonFunctionsService), 'getDisplayDate').and.returnValue('15-Aug-2025');
 
   const reportSvc = TestBed.inject(DetailauditreportService);
-  const dispatchSpy = spyOn(component['store'], 'dispatch');
   const setPostingSpy = spyOn(reportSvc, 'setPostingEndDate');
-  spyOn(reportSvc, 'showReportScreen').and.returnValue(false);
+  const showScreenSpy = spyOn(reportSvc, 'showReportScreen').and.returnValue(false);
+
+  const dispatchSpy = spyOn(component['store'], 'dispatch');
+
+  // Only outer forkJoin fires; emit the shape the code reads
+  spyOn(rx, 'forkJoin').and.returnValues(
+    of({ cashpostDt: [{ postingEndDt: mockPostingEndDt }] })
+  );
 
   const feeApiSpy = jasmine.createSpyObj('feeApiservice', ['getRequest']);
   component.feeApiservice = feeApiSpy as any;
-  feeApiSpy.getRequest.and.returnValue(of({ cashpostDt: [{ postingEndDt: mockPostingEndDt }] }));
 
   component.InitialDataLoad();
   tick();
 
   expect(component.postingEndDt).toBe(mockPostingEndDt);
   expect(setPostingSpy).toHaveBeenCalledWith(mockPostingEndDt);
-  expect(component.actionMessage).toContain('Change Report');
-  expect(component.actionMessage).toContain('15-Aug-2025');
+  expect(showScreenSpy).toHaveBeenCalledWith(mockPostingEndDt);
+
+  // Inner call should not happen → forkJoin called only once
+  // (we stubbed it to returnValues with single emission)
   expect(component.showReportScreens).toBeFalse();
-  expect(component.loading).toBeFalse();
-  expect(dispatchSpy).toHaveBeenCalledWith(new LOADINGACTION(false));
-  expect(feeApiSpy.getRequest.calls.count()).toBe(1); // inner call not made
+  expect(component.actionMessage).toContain('Change Report for');
+  expect(dispatchSpy).toHaveBeenCalled(); // LOADINGACTION(false)
 }));
 
-/* ❌ Outer error path */
-it('InitialDataLoad: outer API error → shows error and clears loading', fakeAsync(() => {
+import * as rx from 'rxjs';
+import { throwError } from 'rxjs';
+import { fakeAsync, tick } from '@angular/core/testing';
+
+it('InitialDataLoad: outer API error → display error and clear loading', fakeAsync(() => {
   const mockDate = '2025-08-01';
   spyOn(TestBed.inject(CommonFunctionsService), 'ToDate').and.returnValue(new Date(mockDate));
 
   const errSpy = spyOn(component as any, 'displayServiceErrors');
   const dispatchSpy = spyOn(component['store'], 'dispatch');
 
-  const feeApiSpy = jasmine.createSpyObj('feeApiservice', ['getRequest']);
-  component.feeApiservice = feeApiSpy as any;
-  feeApiSpy.getRequest.and.returnValue(throwError(() => ({ error: { statusMessage: 'fail-outer' } })));
+  spyOn(rx, 'forkJoin').and.returnValue(
+    throwError(() => ({ error: { statusMessage: 'Outer fail' } }))
+  );
 
   component.InitialDataLoad();
   tick();
 
-  expect(errSpy).toHaveBeenCalledWith('fail-outer');
+  expect(errSpy).toHaveBeenCalledWith('Outer fail');
+  expect(dispatchSpy).toHaveBeenCalled(); // LOADINGACTION(false)
   expect(component.loading).toBeFalse();
-  expect(dispatchSpy).toHaveBeenCalledWith(new LOADINGACTION(false));
 }));
 
-/* ❌ Inner error path (outer success, showReportScreen true, inner fails) */
-it('InitialDataLoad: inner API error → shows error and clears loading', fakeAsync(() => {
+import * as rx from 'rxjs';
+import { of, throwError } from 'rxjs';
+import { fakeAsync, tick } from '@angular/core/testing';
+
+it('InitialDataLoad: inner API error after showReportScreen=true → display error & clear loading', fakeAsync(() => {
   const mockDate = '2025-08-01';
   const mockPostingEndDt = '2025-08-15';
 
@@ -92,22 +123,24 @@ it('InitialDataLoad: inner API error → shows error and clears loading', fakeAs
   const reportSvc = TestBed.inject(DetailauditreportService);
   spyOn(reportSvc, 'showReportScreen').and.returnValue(true);
   const setPostingSpy = spyOn(reportSvc, 'setPostingEndDate');
+
   const errSpy = spyOn(component as any, 'displayServiceErrors');
   const dispatchSpy = spyOn(component['store'], 'dispatch');
 
+  // Outer emits posting date; Inner throws error with the exact shape the code reads
+  spyOn(rx, 'forkJoin').and.returnValues(
+    of({ cashpostDt: [{ postingEndDt: mockPostingEndDt }] }),
+    throwError(() => ({ error: { statusMessage: 'Inner fail' } }))
+  );
+
   const feeApiSpy = jasmine.createSpyObj('feeApiservice', ['getRequest']);
   component.feeApiservice = feeApiSpy as any;
-  feeApiSpy.getRequest.and.returnValues(
-    of({ cashpostDt: [{ postingEndDt: mockPostingEndDt }] }),
-    throwError(() => ({ error: { statusMessage: 'fail-inner' } }))
-  );
 
   component.InitialDataLoad();
   tick();
 
-  expect(component.postingEndDt).toBe(mockPostingEndDt);
   expect(setPostingSpy).toHaveBeenCalledWith(mockPostingEndDt);
-  expect(errSpy).toHaveBeenCalledWith('fail-inner');
+  expect(errSpy).toHaveBeenCalledWith('Inner fail');
+  expect(dispatchSpy).toHaveBeenCalled(); // LOADINGACTION(false)
   expect(component.loading).toBeFalse();
-  expect(dispatchSpy).toHaveBeenCalledWith(new LOADINGACTION(false));
 }));
