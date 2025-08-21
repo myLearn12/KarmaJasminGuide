@@ -1,5 +1,5 @@
-it('LoadComboBoxSelectedValue() sets options/values without throwing', () => {
-  // minimal ctor deps so component instantiates
+it('LoadComboBoxSelectedValue() does not throw and sets options/values', () => {
+  // ctor deps
   const utilsStub = {
     CreateRequiredFormControl: () => ({}),
     CreateDateFormControl: () => ({}),
@@ -11,39 +11,31 @@ it('LoadComboBoxSelectedValue() sets options/values without throwing', () => {
 
   const c = new EditaccountComponent({} as any, {} as any, storeMock as any, utilsStub as any, acctServiceStub as any);
 
-  // 🔧 STUB *ALL* ViewChild targets used in the method (note the exact names/casing)
+  // 🔧 STUB *ALL* possible field names your method might use
   const mk = () => ({ options: [] as any[], value: null as any });
-  (c as any).cbstatus = mk();            // line: this.cbstatus.options = ...
-  (c as any).cbStatus = (c as any).cbstatus; // later you read cbStatus.value
-  c.cbDivision = mk() as any;
-  c.cbAltDivision = mk() as any;
-  (c as any).cbcycle = mk();
-  c.cbCycle = (c as any).cbcycle as any;
-  c.cbFormula = mk() as any;
-  (c as any).cbcategory = mk();
-  c.cbCategory = (c as any).cbcategory as any;
-  (c as any).cbofficer = mk();
+  const names = [
+    'cbstatus','cbStatus','cbDivision','cbAltDivision','cbcycle','cbCycle','cbFormula','cbcategory','cbCategory','cbofficer'
+  ];
+  for (const n of names) (c as any)[n] = mk();
 
-  // 🔧 Provide the "*Data" sources that get deep-copied into options
+  // 🔧 provide the "*Data" sources used for deep-copy
   (c as any).cbstatusData = [{ label: 'Active', value: 'A' }];
-  c.cbDivisionData   = [{ id: '10', code: 'DA', text: 'Div A' }] as any;
-  c.cbAltDivisionData= [{ id: '11', code: 'DB', text: 'Div B' }] as any;
-  c.cbCycleData      = [{ id: '5',  code: '5',  text: 'Monthly' }] as any;
-  c.cbFormulaData    = [{ id: '2',  code: 'F-01', text: 'F1' }] as any;
-  c.cbCategoryData   = [{ id: '7',  code: 'C1', text: 'Cat' }] as any;
-  c.cbofficerData    = [{ code: '100', text: 'A-Name' }] as any;
+  c.cbDivisionData    = [{ id: '10', code: 'DA', text: 'Div A' }] as any;
+  c.cbAltDivisionData = [{ id: '11', code: 'DB', text: 'Div B' }] as any;
+  c.cbCycleData       = [{ id: '5',  code: '5',  text: 'Monthly' }] as any;
+  c.cbFormulaData     = [{ id: '2',  code: 'F-01', text: 'F1' }] as any;
+  c.cbCategoryData    = [{ id: '7',  code: 'C1', text: 'Cat' }] as any;
+  c.cbofficerData     = [{ code: '100', text: 'A-Name' }] as any;
 
-  // 🔧 Domain lists used for value mapping
-  c.regions   = [{ regionId: 1, regionDescription: 'East' }];
-  c.regionid  = '1';
-  c.divisions = [{ divisionId: 10 }, { divisionId: 11 }] as any;
-  c.cycles    = [{ cycleId: 5 }] as any;
-  c.formulas  = [{ formulaId: 2, formulald: 2 }] as any;
-  c.categories= [{ categoryId: 7 }] as any;
-  c.officers  = { '100': { officer: '100', officersort: 'A-Name' } } as any;
-
-  // 🔧 Current + old values objects used inside method
-  c.account = {
+  // 🔧 domain lists + account for value mapping
+  c.regions    = [{ regionId: 1, regionDescription: 'East' }];
+  c.regionid   = '1';
+  c.divisions  = [{ divisionId: 10 }, { divisionId: 11 }] as any;
+  c.cycles     = [{ cycleId: 5 }] as any;
+  c.formulas   = [{ formulaId: 2, formulald: 2 }] as any;
+  c.categories = [{ categoryId: 7 }] as any;
+  c.officers   = { '100': { officer: '100', officersort: 'A-Name' } } as any;
+  c.account    = {
     regionDescription: '',
     status: 'Active',
     divisionId: 10,
@@ -54,27 +46,26 @@ it('LoadComboBoxSelectedValue() sets options/values without throwing', () => {
     officer: '100',
   } as any;
   c.oldAccountValues = { regionDescription: '' } as any;
-
   c.isCloneAccount = false;
 
-  // 🧪 act
-  (c as any).LoadComboBoxSelectedValue();
+  // 🧪 act + assert no-throw
+  expect(() => (c as any).LoadComboBoxSelectedValue()).not.toThrow();
 
-  // ✅ key sanity checks (proves nothing was undefined and mapping happened)
+  // sanity checks—prove properties were set
   expect((c as any).cbstatus.options.length).toBe(1);
-  expect(c.cbDivision.options.length).toBe(1);
-  expect(c.cbAltDivision.options.length).toBe(1);
+  expect((c as any).cbDivision.options.length).toBe(1);
+  expect((c as any).cbAltDivision.options.length).toBe(1);
   expect((c as any).cbcycle.options.length).toBe(1);
-  expect(c.cbFormula.options.length).toBe(1);
+  expect((c as any).cbFormula.options.length).toBe(1);
   expect((c as any).cbcategory.options.length).toBe(1);
   expect((c as any).cbofficer.options.length).toBe(1);
 
   expect(c.account.regionDescription).toBe('East');
   expect(((c as any).cbStatus.value ?? (c as any).cbstatus.value)).toEqual(['A']);
-  expect(c.cbDivision.value).toEqual(['10']);
-  expect(c.cbAltDivision.value).toEqual(['11']);
+  expect((c as any).cbDivision.value).toEqual(['10']);
+  expect((c as any).cbAltDivision.value).toEqual(['11']);
   expect(((c as any).cbCycle.value ?? (c as any).cbcycle.value)).toEqual(['5']);
-  expect(c.cbFormula.value).toEqual(['2']);
-  expect(c.cbCategory.value).toEqual(['7']);
+  expect((c as any).cbFormula.value).toEqual(['2']);
+  expect((c as any).cbCategory.value).toEqual(['7']);
   expect((c as any).cbofficer.value).toEqual(['100']);
 });
