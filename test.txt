@@ -1,4 +1,5 @@
-it('LoadComboBoxSelectedValue() sets combo options and values', () => {
+it('LoadComboBoxSelectedValue() sets options/values without throwing', () => {
+  // minimal ctor deps so component instantiates
   const utilsStub = {
     CreateRequiredFormControl: () => ({}),
     CreateDateFormControl: () => ({}),
@@ -6,56 +7,60 @@ it('LoadComboBoxSelectedValue() sets combo options and values', () => {
   const acctServiceStub = {
     loadStatusData: () => [{ label: 'Active', value: 'A' }],
   };
-  const storeMock = { pipe: jasmine.createSpy().and.returnValue(of(false)), dispatch: () => {} };
+  const storeMock = { pipe: jasmine.createSpy('pipe').and.returnValue(of(false)), dispatch: () => {} };
 
   const c = new EditaccountComponent({} as any, {} as any, storeMock as any, utilsStub as any, acctServiceStub as any);
 
-  // 👇 stub all the ViewChild combo fields
-  (c as any).cbstatus = { options: [], value: [] };
-  (c as any).cbStatus = (c as any).cbstatus;
-  c.cbDivision = { options: [], value: [] } as any;
-  c.cbAltDivision = { options: [], value: [] } as any;
-  (c as any).cbcycle = { options: [], value: [] };
+  // 🔧 STUB *ALL* ViewChild targets used in the method (note the exact names/casing)
+  const mk = () => ({ options: [] as any[], value: null as any });
+  (c as any).cbstatus = mk();            // line: this.cbstatus.options = ...
+  (c as any).cbStatus = (c as any).cbstatus; // later you read cbStatus.value
+  c.cbDivision = mk() as any;
+  c.cbAltDivision = mk() as any;
+  (c as any).cbcycle = mk();
   c.cbCycle = (c as any).cbcycle as any;
-  c.cbFormula = { options: [], value: [] } as any;
-  (c as any).cbcategory = { options: [], value: [] };
+  c.cbFormula = mk() as any;
+  (c as any).cbcategory = mk();
   c.cbCategory = (c as any).cbcategory as any;
-  (c as any).cbofficer = { options: [], value: [] };
+  (c as any).cbofficer = mk();
 
-  // 👇 supply "Data" arrays the method deep-copies
+  // 🔧 Provide the "*Data" sources that get deep-copied into options
   (c as any).cbstatusData = [{ label: 'Active', value: 'A' }];
-  c.cbDivisionData = [{ id: '10', code: 'DA', text: 'Div A' }] as any;
-  c.cbAltDivisionData = [{ id: '11', code: 'DB', text: 'Div B' }] as any;
-  c.cbCycleData = [{ id: '5', code: '5', text: 'Monthly' }] as any;
-  c.cbFormulaData = [{ formulald: 2, formulaId: 2, formulaDesc: 'F1', formulaCd: 'F-01' }] as any;
-  c.cbCategoryData = [{ categoryId: 7, categoryCode: 'C1', categoryDescription: 'Cat' }] as any;
-  c.cbofficerData = [{ code: '100', text: 'A-Name' }] as any;
+  c.cbDivisionData   = [{ id: '10', code: 'DA', text: 'Div A' }] as any;
+  c.cbAltDivisionData= [{ id: '11', code: 'DB', text: 'Div B' }] as any;
+  c.cbCycleData      = [{ id: '5',  code: '5',  text: 'Monthly' }] as any;
+  c.cbFormulaData    = [{ id: '2',  code: 'F-01', text: 'F1' }] as any;
+  c.cbCategoryData   = [{ id: '7',  code: 'C1', text: 'Cat' }] as any;
+  c.cbofficerData    = [{ code: '100', text: 'A-Name' }] as any;
 
-  // 👇 supply related domain data + account to map values
-  c.regions = [{ regionId: 1, regionDescription: 'East' }];
-  c.regionid = '1';
-  c.divisions = [{ divisionId: 10 }, { divisionId: 11 }];
-  c.cycles = [{ cycleId: 5 }];
-  c.formulas = [{ formulaId: 2, formulald: 2 }];
-  c.categories = [{ categoryId: 7 }];
-  c.officers = { '100': { officer: '100', officersort: 'A-Name' } } as any;
+  // 🔧 Domain lists used for value mapping
+  c.regions   = [{ regionId: 1, regionDescription: 'East' }];
+  c.regionid  = '1';
+  c.divisions = [{ divisionId: 10 }, { divisionId: 11 }] as any;
+  c.cycles    = [{ cycleId: 5 }] as any;
+  c.formulas  = [{ formulaId: 2, formulald: 2 }] as any;
+  c.categories= [{ categoryId: 7 }] as any;
+  c.officers  = { '100': { officer: '100', officersort: 'A-Name' } } as any;
+
+  // 🔧 Current + old values objects used inside method
   c.account = {
+    regionDescription: '',
     status: 'Active',
     divisionId: 10,
     altdivision: 11,
     cycleId: 5,
     formulaId: 2,
-    formulald: 2,
     categoryId: 7,
     officer: '100',
   } as any;
   c.oldAccountValues = { regionDescription: '' } as any;
+
   c.isCloneAccount = false;
 
-  // act
+  // 🧪 act
   (c as any).LoadComboBoxSelectedValue();
 
-  // assert some key outcomes
+  // ✅ key sanity checks (proves nothing was undefined and mapping happened)
   expect((c as any).cbstatus.options.length).toBe(1);
   expect(c.cbDivision.options.length).toBe(1);
   expect(c.cbAltDivision.options.length).toBe(1);
@@ -65,10 +70,10 @@ it('LoadComboBoxSelectedValue() sets combo options and values', () => {
   expect((c as any).cbofficer.options.length).toBe(1);
 
   expect(c.account.regionDescription).toBe('East');
-  expect((c as any).cbstatus.value).toEqual(['A']);
+  expect(((c as any).cbStatus.value ?? (c as any).cbstatus.value)).toEqual(['A']);
   expect(c.cbDivision.value).toEqual(['10']);
   expect(c.cbAltDivision.value).toEqual(['11']);
-  expect((c as any).cbcycle.value).toEqual(['5']);
+  expect(((c as any).cbCycle.value ?? (c as any).cbcycle.value)).toEqual(['5']);
   expect(c.cbFormula.value).toEqual(['2']);
   expect(c.cbCategory.value).toEqual(['7']);
   expect((c as any).cbofficer.value).toEqual(['100']);
