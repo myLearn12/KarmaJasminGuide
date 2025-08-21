@@ -1,5 +1,4 @@
 it('ValidateFormControls() → sets flags & returns true when controls/combos invalid', () => {
-  // ctor deps
   const utilsStub = {
     CreateRequiredFormControl: () => ({}),
     CreateDateFormControl: () => ({}),
@@ -10,47 +9,35 @@ it('ValidateFormControls() → sets flags & returns true when controls/combos in
 
   const c = new EditaccountComponent({} as any, {} as any, storeMock as any, utilsStub as any, acctServiceStub as any);
 
-  // ---- form controls stubs
-  c['fcn_AcctNumb'] = {
-    markAsTouched: jasmine.createSpy('markAsTouched'),
-    hasError: (e: string) => e === 'required', // trigger required
-  } as any;
+  // ---- controls
+  c['fcn_AcctNumb'] = { markAsTouched: jasmine.createSpy(), hasError: (e: string) => e === 'required' } as any;
+  c['fcn_EstAccrual'] = { markAsTouched: jasmine.createSpy(), hasError: () => false } as any;
+  c['fcn_OffcrNumber'] = { hasError: (e: string) => e === 'required' } as any;
+  c['fcn_OffcrName'] = { hasError: () => false } as any;
+  c.isCategoryCdValid = false;
 
-  c['fcn_EstAccrual'] = {
-    markAsTouched: jasmine.createSpy('markAsTouched'),
-    hasError: (_: string) => false,
-  } as any;
+  // ---- ALL combos with value
+  c['cbStatus']      = { value: null } as any;
+  c['cbDivision']    = { value: null } as any;
+  c['cbCycle']       = { value: null } as any;
+  c['cbofficer']     = { value: null } as any;
+  c['cbFormula']     = { value: null } as any;
+  c['cbcategory']    = { value: null } as any;
+  c['cbAltDivision'] = { value: '11' } as any; // to trigger isRevShareReqd
 
-  c['fcn_OffcrNumber'] = {
-    hasError: (e: string) => e === 'required', // combine with !isCategoryCdValid
-  } as any;
+  // ---- account (include officerNm to avoid helper crashes)
+  c.account = { revshare: 'RS', officerNm: '' } as any;
 
-  c['fcn_OffcrName'] = {
-    hasError: (_: string) => false,
-  } as any;
+  // ---- STUB *all* helpers that might be called (cover spelling variants)
+  c['setIsRevShareValid']   = jasmine.createSpy('setIsRevShareValid');
+  c['onoffcrNumberChange']  = jasmine.createSpy('onoffcrNumberChange');
+  c['onOffcrNumberChange']  = jasmine.createSpy('onOffcrNumberChange'); // variant just in case
+  c['onFutureUseChange']    = jasmine.createSpy('onFutureUseChange');
+  c['onoffNumberChange']    = jasmine.createSpy('onoffNumberChange');
+  c['onOffNumberChange']    = jasmine.createSpy('onOffNumberChange');   // variant
+  c['onOzIdChange']         = jasmine.createSpy('onOzIdChange');
 
-  c.isCategoryCdValid = false; // make (required && !isCategoryCdValid) true
-
-  // ---- COMBO stubs (ALL of them, with `value`)
-  c['cbStatus']      = { value: null } as any;  // null -> required
-  c['cbDivision']    = { value: null } as any;  // null -> required
-  c['cbCycle']       = { value: null } as any;  // null -> required
-  c['cbofficer']     = { value: null } as any;  // null -> required
-  c['cbFormula']     = { value: null } as any;  // null -> required
-  c['cbcategory']    = { value: null } as any;  // null -> required
-  c['cbAltDivision'] = { value: '11' } as any;  // not null, used for isRevShareReqd
-
-  // ---- account used in revshare flags
-  c.account = { revshare: 'RS' } as any;
-
-  // ---- methods invoked inside (stub them)
-  c['setIsRevShareValid']  = jasmine.createSpy('setIsRevShareValid');
-  c['onoffcrNumberChange'] = jasmine.createSpy('onoffcrNumberChange');
-  c['onFutureUseChange']   = jasmine.createSpy('onFutureUseChange');
-  c['onoffNumberChange']   = jasmine.createSpy('onoffNumberChange');
-  c['onOzIdChange']        = jasmine.createSpy('onOzIdChange');
-
-  // other flags in big if: keep false unless you want to trigger them
+  // other flags default false
   c.isofcrNmbrValid   = false;
   c.isFutureValid     = false;
   c.isRevShareValid   = false;
@@ -58,10 +45,10 @@ it('ValidateFormControls() → sets flags & returns true when controls/combos in
   c.isofficerNumValid = false;
   c.isOzIdValid       = false;
 
-  // ---- act
+  // act
   const result = (c as any).ValidateFormControls();
 
-  // ---- asserts
+  // assert
   expect(c['fcn_AcctNumb'].markAsTouched).toHaveBeenCalled();
   expect(c['fcn_EstAccrual'].markAsTouched).toHaveBeenCalled();
 
@@ -72,9 +59,7 @@ it('ValidateFormControls() → sets flags & returns true when controls/combos in
   expect(c.formulaRequired).toBeTrue();
   expect(c.categoryRequired).toBeTrue();
 
-  // cbAltDivision != null AND revshare valid => true
   expect(c.isRevShareReqd).toBeTrue();
-  // revshare valid && cbAltDivision == null would set altDivisionRequired; here it's false
   expect(c.altDivisionRequired).toBeFalse();
 
   expect(result).toBeTrue();
