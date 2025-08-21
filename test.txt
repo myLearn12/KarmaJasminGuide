@@ -1,25 +1,45 @@
-it('LoadComboBoxSelectedValue() does not throw and sets options/values', () => {
-  // ctor deps
+it('LoadComboBoxSelectedValue() should populate options/values without throwing', () => {
+  // --- ctor deps so component instantiates
   const utilsStub = {
     CreateRequiredFormControl: () => ({}),
     CreateDateFormControl: () => ({}),
   };
   const acctServiceStub = {
+    // used by method for status mapping
     loadStatusData: () => [{ label: 'Active', value: 'A' }],
   };
-  const storeMock = { pipe: jasmine.createSpy('pipe').and.returnValue(of(false)), dispatch: () => {} };
+  const storeMock = {
+    pipe: jasmine.createSpy('pipe').and.returnValue(of(false)),
+    dispatch: () => {}
+  };
 
-  const c = new EditaccountComponent({} as any, {} as any, storeMock as any, utilsStub as any, acctServiceStub as any);
+  const c = new EditaccountComponent(
+    {} as any,     // http
+    {} as any,     // appconfig (not used here)
+    storeMock as any,
+    utilsStub as any,
+    acctServiceStub as any
+  );
 
-  // 🔧 STUB *ALL* possible field names your method might use
+  // --- STUB ALL ViewChild-like combo refs (each must exist and be distinct)
   const mk = () => ({ options: [] as any[], value: null as any });
-  const names = [
-    'cbstatus','cbStatus','cbDivision','cbAltDivision','cbcycle','cbCycle','cbFormula','cbcategory','cbCategory','cbofficer'
-  ];
-  for (const n of names) (c as any)[n] = mk();
+  (c as any).cbstatus = mk();
+  (c as any).cbStatus = (c as any).cbstatus;   // method writes to cbstatus, reads from cbStatus later
+  c.cbDivision = mk() as any;
+  c.cbAltDivision = mk() as any;
+  (c as any).cbcycle = mk();
+  c.cbCycle = (c as any).cbcycle as any;       // method writes to cbcycle, later reads cbCycle
+  c.cbFormula = mk() as any;
+  (c as any).cbcategory = mk();
+  c.cbCategory = (c as any).cbcategory as any; // method writes to cbcategory, later reads cbCategory
+  (c as any).cbofficer = mk();
 
-  // 🔧 provide the "*Data" sources used for deep-copy
+  // --- Provide ALL "*Data" arrays that get deep-copied (cover both spellings just in case)
+  // Status
   (c as any).cbstatusData = [{ label: 'Active', value: 'A' }];
+  (c as any).cbStatusData = (c as any).cbstatusData;
+
+  // Others
   c.cbDivisionData    = [{ id: '10', code: 'DA', text: 'Div A' }] as any;
   c.cbAltDivisionData = [{ id: '11', code: 'DB', text: 'Div B' }] as any;
   c.cbCycleData       = [{ id: '5',  code: '5',  text: 'Monthly' }] as any;
@@ -27,15 +47,18 @@ it('LoadComboBoxSelectedValue() does not throw and sets options/values', () => {
   c.cbCategoryData    = [{ id: '7',  code: 'C1', text: 'Cat' }] as any;
   c.cbofficerData     = [{ code: '100', text: 'A-Name' }] as any;
 
-  // 🔧 domain lists + account for value mapping
-  c.regions    = [{ regionId: 1, regionDescription: 'East' }];
-  c.regionid   = '1';
-  c.divisions  = [{ divisionId: 10 }, { divisionId: 11 }] as any;
-  c.cycles     = [{ cycleId: 5 }] as any;
-  c.formulas   = [{ formulaId: 2, formulald: 2 }] as any;
-  c.categories = [{ categoryId: 7 }] as any;
-  c.officers   = { '100': { officer: '100', officersort: 'A-Name' } } as any;
-  c.account    = {
+  // --- Domain lists used for value mapping
+  c.regions = [{ regionId: 1, regionDescription: 'East' } as any];
+  c.regionid = '1';
+  c.divisions = [{ divisionId: 10 } as any, { divisionId: 11 } as any];
+  c.cycles = [{ cycleId: 5 } as any];
+  // formula object needs BOTH ids because your code uses formulaId for filter and "formulald" for toString()
+  c.formulas = [{ formulaId: 2, formulald: 2 } as any];
+  c.categories = [{ categoryId: 7 } as any];
+  c.officers = { '100': { officer: '100', officersort: 'A-Name' } } as any;
+
+  // --- Account + old snapshot
+  c.account = {
     regionDescription: '',
     status: 'Active',
     divisionId: 10,
@@ -46,26 +69,28 @@ it('LoadComboBoxSelectedValue() does not throw and sets options/values', () => {
     officer: '100',
   } as any;
   c.oldAccountValues = { regionDescription: '' } as any;
+
   c.isCloneAccount = false;
 
-  // 🧪 act + assert no-throw
+  // --- ACT
   expect(() => (c as any).LoadComboBoxSelectedValue()).not.toThrow();
 
-  // sanity checks—prove properties were set
+  // --- ASSERT: options were copied and values computed
   expect((c as any).cbstatus.options.length).toBe(1);
-  expect((c as any).cbDivision.options.length).toBe(1);
-  expect((c as any).cbAltDivision.options.length).toBe(1);
+  expect(c.cbDivision.options.length).toBe(1);
+  expect(c.cbAltDivision.options.length).toBe(1);
   expect((c as any).cbcycle.options.length).toBe(1);
-  expect((c as any).cbFormula.options.length).toBe(1);
+  expect(c.cbFormula.options.length).toBe(1);
   expect((c as any).cbcategory.options.length).toBe(1);
   expect((c as any).cbofficer.options.length).toBe(1);
 
   expect(c.account.regionDescription).toBe('East');
+  // values set (strings)
   expect(((c as any).cbStatus.value ?? (c as any).cbstatus.value)).toEqual(['A']);
-  expect((c as any).cbDivision.value).toEqual(['10']);
-  expect((c as any).cbAltDivision.value).toEqual(['11']);
+  expect(c.cbDivision.value).toEqual(['10']);
+  expect(c.cbAltDivision.value).toEqual(['11']);
   expect(((c as any).cbCycle.value ?? (c as any).cbcycle.value)).toEqual(['5']);
-  expect((c as any).cbFormula.value).toEqual(['2']);
-  expect((c as any).cbCategory.value).toEqual(['7']);
+  expect(c.cbFormula.value).toEqual(['2']); // from formulald.toString()
+  expect(c.cbCategory.value).toEqual(['7']);
   expect((c as any).cbofficer.value).toEqual(['100']);
 });
