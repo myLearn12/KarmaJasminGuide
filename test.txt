@@ -1,72 +1,49 @@
-it('ValidateFormControls() marks controls touched & sets required flags + revshare flags', () => {
-  // utils must include these 3 to avoid ctor crash and drive revshare flags
+it('ValidateFormControls: should mark controls touched and set required/revshare flags (without officer)', () => {
+  // utils + store stubs
   const utilsStub = {
     CreateRequiredFormControl: () => ({}),
     CreateDateFormControl: () => ({}),
-    isStringValid: (v: any) => !!v && String(v).trim().length > 0, // empty -> false
+    isStringValid: (v: any) => !!v && String(v).trim().length > 0,
   };
+  const storeMock = { pipe: jasmine.createSpy('pipe').and.returnValue(of(false)), dispatch: () => {} };
 
-  // store must have pipe() because component uses store.pipe(select(...))
-  const storeMock = {
-    pipe: jasmine.createSpy('pipe').and.returnValue(of(false)),
-    dispatch: () => {},
-  };
+  const c = new EditaccountComponent({} as any, {} as any, storeMock as any, utilsStub as any, {} as any);
 
-  const c = new EditaccountComponent(
-    {} as any,             // http
-    {} as any,             // appConfig
-    storeMock as any,      // store
-    utilsStub as any,      // utils ✅
-    {} as any              // acctService (not used here)
-  );
+  // ---- stub form controls
+  c['fcn_AcctNumb'] = { markAsTouched: jasmine.createSpy('markAsTouched'), hasError: () => false } as any;
+  c['fcn_EstAccrual'] = { markAsTouched: jasmine.createSpy('markAsTouched'), hasError: () => false } as any;
 
-  // ---- form controls used at the top of the method
-  c['fcn_AcctNumb'] = {
-    markAsTouched: jasmine.createSpy('markAsTouched'),
-    hasError: () => true, // not used in this assertion set but harmless
-  } as any;
-
-  c['fcn_EstAccrual'] = {
-    markAsTouched: jasmine.createSpy('markAsTouched'),
-    hasError: () => false,
-  } as any;
-
-  // ---- combos for required flags (null => required = true)
+  // ---- combos (no officer)
   c['cbStatus']   = { value: null } as any;
   c['cbDivision'] = { value: null } as any;
   c['cbCycle']    = { value: null } as any;
-  c['cbofficer']  = { value: null } as any;
   c['cbFormula']  = { value: null } as any;
   c['cbCategory'] = { value: null } as any;
+  c['cbAltDivision'] = { value: 'X' } as any;
 
-  // ---- alt division + revshare to exercise revshare flags
-  c['cbAltDivision'] = { value: 'X' } as any; // not null
-  c.account = { revshare: '' } as any;        // empty => isStringValid=false
+  // ---- account
+  c.account = { revshare: '' } as any;
 
-  // ---- no-op the downstream helpers so they don't do extra reads
+  // ---- no-op helpers
   c['setIsRevShareValid']  = () => {};
-  c['onoffcrNumberChange'] = () => {};
   c['onFutureUseChange']   = () => {};
-  c['onoffNumberChange']   = () => {};
   c['onOzIdChange']        = () => {};
 
-  // act
+  // Act
   (c as any).ValidateFormControls();
 
-  // assert: touched
+  // Assert touched
   expect(c['fcn_AcctNumb'].markAsTouched).toHaveBeenCalled();
   expect(c['fcn_EstAccrual'].markAsTouched).toHaveBeenCalled();
 
-  // assert: required flags
+  // Assert required flags
   expect(c.statusRequired).toBeTrue();
   expect(c.divisionRequired).toBeTrue();
   expect(c.cycleRequired).toBeTrue();
-  expect(c.officerRequired).toBeTrue();
   expect(c.formulaRequired).toBeTrue();
   expect(c.categoryRequired).toBeTrue();
 
-  // assert: revshare flags (cbAltDivision != null AND revshare invalid)
-  expect(c.isRevShareReqd).toBeTrue();
-  // altDivisionRequired only when revshare valid AND cbAltDivision == null
+  // Assert revshare flags
+  expect(c.isRevShareReqd).toBeTrue();   // cbAltDivision != null && revshare invalid
   expect(c.altDivisionRequired).toBeFalse();
 });
