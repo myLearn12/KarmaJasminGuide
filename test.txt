@@ -3,7 +3,7 @@ it('CloneAccountSetup() when clone → updates title, readOnly, zeroes fields, c
   const utilsStub = {
     CreateRequiredFormControl: () => ({}),
     CreateDateFormControl: () => ({}),
-    numberUnformatter: (n: any) => n, // return the same number
+    numberUnformatter: (n: any) => n, // returns the number given
   };
   const acctServiceStub = {
     CheckCloneAccount: () => true, // clone mode ON
@@ -23,24 +23,23 @@ it('CloneAccountSetup() when clone → updates title, readOnly, zeroes fields, c
   // act
   c.CloneAccountSetup();
 
-  // assert clone mode flags
+  // assert clone flags
   expect(c.isCloneAccount).toBeTrue();
   expect(c.PageTitle).toBe('Clone Account Details');
   expect(c.isAcctNumReadOnly).toBeFalse();
 
-  // numeric fields reset
-  expect<number>(c.account.estacc).toBe(0);
-  expect<number>(c.account.estpp).toBe(0);
-  expect<number>(c.account.actpp).toBe(0);
-  expect<number>(c.account.endpp).toBe(0);
-  expect<number>(c.account.feepp).toBe(0);
-  expect<number>(c.account.cashpp).toBe(0);
-  expect<number>(c.account.accepfee).toBe(0);
+  // numeric fields reset to 0
+  expect(c.account.estacc).toBe(0);
+  expect(c.account.estpp).toBe(0);
+  expect(c.account.actpp).toBe(0);
+  expect(c.account.endpp).toBe(0);
+  expect(c.account.feepp).toBe(0);
+  expect(c.account.cashpp).toBe(0);
+  expect(c.account.accepfee).toBe(0);
 
   // revshare cleared
   expect(c.account.revshare).toBeNull();
 });
-
 
 // ---- Clone mode = false ----
 it('CloneAccountSetup() when not clone → keeps title, sets readOnly true, does not change amounts', () => {
@@ -73,12 +72,12 @@ it('CloneAccountSetup() when not clone → keeps title, sets readOnly true, does
   expect(c.isAcctNumReadOnly).toBeTrue();
 
   // amounts unchanged
-  expect<number>(c.account.estacc).toBe(123);
-  expect<number>(c.account.estpp).toBe(1);
-  expect<number>(c.account.actpp).toBe(2);
-  expect<number>(c.account.endpp).toBe(3);
-  expect<number>(c.account.feepp).toBe(4);
-  expect<number>(c.account.cashpp).toBe(5);
-  expect<number>(c.account.accepfee).toBe(6);
-  expect<number>(c.account.revshare).toBe(99);
+  expect(c.account.estacc).toBe(123);
+  expect(c.account.estpp).toBe(1);
+  expect(c.account.actpp).toBe(2);
+  expect(c.account.endpp).toBe(3);
+  expect(c.account.feepp).toBe(4);
+  expect(c.account.cashpp).toBe(5);
+  expect(c.account.accepfee).toBe(6);
+  expect(c.account.revshare).toBe(99);
 });
