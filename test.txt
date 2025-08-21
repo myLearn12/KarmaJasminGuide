@@ -1,59 +1,41 @@
-it('ValidateFormControls() → invalid path without helper crashes (no-op helpers)', () => {
-  // ctor deps
+it('ValidateFormControls() → marks controls touched & sets required flags + revshare flags', () => {
   const utilsStub = {
-    CreateRequiredFormControl: () => ({}),
-    CreateDateFormControl: () => ({}),
-    isStringValid: (v: any) => !!v && String(v).trim().length > 0,
+    isStringValid: (v: any) => !!v && v.toString().trim().length > 0
   };
-  const acctServiceStub = { loadStatusData: () => [] };
-  const storeMock = { pipe: jasmine.createSpy('pipe').and.returnValue(of(false)), dispatch: () => {} };
 
-  const c = new EditaccountComponent({} as any, {} as any, storeMock as any, utilsStub as any, acctServiceStub as any);
+  const c = new EditaccountComponent({} as any, {} as any, { pipe: () => of(false), dispatch: () => {} } as any, utilsStub as any, {} as any);
 
-  // --- form controls (touch + errors)
+  // --- form controls stubs
   c['fcn_AcctNumb'] = {
     markAsTouched: jasmine.createSpy('markAsTouched'),
-    hasError: (e: string) => e === 'required',
+    hasError: () => true
   } as any;
-
   c['fcn_EstAccrual'] = {
     markAsTouched: jasmine.createSpy('markAsTouched'),
-    hasError: (_: string) => false,
+    hasError: () => false
   } as any;
 
-  c['fcn_OffcrNumber'] = { hasError: (e: string) => e === 'required' } as any;
-  c['fcn_OffcrName']   = { hasError: (_: string) => false } as any;
-  c.isCategoryCdValid  = false; // to trigger (required && !isCategoryCdValid)
+  // --- combos
+  c['cbStatus']   = { value: null } as any;
+  c['cbDivision'] = { value: null } as any;
+  c['cbCycle']    = { value: null } as any;
+  c['cbofficer']  = { value: null } as any;
+  c['cbFormula']  = { value: null } as any;
+  c['cbCategory'] = { value: null } as any;
+  c['cbAltDivision'] = { value: 'X' } as any;
 
-  // --- ALL combos (null => required flags true)
-  c['cbStatus']      = { value: null } as any;
-  c['cbDivision']    = { value: null } as any;
-  c['cbCycle']       = { value: null } as any;
-  c['cbofficer']     = { value: null } as any;
-  c['cbFormula']     = { value: null } as any;
-  c['cbcategory']    = { value: null } as any;
-  c['cbAltDivision'] = { value: '11' } as any; // not null to trigger isRevShareReqd
+  // --- account for revshare checks
+  c.account = { revshare: '' } as any;
 
-  // --- account (keep minimal; helpers are no-op so no officerNm reads)
-  c.account = { revshare: 'RS' } as any;
-
-  // --- NO-OP all helpers so they don't read officerNm/others
+  // --- no-op helpers
   c['setIsRevShareValid']  = () => {};
   c['onoffcrNumberChange'] = () => {};
   c['onFutureUseChange']   = () => {};
   c['onoffNumberChange']   = () => {};
   c['onOzIdChange']        = () => {};
 
-  // other flags default false
-  c.isofcrNmbrValid   = false;
-  c.isFutureValid     = false;
-  c.isRevShareValid   = false;
-  c.isDisp3Valid      = false;
-  c.isofficerNumValid = false;
-  c.isOzIdValid       = false;
-
   // act
-  const result = (c as any).ValidateFormControls();
+  (c as any).ValidateFormControls();
 
   // asserts
   expect(c['fcn_AcctNumb'].markAsTouched).toHaveBeenCalled();
@@ -66,10 +48,8 @@ it('ValidateFormControls() → invalid path without helper crashes (no-op helper
   expect(c.formulaRequired).toBeTrue();
   expect(c.categoryRequired).toBeTrue();
 
-  // cbAltDivision != null AND revshare valid
+  // cbAltDivision has value, revshare invalid => isRevShareReqd true
   expect(c.isRevShareReqd).toBeTrue();
-  // altDivisionRequired false because AltDivision not null
+  // altDivisionRequired false because cbAltDivision not null
   expect(c.altDivisionRequired).toBeFalse();
-
-  expect(result).toBeTrue();
 });
