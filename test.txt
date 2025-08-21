@@ -1,79 +1,25 @@
-it('LoadComboBoxSelectedValue() does not throw and sets options/values', () => {
-  // ctor deps so the component can be constructed
+// ✅ when divisionCd is "0000" → clears divisionCd, divisionDesc, and cbDivision.value
+it('SetunassignedOrArchive() clears division for unassigned ("0000")', () => {
   const utilsStub = { CreateRequiredFormControl: () => ({}), CreateDateFormControl: () => ({}) };
-  const acctServiceStub = { loadStatusData: () => [{ label: 'Active', value: 'A' }] };
   const storeMock = { pipe: jasmine.createSpy('pipe').and.returnValue(of(false)), dispatch: () => {} };
 
-  const c = new EditaccountComponent({} as any, {} as any, storeMock as any, utilsStub as any, acctServiceStub as any);
+  const c = new EditaccountComponent(
+    {} as any,     // http
+    {} as any,     // appconfig
+    storeMock as any,
+    utilsStub as any,
+    {} as any      // acctService
+  );
 
-  // ---- STUB *ALL* ViewChild targets (note mixed casing used in your method)
-  const mk = () => ({ options: [] as any[], value: null as any });
-  (c as any).cbstatus = mk();                      // method writes here first
-  (c as any).cbStatus = (c as any).cbstatus;       // later reads via cbStatus.value
-  c.cbDivision = mk() as any;
-  c.cbAltDivision = mk() as any;
-  (c as any).cbcycle = mk();
-  c.cbCycle = (c as any).cbcycle as any;           // later reads via cbCycle.value
-  c.cbFormula = mk() as any;
-  (c as any).cbcategory = mk();
-  c.cbCategory = (c as any).cbcategory as any;     // later reads via cbCategory.value
-  (c as any).cbofficer = mk();
+  // minimal state used by the method
+  c.account = { divisionCd: '0000', divisionDesc: 'Some Division' } as any;
+  c.cbDivision = { value: ['10'] } as any;
 
-  // ---- Provide ALL "*Data" arrays that get deep-copied
-  // status (cover both possible names)
-  ;(c as any).cbstatusData = [{ label: 'Active', value: 'A' }];
-  ;(c as any).cbStatusData = (c as any).cbstatusData;
+  // act
+  c.SetunassignedOrArchive();
 
-  c.cbDivisionData    = [{ id: '10', code: 'DA', text: 'Div A' }] as any;
-  c.cbAltDivisionData = [{ id: '11', code: 'DB', text: 'Div B' }] as any;
-  c.cbCycleData       = [{ id: '5',  code: '5',  text: 'Monthly' }] as any;
-  c.cbFormulaData     = [{ id: '2',  code: 'F-01', text: 'F1' }] as any;
-  c.cbCategoryData    = [{ id: '7',  code: 'C1', text: 'Cat' }] as any;
-  c.cbofficerData     = [{ code: '100', text: 'A-Name' }] as any;
-
-  // ---- Lists used for value mapping
-  c.regions    = [{ regionId: 1, regionDescription: 'East' } as any];
-  c.regionid   = '1';
-  c.divisions  = [{ divisionId: 10 } as any, { divisionId: 11 } as any];
-  c.cycles     = [{ cycleId: 5 } as any];
-  // your method filters by formulaId then uses formulald.toString()
-  c.formulas   = [{ formulaId: 2, formulald: 2 } as any];
-  c.categories = [{ categoryId: 7 } as any];
-  c.officers   = { '100': { officer: '100', officersort: 'A-Name' } } as any;
-
-  // ---- Account + snapshot
-  c.account = {
-    regionDescription: '',
-    status: 'Active',
-    divisionId: 10,
-    altdivision: 11,
-    cycleId: 5,
-    formulaId: 2,
-    categoryId: 7,
-    officer: '100',
-  } as any;
-  c.oldAccountValues = { regionDescription: '' } as any;
-
-  c.isCloneAccount = false;
-
-  // ---- Act + Assert
-  expect(() => (c as any).LoadComboBoxSelectedValue()).not.toThrow();
-
-  // spot-check results so we know mapping happened
-  expect((c as any).cbstatus.options.length).toBe(1);
-  expect(c.cbDivision.options.length).toBe(1);
-  expect(c.cbAltDivision.options.length).toBe(1);
-  expect((c as any).cbcycle.options.length).toBe(1);
-  expect(c.cbFormula.options.length).toBe(1);
-  expect((c as any).cbcategory.options.length).toBe(1);
-  expect((c as any).cbofficer.options.length).toBe(1);
-
-  expect(c.account.regionDescription).toBe('East');
-  expect(((c as any).cbStatus.value ?? (c as any).cbstatus.value)).toEqual(['A']);
-  expect(c.cbDivision.value).toEqual(['10']);
-  expect(c.cbAltDivision.value).toEqual(['11']);
-  expect(((c as any).cbCycle.value ?? (c as any).cbcycle.value)).toEqual(['5']);
-  expect(c.cbFormula.value).toEqual(['2']); // from formulald.toString()
-  expect(c.cbCategory.value).toEqual(['7']);
-  expect((c as any).cbofficer.value).toEqual(['100']);
+  // assert
+  expect(c.account.divisionCd).toBeNull();
+  expect(c.account.divisionDesc).toBeNull();
+  expect(c.cbDivision.value).toBeNull();
 });
