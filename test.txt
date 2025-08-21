@@ -1,37 +1,115 @@
-it('InitialDataLoad() → error handler sets error message, disables save, stops loading, and dispatches action', () => {
+// ✅ normal path (isCloneAccount = false)
+it('LoadComboBoxSelectedValue() populates options, sets selected values, and snapshots old values', () => {
+  // minimal stubs so component can construct
   const utilsStub = {
     CreateRequiredFormControl: () => ({}),
     CreateDateFormControl: () => ({}),
-    LoadComboBoxData: () => [],
   };
   const acctServiceStub = {
-    LoadOfficerData: () => [],
-    loadStatusData: () => [],
+    loadStatusData: () => [{ label: 'Active', value: 'A' }],
   };
-  const storeMock = { dispatch: jasmine.createSpy('dispatch') };
+  const storeMock = { pipe: jasmine.createSpy('pipe').and.returnValue(of(false)), dispatch: () => {} };
 
-  const component = new EditaccountComponent(
-    {} as any,           // http
-    {} as any,           // appConfig
-    storeMock as any,    // store
-    utilsStub as any,    // utils
-    acctServiceStub as any // acctService
-  );
+  const c = new EditaccountComponent({} as any, {} as any, storeMock as any, utilsStub as any, acctServiceStub as any);
 
-  // force error in forkJoin
-  component['feeApiservice'] = {
-    getRequest: () => throwError(() => ({ error: { statusMessage: 'fail-msg' } })),
+  // region / account basics
+  c.regionid = '1';
+  c.regions = [{ regionId: 1, regionDescription: 'East' }];
+
+  // domain data
+  c.divisions = [
+    { divisionId: 10, divisionDesc: 'Div A', divisionCd: 'DA' },
+    { divisionId: 11, divisionDesc: 'Div B', divisionCd: 'DB' },
+  ];
+  c.cycles = [{ cycleId: 5, cycleDesc: 'Monthly' }];
+  c.formulas = [{ formulaId: 2, formulald: 2, formulaDesc: 'F1', formulaCd: 'F-01' }];
+  c.categories = [{ categoryId: 7, categoryDescription: 'Cat', categoryCode: 'C1' }];
+  c.officers = { '100': { officer: '100', officersort: 'A-Name' } as any };
+
+  // account values that should be mapped
+  c.account = {
+    regionDescription: '',
+    status: 'Active',
+    divisionId: 10,
+    altdivision: 11,
+    cycleId: 5,
+    formulaId: 2,
+    categoryId: 7,
+    officer: '100',
   } as any;
 
-  // spy error display
-  component['displayServiceErrors'] = jasmine.createSpy('displayServiceErrors');
+  // ViewChild-like stubs (options + value). handle inconsistent property names in your method.
+  const mkCb = () => ({ options: [] as any[], value: [] as any });
+  const cbStatusStub = mkCb();
+  const cbDivisionStub = mkCb();
+  const cbAltDivisionStub = mkCb();
+  const cbCycleStub = mkCb();
+  const cbFormulaStub = mkCb();
+  const cbCategoryStub = mkCb();
+  const cbOfficerStub = mkCb();
+
+  // your code uses both camel/lower variants; make both point to same object
+  (c as any).cbstatus = cbStatusStub;
+  (c as any).cbStatus = cbStatusStub;
+
+  c.cbDivision = cbDivisionStub as any;
+  c.cbAltDivision = cbAltDivisionStub as any;
+
+  (c as any).cbcycle = cbCycleStub;
+  c.cbCycle = cbCycleStub as any;
+
+  c.cbFormula = cbFormulaStub as any;
+
+  (c as any).cbcategory = cbCategoryStub;
+  c.cbCategory = cbCategoryStub as any;
+
+  (c as any).cbofficer = cbOfficerStub;
+
+  // “*Data” sources that get deep-copied into the combo options
+  (c as any).cbstatusData = [{ label: 'Active', value: 'A' }];
+  c.cbDivisionData = [{ text: 'Div A', code: 'DA', id: '10' }] as any;
+  c.cbAltDivisionData = [{ text: 'Div B', code: 'DB', id: '11' }] as any;
+  c.cbCycleData = [{ text: 'Monthly', code: '5', id: '5' }] as any;
+  c.cbFormulaData = [{ text: 'F1', code: 'F-01', id: '2' }] as any;
+  c.cbCategoryData = [{ text: 'Cat', code: 'C1', id: '7' }] as any;
+  c.cbofficerData = [{ text: 'A-Name', code: '100' }] as any;
+
+  // old snapshot object
+  c.oldAccountValues = { regionDescription: '' } as any;
+
+  c.isCloneAccount = false;
 
   // act
-  component['InitialDataLoad']();
+  (c as any).LoadComboBoxSelectedValue();
 
-  // assert error branch effects
-  expect(component['displayServiceErrors']).toHaveBeenCalledWith('fail-msg');
-  expect(component.disableSavebtn).toBeTrue();
-  expect(component.loading).toBeFalse();
-  expect(storeMock.dispatch).toHaveBeenCalled(); // LOADINGACTION(false)
+  // options are deep-copied (not same reference)
+  expect((c as any).cbstatus.options).toEqual([{ label: 'Active', value: 'A' }]);
+  expect((c as any).cbstatus.options).not.toBe((c as any).cbstatusData);
+
+  expect(c.cbDivision.options).toEqual(c.cbDivisionData);
+  expect(c.cbAltDivision.options).toEqual(c.cbAltDivisionData);
+  expect((c as any).cbcycle.options).toEqual(c.cbCycleData);
+  expect(c.cbFormula.options).toEqual(c.cbFormulaData);
+  expect((c as any).cbcategory.options).toEqual(c.cbCategoryData);
+  expect((c as any).cbofficer.options).toEqual(c.cbofficerData);
+
+  // selected values mapping
+  expect(c.account.regionDescription).toBe('East');
+  expect((c as any).cbStatus.value ?? (c as any).cbstatus.value).toEqual(['A']);
+  expect(c.cbDivision.value).toEqual(['10']);
+  expect(c.cbAltDivision.value).toEqual(['11']);
+  expect((c as any).cbCycle.value ?? (c as any).cbcycle.value).toEqual(['5']);
+  expect(c.cbFormula.value).toEqual(['2']); // uses formulald.toString()
+  expect(c.cbCategory.value).toEqual(['7']);
+  expect((c as any).cbofficer.value).toEqual(['100']);
+
+  // old snapshots saved
+  expect(c.oldcbStatusValue).toEqual(['A']);
+  expect(c.oldcbDivisionValue).toEqual(['10']);
+  expect(c.oldcbAltDivisionValue).toEqual(['11']);
+  expect(c.oldcbCycleValue).toEqual(['5']);
+  expect((c as any).oldcbFormulavalue ?? c.oldcbFormulaValue).toEqual(['2']);
+  expect(c.oldcbCategoryValue).toEqual(['7']);
+  expect(c.oldcbofficerValue).toEqual(['100']);
+  expect(c.oldAccountValues.regionDescription).toBe('East');
 });
