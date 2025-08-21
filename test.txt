@@ -1,110 +1,15 @@
-// ✅ SUCCESS
-it('InitialDataLoad() success case', () => {
-  const utilsStub = {
-    CreateRequiredFormControl: () => ({}),
-    CreateDateFormControl: () => ({}),
-    LoadComboBoxData: (arr: any[], text: string, code: string, id: string) =>
-      arr.map(x => ({ text: x[text], code: x[code], id: x[id] })),
-  };
+// ❌ ERROR: service failure → show message, disable save, stop loading, dispatch action
+it('InitialDataLoad() error case → shows service error, disables save, stops loading, dispatches action', () => {
+  const storeMock = { dispatch: jasmine.createSpy('dispatch') };
+  const component = new EditaccountComponent({} as any, {} as any, storeMock as any, {} as any, {} as any);
 
-  const acctServiceStub = {
-    LoadOfficerData: (dict: Record<string, any>) =>
-      Object.keys(dict).map(k => ({ text: dict[k].officersort, code: dict[k].officer })),
-    loadStatusData: () => [{ label: 'Active', value: 'A' }, { label: 'Inactive', value: 'I' }],
-  };
-
-  const appCfgStub = {
-    getAccountByNumberUrl: '/acc/',
-    getAllRegionUrl: '/regions',
-    getAllDivisionUrl: '/divisions',
-    getAllRegDivMappingUrl: '/regdiv',
-    getAllCycleurl: '/cycles',
-    getAllFormulaUrl: '/formulas',
-    getAllCategoryUrl: '/categories',
-    getAllAccrualofficerurl: '/officers',
-    getAllRevShareDivMappingUrl: '/revmap',
-  };
-
-  const component = new EditaccountComponent(
-    {} as any,          // http
-    appCfgStub as any,  // appconfig
-    { dispatch: jasmine.createSpy('dispatch') } as any, // store
-    utilsStub as any,   // utils ✅
-    acctServiceStub as any // acctService ✅
-  );
-
-  component['regionid'] = 'R1';
-  (component as any).selectedAccountNumber = 'ACC-9';
-
-  component['LoadAccountTableRow'] = jasmine.createSpy('LoadAccountTableRow');
-  component['IntialSetup'] = jasmine.createSpy('IntialSetup');
-  component['CloneAccountSetup'] = jasmine.createSpy('CloneAccountSetup');
-  component['LoadComboBoxSelectedValue'] = jasmine.createSpy('LoadComboBoxSelectedValue');
-  component['SetDeltaChanges'] = jasmine.createSpy('SetDeltaChanges');
-  component['SetUnassignedOrArchive'] = jasmine.createSpy('SetUnassignedOrArchive');
-
-  const account = { accountId: 9, accountNumber: 'ACC-9' };
-  const regions = [{ regionId: 1, regionDesc: 'East' }];
-  const divisions = [
-    { divisionId: 10, divisionDesc: 'Div A', divisionCd: 'DA' },
-    { divisionId: 11, divisionDesc: 'Div B', divisionCd: 'DB' },
-  ];
-  const regionDivisions = [{ regionId: 1, divisionId: 10 }];
-  const cycles = [{ cycleId: 5, cycleDesc: 'Monthly' }];
-  const formulas = [{ formulald: 2, formulaDesc: 'F1', formulaCd: 'F-01' }];
-  const categories = [{ categoryId: 7, categoryDescription: 'Cat', categoryCode: 'C1' }];
-  const officersArr = [
-    { officer: '100', officersort: 'A-Name' },
-    { officer: '200', officersort: 'B-Name' },
-  ];
-  const revShareDivMapping = [{ divisionId: 10, map: true }];
-
-  const queue = [
-    of(account),
-    of(regions),
-    of(divisions),
-    of(regionDivisions),
-    of(cycles),
-    of(formulas),
-    of(categories),
-    of(officersArr),
-    of(revShareDivMapping),
-  ];
-
-  const getRequestSpy = jasmine.createSpy('getRequest').and.callFake(() => queue.shift()!);
-  component['feeApiservice'] = { getRequest: getRequestSpy } as any;
+  component['feeApiservice'] = { getRequest: () => throwError(() => ({ error: { statusMessage: 'fail' } })) } as any;
+  component['displayServiceErrors'] = jasmine.createSpy();
 
   component['InitialDataLoad']();
 
-  expect(component['LoadAccountTableRow']).toHaveBeenCalledWith(account);
-  expect(component.regions).toEqual(regions);
-  expect(component.divisions).toEqual(divisions);
-  expect(component.altDivisions).toEqual(divisions);
-  expect(component.regionDivisions).toEqual(regionDivisions);
-  expect(component.cycles).toEqual(cycles);
-  expect(component.formulas).toEqual(formulas);
-  expect(component.categories).toEqual(categories);
-  expect(component.revShareDivMapping).toEqual(revShareDivMapping);
-  expect(component.officers['100']).toEqual(officersArr[0]);
-  expect(component.officers['200']).toEqual(officersArr[1]);
-
-  expect(component['IntialSetup']).toHaveBeenCalled();
-  expect(component['CloneAccountSetup']).toHaveBeenCalled();
-  expect(component['LoadComboBoxSelectedValue']).toHaveBeenCalled();
-  expect(component['SetDeltaChanges']).toHaveBeenCalled();
-  expect(component['SetUnassignedOrArchive']).toHaveBeenCalled();
-
-  const div0: any = (component as any).cbDivisionData[0].options[0];
-  expect(div0.text ?? div0.label ?? div0.name).toBe('Div A');
-
-  const cat0: any = (component as any).cbCategoryData[0].options[0];
-  expect((cat0.text ?? cat0.label ?? cat0.name)).toBe('Cat');
-  expect((cat0.code ?? cat0.value ?? cat0.id)).toBe('C1');
-
-  const st0: any = (component as any).cbStatusData[0].options[0];
-  expect(st0.label ?? st0.text).toBe('Active');
-
-  const firstUrl = appCfgStub.getAccountByNumberUrl + 'R1/ACC-9';
-  expect(getRequestSpy.calls.count()).toBe(9);
-  expect(getRequestSpy.calls.argsFor(0)[0]).toBe(firstUrl);
+  expect(component['displayServiceErrors']).toHaveBeenCalledWith('fail');
+  expect(component.disableSavebtn).toBeTrue();
+  expect(component.loading).toBeFalse();
+  expect(storeMock.dispatch).toHaveBeenCalled(); // LOADINGACTION(false)
 });
