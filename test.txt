@@ -1,25 +1,33 @@
-// ✅ when divisionCd is "0000" → clears divisionCd, divisionDesc, and cbDivision.value
-it('SetunassignedOrArchive() clears division for unassigned ("0000")', () => {
+it('SetunassignedOrArchive() should null divisionCd/Desc and cbDivision.value when divisionCd = 0000', () => {
   const utilsStub = { CreateRequiredFormControl: () => ({}), CreateDateFormControl: () => ({}) };
-  const storeMock = { pipe: jasmine.createSpy('pipe').and.returnValue(of(false)), dispatch: () => {} };
+  const acctServiceStub = { loadStatusData: () => [] };
+  const storeMock = { pipe: jasmine.createSpy().and.returnValue(of(false)), dispatch: () => {} };
 
-  const c = new EditaccountComponent(
-    {} as any,     // http
-    {} as any,     // appconfig
-    storeMock as any,
-    utilsStub as any,
-    {} as any      // acctService
-  );
+  const c = new EditaccountComponent({} as any, {} as any, storeMock as any, utilsStub as any, acctServiceStub as any);
 
-  // minimal state used by the method
-  c.account = { divisionCd: '0000', divisionDesc: 'Some Division' } as any;
-  c.cbDivision = { value: ['10'] } as any;
+  c.account = { divisionCd: '0000', divisionDesc: 'SomeDivision' } as any;
+  c.cbDivision = { value: '10' } as any;
 
-  // act
   c.SetunassignedOrArchive();
 
-  // assert
   expect(c.account.divisionCd).toBeNull();
   expect(c.account.divisionDesc).toBeNull();
   expect(c.cbDivision.value).toBeNull();
+});
+
+it('SetunassignedOrArchive() should do nothing when divisionCd != 0000/0001', () => {
+  const utilsStub = { CreateRequiredFormControl: () => ({}), CreateDateFormControl: () => ({}) };
+  const acctServiceStub = { loadStatusData: () => [] };
+  const storeMock = { pipe: jasmine.createSpy().and.returnValue(of(false)), dispatch: () => {} };
+
+  const c = new EditaccountComponent({} as any, {} as any, storeMock as any, utilsStub as any, acctServiceStub as any);
+
+  c.account = { divisionCd: '1234', divisionDesc: 'KeepDivision' } as any;
+  c.cbDivision = { value: '10' } as any;
+
+  c.SetunassignedOrArchive();
+
+  expect(c.account.divisionCd).toBe('1234');
+  expect(c.account.divisionDesc).toBe('KeepDivision');
+  expect(c.cbDivision.value).toBe('10');
 });
