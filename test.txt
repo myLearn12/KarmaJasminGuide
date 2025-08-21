@@ -1,33 +1,42 @@
-it('SetunassignedOrArchive() should null divisionCd/Desc and cbDivision.value when divisionCd = 0000', () => {
-  const utilsStub = { CreateRequiredFormControl: () => ({}), CreateDateFormControl: () => ({}) };
-  const acctServiceStub = { loadStatusData: () => [] };
-  const storeMock = { pipe: jasmine.createSpy().and.returnValue(of(false)), dispatch: () => {} };
+// ✅ CloneAccountSetup → when CheckCloneAccount() = true
+it('CloneAccountSetup() when clone → updates title, readOnly, zeroes fields, clears revshare', () => {
+  const utilsStub = {
+    CreateRequiredFormControl: () => ({}),
+    CreateDateFormControl: () => ({}),
+    numberUnformatter: (n: any) => n, // return the same number; 0 stays 0
+  };
+  const acctServiceStub = {
+    CheckCloneAccount: () => true, // clone mode ON
+    loadStatusData: () => [],
+  };
+  const storeMock = { pipe: jasmine.createSpy('pipe').and.returnValue(of(false)), dispatch: () => {} };
 
   const c = new EditaccountComponent({} as any, {} as any, storeMock as any, utilsStub as any, acctServiceStub as any);
 
-  c.account = { divisionCd: '0000', divisionDesc: 'SomeDivision' } as any;
-  c.cbDivision = { value: '10' } as any;
+  // initial state
+  c.PageTitle = 'Edit Account Details';
+  c.isAcctNumReadOnly = true; // will become false in clone mode
+  c.account = {
+    estacc: 123, estpp: 1, actpp: 2, endpp: 3, feepp: 4, cashpp: 5, accepfee: 6, revshare: 99
+  } as any;
 
-  c.SetunassignedOrArchive();
+  // act
+  c.CloneAccountSetup();
 
-  expect(c.account.divisionCd).toBeNull();
-  expect(c.account.divisionDesc).toBeNull();
-  expect(c.cbDivision.value).toBeNull();
-});
+  // assert
+  expect(c.isCloneAccount).toBeTrue();
+  expect(c.PageTitle).toBe('Clone Account Details');
+  expect(c.isAcctNumReadOnly).toBeFalse();
 
-it('SetunassignedOrArchive() should do nothing when divisionCd != 0000/0001', () => {
-  const utilsStub = { CreateRequiredFormControl: () => ({}), CreateDateFormControl: () => ({}) };
-  const acctServiceStub = { loadStatusData: () => [] };
-  const storeMock = { pipe: jasmine.createSpy().and.returnValue(of(false)), dispatch: () => {} };
+  // numeric fields reset to numberUnformatter(0) -> 0
+  expect(c.account.estacc).toBe(0);
+  expect(c.account.estpp).toBe(0);
+  expect(c.account.actpp).toBe(0);
+  expect(c.account.endpp).toBe(0);
+  expect(c.account.feepp).toBe(0);
+  expect(c.account.cashpp).toBe(0);
+  expect(c.account.accepfee).toBe(0);
 
-  const c = new EditaccountComponent({} as any, {} as any, storeMock as any, utilsStub as any, acctServiceStub as any);
-
-  c.account = { divisionCd: '1234', divisionDesc: 'KeepDivision' } as any;
-  c.cbDivision = { value: '10' } as any;
-
-  c.SetunassignedOrArchive();
-
-  expect(c.account.divisionCd).toBe('1234');
-  expect(c.account.divisionDesc).toBe('KeepDivision');
-  expect(c.cbDivision.value).toBe('10');
+  // revshare cleared
+  expect(c.account.revshare).toBeNull();
 });
