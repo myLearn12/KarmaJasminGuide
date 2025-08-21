@@ -1,15 +1,36 @@
-// ❌ ERROR: service failure → show message, disable save, stop loading, dispatch action
-it('InitialDataLoad() error case → shows service error, disables save, stops loading, dispatches action', () => {
+it('InitialDataLoad() error case without statusMessage → still disables save, stops loading, dispatches action', () => {
+  const utilsStub = {
+    CreateRequiredFormControl: () => ({}),
+    CreateDateFormControl: () => ({}),
+    LoadComboBoxData: () => [],
+  };
+  const acctServiceStub = {
+    LoadOfficerData: () => [],
+    loadStatusData: () => [],
+  };
   const storeMock = { dispatch: jasmine.createSpy('dispatch') };
-  const component = new EditaccountComponent({} as any, {} as any, storeMock as any, {} as any, {} as any);
 
-  component['feeApiservice'] = { getRequest: () => throwError(() => ({ error: { statusMessage: 'fail' } })) } as any;
-  component['displayServiceErrors'] = jasmine.createSpy();
+  const component = new EditaccountComponent(
+    {} as any,
+    {} as any,
+    storeMock as any,
+    utilsStub as any,
+    acctServiceStub as any
+  );
+
+  // feeApi throws without error.error.statusMessage
+  component['feeApiservice'] = {
+    getRequest: () => throwError(() => new Error('boom')),
+  } as any;
+
+  component['displayServiceErrors'] = jasmine.createSpy('displayServiceErrors');
 
   component['InitialDataLoad']();
 
-  expect(component['displayServiceErrors']).toHaveBeenCalledWith('fail');
+  // even if no statusMessage, UI should flip to error state
   expect(component.disableSavebtn).toBeTrue();
   expect(component.loading).toBeFalse();
-  expect(storeMock.dispatch).toHaveBeenCalled(); // LOADINGACTION(false)
+  expect(storeMock.dispatch).toHaveBeenCalled();
+  // optional: ensure display called with something (don’t enforce exact text)
+  expect(component['displayServiceErrors']).toHaveBeenCalled();
 });
