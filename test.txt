@@ -1,63 +1,55 @@
-it('LoadComboBoxSelectedValue() should populate options/values without throwing', () => {
-  // --- ctor deps so component instantiates
+// ✅ Normal path (isCloneAccount = false)
+it('LoadComboBoxSelectedValue() populates options, sets values, and snapshots old values', () => {
+  // ctor deps so component can instantiate
   const utilsStub = {
     CreateRequiredFormControl: () => ({}),
     CreateDateFormControl: () => ({}),
   };
   const acctServiceStub = {
-    // used by method for status mapping
     loadStatusData: () => [{ label: 'Active', value: 'A' }],
   };
-  const storeMock = {
-    pipe: jasmine.createSpy('pipe').and.returnValue(of(false)),
-    dispatch: () => {}
-  };
+  const storeMock = { pipe: jasmine.createSpy('pipe').and.returnValue(of(false)), dispatch: () => {} };
 
   const c = new EditaccountComponent(
-    {} as any,     // http
-    {} as any,     // appconfig (not used here)
-    storeMock as any,
-    utilsStub as any,
-    acctServiceStub as any
+    {} as any,        // http
+    {} as any,        // appConfig
+    storeMock as any, // store
+    utilsStub as any, // utils
+    acctServiceStub as any // acctService
   );
 
-  // --- STUB ALL ViewChild-like combo refs (each must exist and be distinct)
+  // 🔧 Stub ALL ViewChild combo refs your method touches (note exact names/casing)
   const mk = () => ({ options: [] as any[], value: null as any });
   (c as any).cbstatus = mk();
-  (c as any).cbStatus = (c as any).cbstatus;   // method writes to cbstatus, reads from cbStatus later
+  (c as any).cbStatus = (c as any).cbstatus; // oldcbStatusValue reads cbStatus.value
   c.cbDivision = mk() as any;
   c.cbAltDivision = mk() as any;
   (c as any).cbcycle = mk();
-  c.cbCycle = (c as any).cbcycle as any;       // method writes to cbcycle, later reads cbCycle
+  c.cbCycle = (c as any).cbcycle as any;     // oldcbCycleValue reads cbCycle.value
   c.cbFormula = mk() as any;
   (c as any).cbcategory = mk();
-  c.cbCategory = (c as any).cbcategory as any; // method writes to cbcategory, later reads cbCategory
+  c.cbCategory = (c as any).cbcategory as any; // oldcbCategoryValue reads cbCategory.value
   (c as any).cbofficer = mk();
 
-  // --- Provide ALL "*Data" arrays that get deep-copied (cover both spellings just in case)
-  // Status
-  (c as any).cbstatusData = [{ label: 'Active', value: 'A' }];
-  (c as any).cbStatusData = (c as any).cbstatusData;
+  // 🔧 Provide the "*Data" arrays (use `as any` as requested)
+  (c as any).cbstatusData    = [{ label: 'Active', value: 'A' }] as any;
+  c.cbDivisionData           = [{ id: '10', code: 'DA', text: 'Div A' }] as any;
+  c.cbAltDivisionData        = [{ id: '11', code: 'DB', text: 'Div B' }] as any;
+  c.cbCycleData              = [{ id: '5',  code: '5',  text: 'Monthly' }] as any;
+  c.cbFormulaData            = [{ id: '2',  code: 'F-01', text: 'F1' }] as any;
+  c.cbCategoryData           = [{ id: '7',  code: 'C1', text: 'Cat' }] as any;
+  c.cbofficerData            = [{ code: '100', text: 'A-Name' }] as any;
 
-  // Others
-  c.cbDivisionData    = [{ id: '10', code: 'DA', text: 'Div A' }] as any;
-  c.cbAltDivisionData = [{ id: '11', code: 'DB', text: 'Div B' }] as any;
-  c.cbCycleData       = [{ id: '5',  code: '5',  text: 'Monthly' }] as any;
-  c.cbFormulaData     = [{ id: '2',  code: 'F-01', text: 'F1' }] as any;
-  c.cbCategoryData    = [{ id: '7',  code: 'C1', text: 'Cat' }] as any;
-  c.cbofficerData     = [{ code: '100', text: 'A-Name' }] as any;
+  // 🔧 Domain lists + account (use `as any`)
+  c.regions   = [{ regionId: 1, regionDescription: 'East' }] as any;
+  c.regionid  = '1';
+  c.divisions = [{ divisionId: 10 }, { divisionId: 11 }] as any;
+  c.cycles    = [{ cycleId: 5 }] as any;
+  // NOTE: code filters by formulaId but maps with formulald.toString()
+  c.formulas  = [{ formulaId: 2, formulald: 2 }] as any;
+  c.categories= [{ categoryId: 7 }] as any;
+  c.officers  = { '100': { officer: '100', officersort: 'A-Name' } } as any;
 
-  // --- Domain lists used for value mapping
-  c.regions = [{ regionId: 1, regionDescription: 'East' } as any];
-  c.regionid = '1';
-  c.divisions = [{ divisionId: 10 } as any, { divisionId: 11 } as any];
-  c.cycles = [{ cycleId: 5 } as any];
-  // formula object needs BOTH ids because your code uses formulaId for filter and "formulald" for toString()
-  c.formulas = [{ formulaId: 2, formulald: 2 } as any];
-  c.categories = [{ categoryId: 7 } as any];
-  c.officers = { '100': { officer: '100', officersort: 'A-Name' } } as any;
-
-  // --- Account + old snapshot
   c.account = {
     regionDescription: '',
     status: 'Active',
@@ -68,14 +60,14 @@ it('LoadComboBoxSelectedValue() should populate options/values without throwing'
     categoryId: 7,
     officer: '100',
   } as any;
-  c.oldAccountValues = { regionDescription: '' } as any;
 
+  c.oldAccountValues = { regionDescription: '' } as any;
   c.isCloneAccount = false;
 
-  // --- ACT
+  // 🧪 act
   expect(() => (c as any).LoadComboBoxSelectedValue()).not.toThrow();
 
-  // --- ASSERT: options were copied and values computed
+  // ✅ options filled (deep-copied) & values set
   expect((c as any).cbstatus.options.length).toBe(1);
   expect(c.cbDivision.options.length).toBe(1);
   expect(c.cbAltDivision.options.length).toBe(1);
@@ -85,12 +77,22 @@ it('LoadComboBoxSelectedValue() should populate options/values without throwing'
   expect((c as any).cbofficer.options.length).toBe(1);
 
   expect(c.account.regionDescription).toBe('East');
-  // values set (strings)
+
   expect(((c as any).cbStatus.value ?? (c as any).cbstatus.value)).toEqual(['A']);
   expect(c.cbDivision.value).toEqual(['10']);
   expect(c.cbAltDivision.value).toEqual(['11']);
   expect(((c as any).cbCycle.value ?? (c as any).cbcycle.value)).toEqual(['5']);
-  expect(c.cbFormula.value).toEqual(['2']); // from formulald.toString()
+  expect(c.cbFormula.value).toEqual(['2']);
   expect(c.cbCategory.value).toEqual(['7']);
   expect((c as any).cbofficer.value).toEqual(['100']);
+
+  // old value snapshots
+  expect(c.oldcbStatusValue).toEqual(['A']);
+  expect(c.oldcbDivisionValue).toEqual(['10']);
+  expect(c.oldcbAltDivisionValue).toEqual(['11']);
+  expect(c.oldcbCycleValue).toEqual(['5']);
+  expect((c as any).oldcbFormulavalue).toEqual(['2']); // typo kept as in component
+  expect(c.oldcbCategoryValue).toEqual(['7']);
+  expect(c.oldcbofficerValue).toEqual(['100']);
+  expect(c.oldAccountValues.regionDescription).toBe('East');
 });
