@@ -1,83 +1,83 @@
-// ---- Clone mode = true ----
-it('CloneAccountSetup() when clone → updates title, readOnly, zeroes fields, clears revshare', () => {
+// ❌ INVALID path: multiple errors/flags → should return true
+it('ValidateFormControls() → sets flags & returns true when controls/combos invalid', () => {
+  // ctor deps
   const utilsStub = {
     CreateRequiredFormControl: () => ({}),
     CreateDateFormControl: () => ({}),
-    numberUnformatter: (n: any) => n, // returns the number given
+    isStringValid: (v: any) => !!v && String(v).trim().length > 0, // simple truthy check
   };
-  const acctServiceStub = {
-    CheckCloneAccount: () => true, // clone mode ON
-    loadStatusData: () => [],
-  };
+  const acctServiceStub = { loadStatusData: () => [] };
   const storeMock = { pipe: jasmine.createSpy('pipe').and.returnValue(of(false)), dispatch: () => {} };
 
   const c = new EditaccountComponent({} as any, {} as any, storeMock as any, utilsStub as any, acctServiceStub as any);
 
-  // initial state
-  c.PageTitle = 'Edit Account Details';
-  c.isAcctNumReadOnly = true;
-  c.account = {
-    estacc: 123, estpp: 1, actpp: 2, endpp: 3, feepp: 4, cashpp: 5, accepfee: 6, revshare: 99
+  // --- form controls (must provide markAsTouched + hasError)
+  c['fcn_AcctNumb'] = {
+    markAsTouched: jasmine.createSpy('markAsTouched'),
+    hasError: (e: string) => e === 'required', // make required true
   } as any;
 
-  // act
-  c.CloneAccountSetup();
-
-  // assert clone flags
-  expect(c.isCloneAccount).toBeTrue();
-  expect(c.PageTitle).toBe('Clone Account Details');
-  expect(c.isAcctNumReadOnly).toBeFalse();
-
-  // numeric fields reset to 0
-  expect(c.account.estacc).toBe(0);
-  expect(c.account.estpp).toBe(0);
-  expect(c.account.actpp).toBe(0);
-  expect(c.account.endpp).toBe(0);
-  expect(c.account.feepp).toBe(0);
-  expect(c.account.cashpp).toBe(0);
-  expect(c.account.accepfee).toBe(0);
-
-  // revshare cleared
-  expect(c.account.revshare).toBeNull();
-});
-
-// ---- Clone mode = false ----
-it('CloneAccountSetup() when not clone → keeps title, sets readOnly true, does not change amounts', () => {
-  const utilsStub = {
-    CreateRequiredFormControl: () => ({}),
-    CreateDateFormControl: () => ({}),
-    numberUnformatter: (n: any) => n,
-  };
-  const acctServiceStub = {
-    CheckCloneAccount: () => false, // clone mode OFF
-    loadStatusData: () => [],
-  };
-  const storeMock = { pipe: jasmine.createSpy('pipe').and.returnValue(of(false)), dispatch: () => {} };
-
-  const c = new EditaccountComponent({} as any, {} as any, storeMock as any, utilsStub as any, acctServiceStub as any);
-
-  // initial state
-  c.PageTitle = 'Edit Account Details';
-  c.isAcctNumReadOnly = false;
-  c.account = {
-    estacc: 123, estpp: 1, actpp: 2, endpp: 3, feepp: 4, cashpp: 5, accepfee: 6, revshare: 99
+  c['fcn_EstAccrual'] = {
+    markAsTouched: jasmine.createSpy('markAsTouched'),
+    hasError: (e: string) => false, // no errors here
   } as any;
 
+  c['fcn_OffcrNumber'] = {
+    hasError: (e: string) => e === 'required', // true so (required && !isCategoryCdValid) triggers
+  } as any;
+
+  c['fcn_OffcrName'] = {
+    hasError: () => false, // not used in this invalid scenario
+  } as any;
+
+  c.isCategoryCdValid = false; // to trigger (fcn_OffcrNumber.required && !isCategoryCdValid)
+
+  // --- combos used in flags (null => required flags hit)
+  c['cbStatus']     = { value: null } as any;
+  c['cbDivision']   = { value: null } as any;
+  c['cbCycle']      = { value: null } as any;
+  c['cbofficer']    = { value: null } as any;
+  c['cbFormula']    = { value: null } as any;
+  c['cbcategory']   = { value: null } as any;
+  c['cbAltDivision']= { value: '11' } as any; // not null so isRevShareReqd can turn true
+
+  // --- account + utils check for revshare
+  c.account = { revshare: 'RS' } as any; // isStringValid → true
+
+  // --- methods invoked inside (stub out; they don’t affect return)
+  c['setIsRevShareValid']   = jasmine.createSpy('setIsRevShareValid');
+  c['onoffcrNumberChange']  = jasmine.createSpy('onoffcrNumberChange');
+  c['onFutureUseChange']    = jasmine.createSpy('onFutureUseChange');
+  c['onoffNumberChange']    = jasmine.createSpy('onoffNumberChange');
+  c['onOzIdChange']         = jasmine.createSpy('onOzIdChange');
+
+  // some flags used in the giant if; default them to falsy
+  c.isofcrNmbrValid  = false;
+  c.isFutureValid    = false;
+  c.isRevShareValid  = false;
+  c.isDisp3Valid     = false;
+  c.isofficerNumValid= false;
+  c.isOzIdValid      = false;
+
   // act
-  c.CloneAccountSetup();
+  const result = (c as any).ValidateFormControls();
 
-  // assert non-clone flags
-  expect(c.isCloneAccount).toBeFalse();
-  expect(c.PageTitle).toBe('Edit Account Details'); // unchanged
-  expect(c.isAcctNumReadOnly).toBeTrue();
+  // markAsTouched called
+  expect(c['fcn_AcctNumb'].markAsTouched).toHaveBeenCalled();
+  expect(c['fcn_EstAccrual'].markAsTouched).toHaveBeenCalled();
 
-  // amounts unchanged
-  expect(c.account.estacc).toBe(123);
-  expect(c.account.estpp).toBe(1);
-  expect(c.account.actpp).toBe(2);
-  expect(c.account.endpp).toBe(3);
-  expect(c.account.feepp).toBe(4);
-  expect(c.account.cashpp).toBe(5);
-  expect(c.account.accepfee).toBe(6);
-  expect(c.account.revshare).toBe(99);
+  // required flags set by null values
+  expect(c.statusRequired).toBeTrue();
+  expect(c.divisionRequired).toBeTrue();
+  expect(c.cycleRequired).toBeTrue();
+  expect(c.officerRequired).toBeTrue();
+  expect(c.formulaRequired).toBeTrue();
+  expect(c.categoryRequired).toBeTrue();
+
+  // revshare flags based on cbAltDivision + isStringValid(revshare)
+  expect(c.isRevShareReqd).toBeTrue();      // cbAltDivision != null AND revshare valid
+  expect(c.altDivisionRequired).toBeFalse(); // because cbAltDivision != null
+
+  // final combined decision → should return true
+  expect(result).toBeTrue();
 });
