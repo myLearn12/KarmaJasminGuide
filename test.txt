@@ -1,101 +1,71 @@
-it('LoadComboBoxSelectedValue: populates options/values and old values (excluding AltDivision bug)', fakeAsync(() => {
-  // status source used by code
-  spyOn(component.acctService, 'loadStatusData').and.returnValue([{ label: 'ACTIVE', value: 'A' }]);
+it('ValidateFormControls: returns true when any errors/flags are triggered (handles mixed fcn/fon + cb name variants)', fakeAsync(() => {
+  // --- controls (support both fcn_ and fon_ names)
+  const acctCtrl = { markAsTouched: jasmine.createSpy('mat1'), hasError: (e: string) => e === 'required' };
+  const estCtrl  = { markAsTouched: jasmine.createSpy('mat2'), hasError: (e: string) => e === 'hasInvalidCharacter' };
+  (component as any).fcn_AcctNumb = acctCtrl;
+  (component as any).fon_AcctNumb = acctCtrl;      // alias
+  (component as any).fcn_EstAccrual = estCtrl;
+  (component as any).fon_EstAccrual = estCtrl;     // alias
+  // officer name/number controls used in the big if
+  (component as any).fcn_OffcrNumber = { hasError: (e: string) => e === 'required' };
+  (component as any).fon_offcrNumber = (component as any).fcn_OffcrNumber; // alias
+  (component as any).fcn_offcrName  = { hasError: () => false };
 
-  // ---- account + lookups
-  component.regionid = '101';
-  component.account = {
-    status: 'ACTIVE',
-    divisionId: 20,
-    altdivision: 30,
-    cycleId: 5,
-    formulaId: 11,
-    categoryId: 7,
-    officer: '100',
-    regionDescription: ''
-  } as any;
+  // --- combos (null -> required flags true). also stub both casings where used
+  (component as any).cbStatus   = { value: null, options: null };
+  (component as any).cbstatus   = (component as any).cbStatus; // alias
+  (component as any).cbDivision = { value: null, options: null };
+  (component as any).cbcycle    = { value: null, options: null }; // lower per code
+  (component as any).cbCycle    = (component as any).cbcycle;      // safety alias
+  (component as any).cbofficer  = { value: null, options: null };
+  (component as any).cbFormula  = { value: null, options: null };
+  (component as any).cbCategory = { value: null, options: null };
+  (component as any).cbcategory = (component as any).cbCategory;    // alias
+  (component as any).cbAltDivision = { value: 'X', options: null }; // not null to drive isRevShareReqd
 
-  component.regions    = [{ regionId: 101, regionDescription: 'East' }] as any;
-  component.divisions  = [{ divisionId: 20 }, { divisionId: 30 }] as any;
-  component.cycles     = [{ cycleId: 5 }] as any;
-  component.formulas   = [{ formulaId: 11 }] as any;
-  component.categories = [{ categoryId: 7 }] as any;
+  // --- utils + account (revshare invalid → isRevShareReqd true)
+  spyOn(component['utils'], 'isStringValid').and.callFake(v => !!v && String(v).trim().length > 0);
+  (component as any).utils.isStringValid.and.returnValue(false); // account.revshare invalid
+  component.account = { revshare: '' } as any;
 
-  // IMPORTANT for officer .value
-  component.officers = { '100': { officerNm: 'Officer X' } } as any;
+  // --- other flags that appear in the giant if: keep them false unless you want to trip them
+  component.isCategoryCdValid = false;  // so (offcrNumber.required && !isCategoryCdValid) → true
+  component.isofcrNmbrValid   = false;
+  component.isFutureValid     = false;
+  component.isRevShareValid   = false;
+  component.isDisp3Valid      = false;
+  component.isofficerNumValid = false;
+  component.isOzIdValid       = false;
+  component.isPcaValid        = false;
 
-  // source arrays for .options (match your component)
-  component.cbStatusData      = [{ label: 'ACTIVE', value: 'A' }];
-  component.cbDivisionData    = [{ label: 'DivA', value: '20' }];
-  component.cbAltDivisionData = [{ label: 'DivB', value: '30' }];
-  component.cbCycleData       = [{ label: 'Cycle5', value: '5' }];
-  component.cbFormulaData     = [{ label: 'Formula11', value: '11' }];
-  component.cbCategoryData    = [{ label: 'Cat7', value: '7' }];
-  component.cbofficerData     = [{ label: 'Officer X', value: '100' }];
+  // --- helpers called inside: make them no-op
+  (component as any).setIsRevSharevalid  = () => {};
+  (component as any).onoffcrNumberChange = () => {};
+  (component as any).onFutureUseChange   = () => {};
+  (component as any).onoffNumberChange   = () => {};
+  (component as any).onOzIdChange        = () => {};
 
-  // ---- stub ALL combo refs with both spellings the method uses
-  const mk = () => ({ options: null as any, value: null as any });
-
-  const cbStatusObj = mk();
-  (component as any).cbStatus  = cbStatusObj;
-  (component as any).cbstatus  = cbStatusObj;
-
-  const cbDivisionObj = mk();
-  (component as any).cbDivision = cbDivisionObj;
-
-  const cbAltDivObj = mk();
-  (component as any).cbAltDivision = cbAltDivObj;
-  (component as any).cbaltDivision = cbAltDivObj;
-
-  const cbCycleObj = mk();
-  (component as any).cbcycle = cbCycleObj;   // code uses cbcycle (lower)
-  (component as any).cbCycle = cbCycleObj;   // safety alias
-
-  const cbFormulaObj = mk();
-  (component as any).cbFormula = cbFormulaObj;
-
-  const cbCategoryObj = mk();
-  (component as any).cbCategory = cbCategoryObj;
-  (component as any).cbcategory = cbCategoryObj;
-
-  const cbOfficerObj = mk();
-  (component as any).cbofficer = cbOfficerObj; // EXACT name used by method
-
-  component.oldAccountValues = {} as any;
-
-  // ---- act
-  (component as any).LoadComboBoxSelectedValue();
+  // act
+  const result = (component as any).ValidateFormControls();
   tick();
 
-  // ---- asserts
+  // touched
+  expect(acctCtrl.markAsTouched).toHaveBeenCalled();
+  expect(estCtrl.markAsTouched).toHaveBeenCalled();
 
-  // region set
-  expect(component.account.regionDescription).toBe('East');
+  // required flags set by nulls
+  expect(component.statusRequired).toBeTrue();
+  expect(component.divisionRequired).toBeTrue();
+  expect(component.cycleRequired).toBeTrue();
+  expect(component.officerRequired).toBeTrue();
+  expect(component.formulaRequired).toBeTrue();
+  expect(component.categoryRequired).toBeTrue();
 
-  // options copied
-  expect((component as any).cbStatus.options).toEqual(component.cbStatusData);
-  expect((component as any).cbDivision.options).toEqual(component.cbDivisionData);
-  expect((component as any).cbaltDivision.options).toEqual(component.cbAltDivisionData);
-  expect((component as any).cbcycle.options).toEqual(component.cbCycleData);
-  expect((component as any).cbFormula.options).toEqual(component.cbFormulaData);
-  expect((component as any).cbcategory.options).toEqual(component.cbCategoryData);
-  expect((component as any).cbofficer.options).toEqual(component.cbofficerData); // <- was null before
+  // revshare flags: cbAltDivision != null AND revshare invalid => isRevShareReqd true
+  expect(component.isRevShareReqd).toBeTrue();
+  // altDivisionRequired requires revshare valid && cbAltDivision null → false here
+  expect(component.altDivisionRequired).toBeFalse();
 
-  // values (skip AltDivision due to known '=' bug)
-  expect((component as any).cbstatus.value).toEqual(['A']);
-  expect((component as any).cbDivision.value).toEqual(['20']);
-  expect((component as any).cbcycle.value).toEqual(['5']);
-  expect((component as any).cbFormula.value).toEqual(['11']);
-  expect((component as any).cbCategory.value).toEqual(['7']);
-  expect((component as any).cbofficer.value).toEqual(['100']); // <- was null before
-
-  // old snapshots (match your method’s exact names)
-  expect(component.oldcbStatusValue).toEqual((component as any).cbStatus.value);
-  expect(component.oldcbDivisionValue).toEqual((component as any).cbDivision.value);
-  // alt-division old value intentionally skipped due to bug
-  expect((component as any).oldcbcycleValue ?? component.oldcbcycleValue).toEqual((component as any).cbcycle.value);
-  expect(component.oldcbFormulavalue).toEqual((component as any).cbFormula.value);
-  expect(component.oldcbCategoryValue).toEqual((component as any).cbCategory.value);
-  expect(component.oldcbofficerValue).toEqual((component as any).cbofficer.value); // <- was mismatch before
-  expect(component.oldAccountValues.regionDescription).toBe('East');
+  // since several conditions are true, method should return true
+  expect(result).toBeTrue();
 }));
