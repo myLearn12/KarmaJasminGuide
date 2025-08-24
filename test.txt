@@ -1,17 +1,23 @@
-it('onoffcrNumberChange: should set officerRequired=true when cbofficer.value=null and update selectedofficerNm', fakeAsync(() => {
+it('onPcaChange: should set isPcaValid = !isStringAlphaNumeric when pcanumber is valid', fakeAsync(() => {
   // Arrange
-  (component as any).cbofficer = { value: null };
-  (component as any).fcn_OffcrNumber = { value: '123' };
-  component.officers = { '123': { officerNm: 'John Doe' } } as any;
+  component.account = { pcanumber: 'ABC123' } as any;
 
-  const spySet = spyOn(component as any, 'setIsofcrNmbrValid');
+  spyOn(component['utils'], 'isStringValid').and.returnValue(true);
+  spyOn(component['utils'], 'isStringAlphaNumeric').and.returnValue(true); // returns true -> !true = false
 
   // Act
-  (component as any).onoffcrNumberChange();
+  (component as any).onPcaChange();
   tick();
 
   // Assert
-  expect(component.officerRequired).toBeTrue();
-  expect(component.selectedofficerNm).toBe('John Doe');
-  expect(spySet).toHaveBeenCalled();
+  expect(component.isPcaValid).toBeFalse();
+
+  // Now flip: if isStringAlphaNumeric false -> !false = true
+  (component as any).isPcaValid = null as any; // reset
+  (component['utils'].isStringAlphaNumeric as jasmine.Spy).and.returnValue(false);
+
+  (component as any).onPcaChange();
+  tick();
+
+  expect(component.isPcaValid).toBeTrue();
 }));
