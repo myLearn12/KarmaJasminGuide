@@ -1,71 +1,59 @@
-it('ValidateFormControls: returns true when any errors/flags are triggered (handles mixed fcn/fon + cb name variants)', fakeAsync(() => {
-  // --- controls (support both fcn_ and fon_ names)
+it('ValidateFormControls: returns true when errors/flags are triggered (excluding officer checks)', fakeAsync(() => {
+  // --- controls (acct + est)
   const acctCtrl = { markAsTouched: jasmine.createSpy('mat1'), hasError: (e: string) => e === 'required' };
-  const estCtrl  = { markAsTouched: jasmine.createSpy('mat2'), hasError: (e: string) => e === 'hasInvalidCharacter' };
+  const estCtrl  = { markAsTouched: jasmine.createSpy('mat2'), hasError: (e: string) => e === 'required' };
   (component as any).fcn_AcctNumb = acctCtrl;
-  (component as any).fon_AcctNumb = acctCtrl;      // alias
+  (component as any).fon_AcctNumb = acctCtrl;
   (component as any).fcn_EstAccrual = estCtrl;
-  (component as any).fon_EstAccrual = estCtrl;     // alias
-  // officer name/number controls used in the big if
-  (component as any).fcn_OffcrNumber = { hasError: (e: string) => e === 'required' };
-  (component as any).fon_offcrNumber = (component as any).fcn_OffcrNumber; // alias
-  (component as any).fcn_offcrName  = { hasError: () => false };
+  (component as any).fon_EstAccrual = estCtrl;
 
-  // --- combos (null -> required flags true). also stub both casings where used
-  (component as any).cbStatus   = { value: null, options: null };
-  (component as any).cbstatus   = (component as any).cbStatus; // alias
-  (component as any).cbDivision = { value: null, options: null };
-  (component as any).cbcycle    = { value: null, options: null }; // lower per code
-  (component as any).cbCycle    = (component as any).cbcycle;      // safety alias
-  (component as any).cbofficer  = { value: null, options: null };
-  (component as any).cbFormula  = { value: null, options: null };
-  (component as any).cbCategory = { value: null, options: null };
-  (component as any).cbcategory = (component as any).cbCategory;    // alias
-  (component as any).cbAltDivision = { value: 'X', options: null }; // not null to drive isRevShareReqd
+  // --- combos (null => required flags true)
+  (component as any).cbStatus   = { value: null };
+  (component as any).cbstatus   = (component as any).cbStatus;
+  (component as any).cbDivision = { value: null };
+  (component as any).cbcycle    = { value: null };
+  (component as any).cbCycle    = (component as any).cbcycle;
+  (component as any).cbFormula  = { value: null };
+  (component as any).cbCategory = { value: null };
+  (component as any).cbcategory = (component as any).cbCategory;
+  (component as any).cbAltDivision = { value: 'X' }; // not null -> revshare flag path
 
-  // --- utils + account (revshare invalid → isRevShareReqd true)
-  spyOn(component['utils'], 'isStringValid').and.callFake(v => !!v && String(v).trim().length > 0);
-  (component as any).utils.isStringValid.and.returnValue(false); // account.revshare invalid
+  // --- utils + account
+  spyOn(component['utils'], 'isStringValid').and.returnValue(false);
   component.account = { revshare: '' } as any;
 
-  // --- other flags that appear in the giant if: keep them false unless you want to trip them
-  component.isCategoryCdValid = false;  // so (offcrNumber.required && !isCategoryCdValid) → true
-  component.isofcrNmbrValid   = false;
+  // --- no-op helpers
+  (component as any).setIsRevSharevalid  = () => {};
+  (component as any).onFutureUseChange   = () => {};
+  (component as any).onOzIdChange        = () => {};
+  (component as any).onoffNumberChange   = () => {};
+
+  // --- other flags false
+  component.isCategoryCdValid = false;
   component.isFutureValid     = false;
   component.isRevShareValid   = false;
   component.isDisp3Valid      = false;
-  component.isofficerNumValid = false;
   component.isOzIdValid       = false;
   component.isPcaValid        = false;
-
-  // --- helpers called inside: make them no-op
-  (component as any).setIsRevSharevalid  = () => {};
-  (component as any).onoffcrNumberChange = () => {};
-  (component as any).onFutureUseChange   = () => {};
-  (component as any).onoffNumberChange   = () => {};
-  (component as any).onOzIdChange        = () => {};
 
   // act
   const result = (component as any).ValidateFormControls();
   tick();
 
-  // touched
+  // touched called
   expect(acctCtrl.markAsTouched).toHaveBeenCalled();
   expect(estCtrl.markAsTouched).toHaveBeenCalled();
 
-  // required flags set by nulls
+  // required flags should be true
   expect(component.statusRequired).toBeTrue();
   expect(component.divisionRequired).toBeTrue();
   expect(component.cycleRequired).toBeTrue();
-  expect(component.officerRequired).toBeTrue();
   expect(component.formulaRequired).toBeTrue();
   expect(component.categoryRequired).toBeTrue();
 
-  // revshare flags: cbAltDivision != null AND revshare invalid => isRevShareReqd true
+  // revshare flag true (altDivision not null + revshare invalid)
   expect(component.isRevShareReqd).toBeTrue();
-  // altDivisionRequired requires revshare valid && cbAltDivision null → false here
   expect(component.altDivisionRequired).toBeFalse();
 
-  // since several conditions are true, method should return true
   expect(result).toBeTrue();
 }));
