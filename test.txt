@@ -1,23 +1,8 @@
-it('onPcaChange: should set isPcaValid = !isStringAlphaNumeric when pcanumber is valid', fakeAsync(() => {
-  // Arrange
-  component.account = { pcanumber: 'ABC123' } as any;
+it('setIsCategoryCdValid: should set true when cbCategory.value includes 62 or 45', fakeAsync(() => {
+  (component as any).cbCategory = { value: ['62', '45'] };
 
-  spyOn(component['utils'], 'isStringValid').and.returnValue(true);
-  spyOn(component['utils'], 'isStringAlphaNumeric').and.returnValue(true); // returns true -> !true = false
-
-  // Act
-  (component as any).onPcaChange();
+  (component as any).setIsCategoryCdValid();
   tick();
 
-  // Assert
-  expect(component.isPcaValid).toBeFalse();
-
-  // Now flip: if isStringAlphaNumeric false -> !false = true
-  (component as any).isPcaValid = null as any; // reset
-  (component['utils'].isStringAlphaNumeric as jasmine.Spy).and.returnValue(false);
-
-  (component as any).onPcaChange();
-  tick();
-
-  expect(component.isPcaValid).toBeTrue();
+  expect(component.isCategoryCdValid).toBeTrue();
 }));
