@@ -1,44 +1,18 @@
-it('OnDivisionChange: when mapping exists and region differs sets newRegion fields and shows action modal', fakeAsync(() => {
+it('canProcessRecord(true): should set account.regionId to newRegionId and hide modal', fakeAsync(() => {
   // Arrange
-  // value chosen → '30' (string so .toString() works)
-  (component as any).cbDivision = { value: '30' };
+  component.newRegionId = 2 as any;                       // will be .toString()'d
+  component.account = { regionId: '1' } as any;
 
-  // current account in region "1"
-  component.account = { divisionId: 10, regionId: '1' } as any;
-
-  // divisions & mapping for the chosen division
-  component.divisions = [
-    { divisionId: 10, divisionDesc: 'Div A' },
-    { divisionId: 30, divisionDesc: 'Div C' },
-  ] as any[];
-
-  component.regionDivisions = [
-    { divisionId: 30, regionId: 2, regionDesc: 'South' }, // maps 30 -> region 2
-  ] as any[];
-
-  // revShareDivMappingMessage is called unconditionally at start
-  spyOn(component as any, 'revShareDivMappingMessage');
-
-  // 🔧 modal spy must cover both field names used in code
-  const modalSpy = jasmine.createSpyObj('modal', ['show']);
+  // cover both possible modal field names
+  const modalSpy = jasmine.createSpyObj('modal', ['hide']);
   (component as any).actionModal = modalSpy;
-  (component as any)._actionModal = modalSpy; // in case component uses this name elsewhere
+  (component as any)._actionModal = modalSpy;
 
   // Act
-  (component as any).OnDivisionChange();
+  (component as any).canProcessRecord(true);
   tick();
 
   // Assert
-  expect((component as any).revShareDivMappingMessage).toHaveBeenCalled();
-
-  // newRegion resolved correctly
-  expect(component.newRegionId).toBe(2);
-  expect(component.newRegionDesc).toBe('South');
-
-  // Title/message prepared
-  expect(component.actionModelTitle).toContain('Region Modified');
-  expect(component.actionModelMessage).toContain('belongs to South Region');
-
-  // ✅ modal should be shown
-  expect(modalSpy.show).toHaveBeenCalled();
+  expect(component.account.regionId).toBe('2');           // newRegionId.toString()
+  expect(modalSpy.hide).toHaveBeenCalled();
 }));
