@@ -1,32 +1,23 @@
-it('SetDeltachanges: should handle error and show message', fakeAsync(() => {
+it('OnStatusChange: when status is "2" → clears dateclosed and hides closed-required error; sets open-required if dateopen invalid', fakeAsync(() => {
   // Arrange
-  const errorMessage = 'Server Error';
-  component.selectedAccountNumber = 'ACC-123';
+  const statusRef = { value: ['2'] }; // ['2'] → .toString() === '2'
+  (component as any).cbStatus = statusRef;
+  (component as any).cbstatus = statusRef;
 
-  // hasDeltaChanges → true
-  spyOn(component.acctService as any, 'checkDeltaChanges').and.returnValue(true);
-  spyOn(component.acctService as any, 'setDeltaChanges').and.stub();
+  component.account = { dateopen: '', dateclosed: '2025-08-10' } as any;
 
-  // readonly getter stub (base URL)
-  const appCfg = TestBed.inject(appconfigservice);
-  spyOnProperty(appCfg as any, 'getDeltaChangeByAcctUrl', 'get').and.returnValue('/api/delta/');
-
-  const getUrl = `/api/delta/ACC-123`;
-
-  spyOn(component.feeApiservice, 'getRequest')
-    .withArgs(getUrl)
-    .and.returnValue(throwError(() => ({ error: { statusMessage: errorMessage } })));
-
-  const dispatchSpy = spyOn(component['store'], 'dispatch');
-  const errorSpy = spyOn(component as any, 'displayServiceErrors');
+  // isStringValid('') -> false  => showAcctOpenRequiredError should become true
+  spyOn(component['utils'], 'isStringValid').and.returnValue(false);
 
   // Act
-  (component as any).SetDeltachanges();
+  (component as any).OnStatusChange();
   tick();
 
   // Assert
-  expect(component.actionMessage).toBeNull();
-  expect(component.loading).toBeFalse();
-  expect(dispatchSpy).toHaveBeenCalledWith(new LOADINGACTION(false));
-  expect(errorSpy).toHaveBeenCalledWith(errorMessage);
+  expect(component.statusRequired).toBeFalse();           // value not null
+  expect(component.account.dateclosed).toBeNull();        // cleared
+  expect(component.showAcctClosedRequiredError).toBeFalse();
+
+  // dateopen invalid -> open required error true
+  expect(component.showAcctOpenRequiredError).toBeTrue();
 }));
