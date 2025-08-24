@@ -1,28 +1,32 @@
+// ✅ hasDeltaChanges = true → loads deltas, paints colors, resets flags
 it('SetDeltaChanges: when hasDeltaChanges=true → loads deltas, colors fields, and resets flags', fakeAsync(() => {
-  // Arrange
+  // Make sure we have a selected acct number
   component.selectedAccountNumber = 'ACC-123';
 
-  // hasDeltaChanges → true
-  spyOn(component.acctService as any, 'checkDeltaChanges').and.returnValue(true);
-  // some codepaths use lowercase acctservice; make it safe too
-  if ((component as any).acctservice) {
-    spyOn((component as any).acctservice, 'checkDeltaChanges').and.returnValue(true);
-    spyOn((component as any).acctservice, 'setDeltaChanges').and.stub();
-  }
-  spyOn(component.acctService as any, 'setDeltaChanges').and.stub();
+  // --- stub the *private* acctService
+  const privAcct = (component as any).acctService;
+  spyOn(privAcct, 'checkDeltaChanges').and.returnValue(true);
+  spyOn(privAcct, 'setDeltaChanges').and.stub();
 
-  // stub readonly getter
+  // (your code sometimes uses lowercase acctservice — cover that too if present)
+  const privAcctLower = (component as any).acctservice;
+  if (privAcctLower && privAcctLower !== privAcct) {
+    spyOn(privAcctLower, 'checkDeltaChanges').and.returnValue(true);
+    spyOn(privAcctLower, 'setDeltaChanges').and.stub();
+  }
+
+  // --- stub readonly URL getter
   spyOnProperty(component.appConfigService as any, 'getDeltaChangeByAcctUrl', 'get')
     .and.returnValue('/api/delta/');
 
-  // API returns a delta for "status"
+  // --- API returns a delta for "status"
   const feeSpy = spyOn(component.feeApiservice as any, 'getRequest')
     .and.returnValue(of([{ colModNm: 'status' }]));
 
-  // minimal account to paint on
+  // minimal account to paint onto
   component.account = { status: 'Active' } as any;
 
-  // Act
+  // --- call method (tolerate name variants)
   const fn =
     (component as any).SetDeltaChanges ??
     (component as any).SetDeltachanges ??
@@ -30,21 +34,20 @@ it('SetDeltaChanges: when hasDeltaChanges=true → loads deltas, colors fields, 
   fn.call(component);
   tick();
 
-  // Assert
+  // --- assertions
   expect(feeSpy).toHaveBeenCalledWith('/api/delta/ACC-123');
   expect(component.deltaChangeDetails.length).toBe(1);
   expect(component.hideBacktoDetails).toBeTrue();
 
-  // dynamic keys asserted via bracket access (no typing issues)
+  // dynamic color keys
   const bgKey = 'statusBgColor';
   const txtKey = 'statusTxtColor';
   expect((component.account as any)[bgKey]).toBe(component.t3kDeltaBgColor);
   expect((component.account as any)[txtKey]).toBe(component.t3kDeltaTextColor);
 
-  // flag reset + loading/action
-  expect((component.acctService as any).setDeltaChanges).toHaveBeenCalledWith(false);
-  if ((component as any).acctservice?.setDeltaChanges) {
-    expect((component as any).acctservice.setDeltaChanges).toHaveBeenCalledWith(false);
+  expect(privAcct.setDeltaChanges).toHaveBeenCalledWith(false);
+  if (privAcctLower?.setDeltaChanges) {
+    expect(privAcctLower.setDeltaChanges).toHaveBeenCalledWith(false);
   }
   expect(component.loading).toBeFalse();
   expect((component as any).store.dispatch).toHaveBeenCalledWith(new LOADINGACTION(false));
