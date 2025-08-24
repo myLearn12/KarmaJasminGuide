@@ -1,57 +1,41 @@
-// ✅ hasDeltaChanges = true → success path: fetch, paint delta colors, reset flag, stop loading, dispatch
+// ✅ Success path
 it('SetDeltachanges: when hasDeltaChanges=true → loads deltas, colors fields, and resets flags', fakeAsync(() => {
-  // ctor deps
-  const utilsStub = {
-    CreateRequiredFormControl: () => ({}),
-    CreateDateFormControl: () => ({})
-  };
-  const storeMock = { pipe: jasmine.createSpy('pipe').and.returnValue(of(false)), dispatch: jasmine.createSpy('dispatch') };
+  // utils + store
+  const utilsStub = { CreateRequiredFormControl: () => ({}), CreateDateFormControl: () => ({}) };
+  const storeMock = { pipe: jasmine.createSpy().and.returnValue(of(false)), dispatch: jasmine.createSpy('dispatch') };
 
-  // acctService stub (both name casings used in your code)
-  const acctServiceStub = {
-    checkDeltaChanges: () => true,
-    setDeltaChanges: jasmine.createSpy('setDeltaChanges')
-  };
+  // acctService
+  const acctServiceStub = { checkDeltaChanges: () => true, setDeltaChanges: jasmine.createSpy('setDeltaChanges') };
 
-  const component = new EditaccountComponent({} as any, {} as any, storeMock as any, utilsStub as any, acctServiceStub as any);
-  (component as any).acctservice = acctServiceStub; // in case lowercase is used inside method
+  // appConfigService
+  const appConfigStub = { getDeltaChangeByAcctUrl: '/api/delta/' };
 
-  // URLs & inputs
-  component.appConfigService.getDeltaChangeByAcctUrl = '/api/delta/';
+  // component instance
+  const component = new EditaccountComponent({} as any, appConfigStub as any, storeMock as any, utilsStub as any, acctServiceStub as any);
+  (component as any).acctservice = acctServiceStub; // cover lowercasing in code
+  component.feeApiservice = jasmine.createSpyObj('feeApiservice', ['getRequest']);
+
+  // inputs
   component.selectedAccountNumber = 'ACC-123';
+  component.account = { status: 'Active' } as any;
 
-  // initial account (include a key that will match colModNm)
-  component.account = {
-    status: 'Active'
-    // statusBgColor / statusTxtColor will be set by the method
-  } as any;
-
-  // delta list returned by API
-  const mockDelta = [
-    { colModNm: 'status' } as any
-  ];
-
-  // fee API spy
-  const feeApiSpy = jasmine.createSpyObj('feeApiservice', ['getRequest']);
-  component.feeApiservice = feeApiSpy;
-  feeApiSpy.getRequest.and.returnValue(of(mockDelta));
+  // API returns a delta for "status"
+  const mockDelta = [{ colModNm: 'status' }];
+  (component.feeApiservice.getRequest as jasmine.Spy).and.returnValue(of(mockDelta));
 
   // Act
   (component as any).SetDeltachanges();
   tick();
 
-  // Assert: called with composed URL
-  expect(feeApiSpy.getRequest).toHaveBeenCalledWith('/api/delta/ACC-123');
-
-  // result stored
+  // Assert
+  expect(component.feeApiservice.getRequest)
+    .toHaveBeenCalledWith('/api/delta/ACC-123');
   expect(component.deltaChangeDetails).toEqual(mockDelta);
 
-  // complete handler effects
   expect(component.hideBacktoDetails).toBeTrue();
   expect(component.account.statusBgColor).toBe(component.t3kDeltaBgColor);
   expect(component.account.statusTxtColor).toBe(component.t3kDeltaTextColor);
 
-  // reset flags + loading + dispatch
   expect(acctServiceStub.setDeltaChanges).toHaveBeenCalledWith(false);
   expect(component.loading).toBeFalse();
   expect(storeMock.dispatch).toHaveBeenCalledWith(new LOADINGACTION(false));
