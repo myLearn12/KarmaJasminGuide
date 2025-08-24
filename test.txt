@@ -1,19 +1,21 @@
-it('OnDivisionChange: when selected division has NO region mapping → shows error modal and resets value to account.divisionId', fakeAsync(() => {
+it('OnDivisionChange: when mapping exists and region differs → sets newRegion fields and shows action modal', fakeAsync(() => {
   // Arrange
-  // user picked division 20, but mapping will be empty so findIndex === -1
-  (component as any).cbDivision = { value: '20' };
+  // user selects division 30 that maps to regionId 2 (different from account.regionId '1')
+  (component as any).cbDivision = { value: '30' };
 
-  component.account = { divisionId: 10 } as any; // old division to restore
+  component.account = { divisionId: 10, regionId: '1' } as any;
+
   component.divisions = [
     { divisionId: 10, divisionDesc: 'Div A' },
-    { divisionId: 20, divisionDesc: 'Div B' },
+    { divisionId: 30, divisionDesc: 'Div C' },
   ] as any[];
 
-  component.regionDivisions = []; // no mappings -> triggers error branch
+  component.regionDivisions = [
+    { divisionId: 30, regionId: 2, regionDesc: 'South' },
+  ] as any[];
 
   spyOn(component as any, 'revShareDivMappingMessage');
-  // stub error modal
-  (component as any)._errorModal = { show: jasmine.createSpy('show') };
+  (component as any).actionModal = { show: jasmine.createSpy('show') };
 
   // Act
   (component as any).OnDivisionChange();
@@ -21,12 +23,13 @@ it('OnDivisionChange: when selected division has NO region mapping → shows err
 
   // Assert
   expect((component as any).revShareDivMappingMessage).toHaveBeenCalled();
-  expect((component as any)._errorModal.show).toHaveBeenCalled();
 
-  // messages populated (partial check to avoid brittle exact strings)
-  expect(component.firstValidationErrorMessage).toContain('Division does not have any Region');
-  expect(component.thirdValidationErrorMessage).toContain('Please contact Application Admin');
+  // newRegion resolved from mapping
+  expect(component.newRegionId).toBe(2);
+  expect(component.newRegionDesc).toBe('South');
 
-  // value reset to original account.divisionId (stringified)
-  expect((component as any).cbDivision.value).toEqual(['10']);
+  // modal content & visibility
+  expect(component.actionModelTitle).toContain('Region Modified');
+  expect(component.actionModelMessage).toContain('belongs to South Region');
+  expect((component as any).actionModal.show).toHaveBeenCalled();
 }));
