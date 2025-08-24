@@ -1,49 +1,58 @@
-it('ValidateFormControls: marks controls touched and sets required/revshare flags only', () => {
-  // utils + store stubs
+// ✅ hasDeltaChanges = true → success path: fetch, paint delta colors, reset flag, stop loading, dispatch
+it('SetDeltachanges: when hasDeltaChanges=true → loads deltas, colors fields, and resets flags', fakeAsync(() => {
+  // ctor deps
   const utilsStub = {
-    isStringValid: (v: any) => !!v && String(v).trim().length > 0,
+    CreateRequiredFormControl: () => ({}),
+    CreateDateFormControl: () => ({})
   };
-  const storeMock = { pipe: jasmine.createSpy('pipe').and.returnValue(of(false)), dispatch: () => {} };
+  const storeMock = { pipe: jasmine.createSpy('pipe').and.returnValue(of(false)), dispatch: jasmine.createSpy('dispatch') };
 
-  const c = new EditaccountComponent({} as any, {} as any, storeMock as any, utilsStub as any, {} as any);
+  // acctService stub (both name casings used in your code)
+  const acctServiceStub = {
+    checkDeltaChanges: () => true,
+    setDeltaChanges: jasmine.createSpy('setDeltaChanges')
+  };
 
-  // --- stub controls
-  c['fcn_AcctNumb'] = { markAsTouched: jasmine.createSpy('markAsTouched'), hasError: () => false } as any;
-  c['fcn_EstAccrual'] = { markAsTouched: jasmine.createSpy('markAsTouched'), hasError: () => false } as any;
+  const component = new EditaccountComponent({} as any, {} as any, storeMock as any, utilsStub as any, acctServiceStub as any);
+  (component as any).acctservice = acctServiceStub; // in case lowercase is used inside method
 
-  // --- stub combos
-  c['cbStatus']   = { value: null } as any;
-  c['cbDivision'] = { value: null } as any;
-  c['cbCycle']    = { value: null } as any;
-  c['cbFormula']  = { value: null } as any;
-  c['cbCategory'] = { value: null } as any;
-  c['cbAltDivision'] = { value: 'X' } as any;
+  // URLs & inputs
+  component.appConfigService.getDeltaChangeByAcctUrl = '/api/delta/';
+  component.selectedAccountNumber = 'ACC-123';
 
-  // --- minimal account (no officerNm at all)
-  c.account = { revshare: '' } as any;
+  // initial account (include a key that will match colModNm)
+  component.account = {
+    status: 'Active'
+    // statusBgColor / statusTxtColor will be set by the method
+  } as any;
 
-  // --- stub all helpers so they don’t run
-  c['setIsRevShareValid']  = () => {};
-  c['onoffcrNumberChange'] = () => {};
-  c['onFutureUseChange']   = () => {};
-  c['onoffNumberChange']   = () => {};
-  c['onOzIdChange']        = () => {};
+  // delta list returned by API
+  const mockDelta = [
+    { colModNm: 'status' } as any
+  ];
+
+  // fee API spy
+  const feeApiSpy = jasmine.createSpyObj('feeApiservice', ['getRequest']);
+  component.feeApiservice = feeApiSpy;
+  feeApiSpy.getRequest.and.returnValue(of(mockDelta));
 
   // Act
-  (c as any).ValidateFormControls();
+  (component as any).SetDeltachanges();
+  tick();
 
-  // Assert touched
-  expect(c['fcn_AcctNumb'].markAsTouched).toHaveBeenCalled();
-  expect(c['fcn_EstAccrual'].markAsTouched).toHaveBeenCalled();
+  // Assert: called with composed URL
+  expect(feeApiSpy.getRequest).toHaveBeenCalledWith('/api/delta/ACC-123');
 
-  // Assert required flags
-  expect(c.statusRequired).toBeTrue();
-  expect(c.divisionRequired).toBeTrue();
-  expect(c.cycleRequired).toBeTrue();
-  expect(c.formulaRequired).toBeTrue();
-  expect(c.categoryRequired).toBeTrue();
+  // result stored
+  expect(component.deltaChangeDetails).toEqual(mockDelta);
 
-  // Assert revshare flags
-  expect(c.isRevShareReqd).toBeTrue();   // cbAltDivision != null && revshare invalid
-  expect(c.altDivisionRequired).toBeFalse();
-});
+  // complete handler effects
+  expect(component.hideBacktoDetails).toBeTrue();
+  expect(component.account.statusBgColor).toBe(component.t3kDeltaBgColor);
+  expect(component.account.statusTxtColor).toBe(component.t3kDeltaTextColor);
+
+  // reset flags + loading + dispatch
+  expect(acctServiceStub.setDeltaChanges).toHaveBeenCalledWith(false);
+  expect(component.loading).toBeFalse();
+  expect(storeMock.dispatch).toHaveBeenCalledWith(new LOADINGACTION(false));
+}));
