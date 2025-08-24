@@ -1,18 +1,34 @@
-it('canProcessRecord(true): should set account.regionId to newRegionId and hide modal', fakeAsync(() => {
+it('canProcessRecord(false): should restore division selection, set regionDescription from regions, and hide modal', fakeAsync(() => {
   // Arrange
-  component.newRegionId = 2 as any;                       // will be .toString()'d
-  component.account = { regionId: '1' } as any;
+  component.newRegionDesc = 'South'; // will get overwritten by regions lookup later
+  component.regionid = '99';
 
-  // cover both possible modal field names
+  component.account = { divisionId: 20, regionDescription: 'Old' } as any;
+
+  component.divisions = [
+    { divisionId: 10, divisionDesc: 'Div A' } as any,
+    { divisionId: 20, divisionDesc: 'Div B' } as any,
+  ];
+  component.regions = [
+    { regionId: 99, regionDescription: 'East' } as any,
+  ];
+
+  (component as any).cbDivision = { value: null };
+
   const modalSpy = jasmine.createSpyObj('modal', ['hide']);
   (component as any).actionModal = modalSpy;
   (component as any)._actionModal = modalSpy;
 
   // Act
-  (component as any).canProcessRecord(true);
+  (component as any).canProcessRecord(false);
   tick();
 
   // Assert
-  expect(component.account.regionId).toBe('2');           // newRegionId.toString()
+  // cbDivision reset back to the account's current division (stringified)
+  expect((component as any).cbDivision.value).toEqual(['20']);
+
+  // regionDescription is finally set from regions.find(...).regionDescription
+  expect(component.account.regionDescription).toBe('East');
+
   expect(modalSpy.hide).toHaveBeenCalled();
 }));
