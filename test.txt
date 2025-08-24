@@ -1,12 +1,12 @@
-it('OnStatusChange: when status is "2" → clears dateclosed and hides closed-required error; sets open-required if dateopen invalid', fakeAsync(() => {
+it('OnStatusChange: when status is "1" and dateopen invalid → sets open-required error', fakeAsync(() => {
   // Arrange
-  const statusRef = { value: ['2'] }; // ['2'] → .toString() === '2'
+  const statusRef = { value: ['1'] }; // ['1'] → .toString() === '1'
   (component as any).cbStatus = statusRef;
   (component as any).cbstatus = statusRef;
 
   component.account = { dateopen: '', dateclosed: '2025-08-10' } as any;
 
-  // isStringValid('') -> false  => showAcctOpenRequiredError should become true
+  // invalid open date
   spyOn(component['utils'], 'isStringValid').and.returnValue(false);
 
   // Act
@@ -14,10 +14,35 @@ it('OnStatusChange: when status is "2" → clears dateclosed and hides closed-re
   tick();
 
   // Assert
-  expect(component.statusRequired).toBeFalse();           // value not null
-  expect(component.account.dateclosed).toBeNull();        // cleared
+  expect(component.statusRequired).toBeFalse();      // value present
+  expect(component.account.dateclosed).toBeNull();   // method always nulls it
   expect(component.showAcctClosedRequiredError).toBeFalse();
 
-  // dateopen invalid -> open required error true
+  // because dateopen invalid (and status '1' block rechecks), must be true
   expect(component.showAcctOpenRequiredError).toBeTrue();
+}));
+
+
+
+
+it('OnStatusChange: when status is "1" and dateopen valid → clears closed-required and keeps open-required false', fakeAsync(() => {
+  // Arrange
+  const statusRef = { value: ['1'] };
+  (component as any).cbStatus = statusRef;
+  (component as any).cbstatus = statusRef;
+
+  component.account = { dateopen: '2025-08-05', dateclosed: '2025-08-10' } as any;
+
+  // valid open date
+  spyOn(component['utils'], 'isStringValid').and.returnValue(true);
+
+  // Act
+  (component as any).OnStatusChange();
+  tick();
+
+  // Assert
+  expect(component.statusRequired).toBeFalse();
+  expect(component.account.dateclosed).toBeNull();     // gets nulled
+  expect(component.showAcctClosedRequiredError).toBeFalse();
+  expect(component.showAcctOpenRequiredError).toBeFalse();
 }));
