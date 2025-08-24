@@ -1,34 +1,51 @@
-it('SetDeltaChanges: paints dynamic color keys based on delta columns', fakeAsync(() => {
-  const utilsStub = { CreateRequiredFormControl: () => ({}), CreateDateFormControl: () => ({}) };
-  const storeMock = { pipe: jasmine.createSpy('pipe').and.returnValue(of(false)), dispatch: jasmine.createSpy('dispatch') };
-  const acctServiceStub = { checkDeltaChanges: () => true, setDeltaChanges: jasmine.createSpy('setDeltaChanges') };
-
-  const component = new EditaccountComponent({} as any, {} as any, storeMock as any, utilsStub as any, acctServiceStub as any);
-  (component as any).acctservice = acctServiceStub;
-
-  component.appConfigService.getDeltaChangeByAcctUrl = '/api/delta/';
+it('SetDeltaChanges: when hasDeltaChanges=true → loads deltas, colors fields, and resets flags', fakeAsync(() => {
+  // Arrange
   component.selectedAccountNumber = 'ACC-123';
+
+  // hasDeltaChanges → true
+  spyOn(component.acctService as any, 'checkDeltaChanges').and.returnValue(true);
+  // some codepaths use lowercase acctservice; make it safe too
+  if ((component as any).acctservice) {
+    spyOn((component as any).acctservice, 'checkDeltaChanges').and.returnValue(true);
+    spyOn((component as any).acctservice, 'setDeltaChanges').and.stub();
+  }
+  spyOn(component.acctService as any, 'setDeltaChanges').and.stub();
+
+  // stub readonly getter
+  spyOnProperty(component.appConfigService as any, 'getDeltaChangeByAcctUrl', 'get')
+    .and.returnValue('/api/delta/');
+
+  // API returns a delta for "status"
+  const feeSpy = spyOn(component.feeApiservice as any, 'getRequest')
+    .and.returnValue(of([{ colModNm: 'status' }]));
+
+  // minimal account to paint on
   component.account = { status: 'Active' } as any;
 
-  const delta = [{ colModNm: 'status' } as any];
-  const feeApiSpy = jasmine.createSpyObj('feeApiservice', ['getRequest']);
-  component.feeApiservice = feeApiSpy;
-  feeApiSpy.getRequest.and.returnValue(of(delta));
-
-  // call with correct method name
-  ((component as any).SetDeltaChanges ?? (component as any).SetDeltachanges).call(component);
+  // Act
+  const fn =
+    (component as any).SetDeltaChanges ??
+    (component as any).SetDeltachanges ??
+    fail('SetDeltaChanges/SetDeltachanges not found');
+  fn.call(component);
   tick();
 
-  // dynamic keys asserted via bracket access
+  // Assert
+  expect(feeSpy).toHaveBeenCalledWith('/api/delta/ACC-123');
+  expect(component.deltaChangeDetails.length).toBe(1);
+  expect(component.hideBacktoDetails).toBeTrue();
+
+  // dynamic keys asserted via bracket access (no typing issues)
   const bgKey = 'statusBgColor';
   const txtKey = 'statusTxtColor';
-
-  expect(component.account.hasOwnProperty(bgKey)).toBeTrue();
-  expect(component.account.hasOwnProperty(txtKey)).toBeTrue();
   expect((component.account as any)[bgKey]).toBe(component.t3kDeltaBgColor);
   expect((component.account as any)[txtKey]).toBe(component.t3kDeltaTextColor);
 
-  expect(component.hideBacktoDetails).toBeTrue();
-  expect(acctServiceStub.setDeltaChanges).toHaveBeenCalledWith(false);
-  expect(storeMock.dispatch).toHaveBeenCalledWith(new LOADINGACTION(false));
+  // flag reset + loading/action
+  expect((component.acctService as any).setDeltaChanges).toHaveBeenCalledWith(false);
+  if ((component as any).acctservice?.setDeltaChanges) {
+    expect((component as any).acctservice.setDeltaChanges).toHaveBeenCalledWith(false);
+  }
+  expect(component.loading).toBeFalse();
+  expect((component as any).store.dispatch).toHaveBeenCalledWith(new LOADINGACTION(false));
 }));
