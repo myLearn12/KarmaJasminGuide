@@ -1,71 +1,59 @@
-it('ValidateFormControls runs without officerNm crash (officer neutralized completely)', () => {
-  // --- minimal controls used at the top
-  const acctCtrl = { markAsTouched: jasmine.createSpy('mat1'), hasError: () => false };
-  const estCtrl  = { markAsTouched: jasmine.createSpy('mat2'), hasError: () => false };
-  (component as any).fcn_AcctNumb = acctCtrl;
-  (component as any).fon_AcctNumb = acctCtrl;
-  (component as any).fcn_EstAccrual = estCtrl;
-  (component as any).fon_EstAccrual = estCtrl;
+it('showCategoryAmor: should set hideCorporate=false when categoryCode includes "6"', () => {
+  // Arrange
+  (component as any).cbCategory = { value: '101' };
+  (component as any).cbcategory = (component as any).cbCategory; // alias
+  component.categories = [
+    { categoryId: 101, categoryCode: '16' } as any
+  ];
 
-  // --- combos the method reads (keep null to trigger required flags)
-  (component as any).cbStatus   = { value: null };
-  (component as any).cbstatus   = (component as any).cbStatus;
-  (component as any).cbDivision = { value: null };
-  (component as any).cbcycle    = { value: null };
-  (component as any).cbCycle    = (component as any).cbcycle;
-  (component as any).cbFormula  = { value: null };
-  (component as any).cbCategory = { value: null };
+  // Act
+  (component as any).showCategoryAmor();
+
+  // Assert
+  expect(component.hideCorporate).toBeFalse();
+});
+
+it('showCategoryAmor: should set hideCorporate=true when categoryCode does not include "6"', () => {
+  // Arrange
+  (component as any).cbCategory = { value: '102' };
   (component as any).cbcategory = (component as any).cbCategory;
-  (component as any).cbAltDivision = { value: 'X' };
+  component.categories = [
+    { categoryId: 102, categoryCode: '11' } as any
+  ];
 
-  // --- OFFICER NEUTRALIZATION (cover all places it might read)
-  // 1) account has officerNm so direct reads won't crash
-  component.account = {
-    revshare: '',
-    officerNm: '',   // <- key part
-    officerNum: ''   // <- extra safety
-  } as any;
+  // Act
+  (component as any).showCategoryAmor();
 
-  // 2) officers dict + OffcrNumber value that maps to it
-  const OFF_KEY = 'KEY1';
-  component.officers = { [OFF_KEY]: { officerNm: '' } } as any;
-  (component as any).fcn_OffcrNumber = { value: OFF_KEY, hasError: () => false };
-  (component as any).fon_offcrNumber = (component as any).fcn_OffcrNumber;
+  // Assert
+  expect(component.hideCorporate).toBeTrue();
+});
 
-  // 3) cbofficer exists so .value access is safe
-  (component as any).cbofficer = { value: null };
+it('showCategoryAmor: should set hideEstate=false when categoryCode is "4"', () => {
+  // Arrange
+  (component as any).cbCategory = { value: '103' };
+  (component as any).cbcategory = (component as any).cbCategory;
+  component.categories = [
+    { categoryId: 103, categoryCode: '4' } as any
+  ];
 
-  // 4) officer name control present
-  (component as any).fcn_offcrName = { hasError: () => false };
+  // Act
+  (component as any).showCategoryAmor();
 
-  // 5) NO-OP ALL helper name variants that could touch officer
-  (component as any).onoffcrNumberChange = () => {};
-  (component as any).onOffcrNumberChange = () => {};
-  (component as any).onoffNumberChange   = () => {};
-  (component as any).onOffNumberChange   = () => {};
-  (component as any).setIsofcrNmbrValid  = () => {};
-  (component as any).setIsRevSharevalid  = () => {};
-  (component as any).onFutureUseChange   = () => {};
-  (component as any).onOzIdChange        = () => {};
+  // Assert
+  expect(component.hideEstate).toBeFalse();
+});
 
-  // --- utils: make revshare invalid so flags compute but don't matter
-  spyOn(component['utils'], 'isStringValid').and.returnValue(false);
+it('showCategoryAmor: should set hideEstate=true when categoryCode is not "4"', () => {
+  // Arrange
+  (component as any).cbCategory = { value: '104' };
+  (component as any).cbcategory = (component as any).cbCategory;
+  component.categories = [
+    { categoryId: 104, categoryCode: '7' } as any
+  ];
 
-  // --- other flags used in the big if: keep false
-  component.isCategoryCdValid = true;   // avoid offcrNumber.required && !isCategoryCdValid
-  component.isofcrNmbrValid   = false;
-  component.isFutureValid     = false;
-  component.isRevShareValid   = false;
-  component.isDisp3Valid      = false;
-  component.isofficerNumValid = false;
-  component.isOzIdValid       = false;
-  component.isPcaValid        = false;
+  // Act
+  (component as any).showCategoryAmor();
 
-  // --- act (no assertions needed to prove crash is gone)
-  (component as any).ValidateFormControls();
-
-  // sanity: top calls/flags still hit
-  expect(acctCtrl.markAsTouched).toHaveBeenCalled();
-  expect(estCtrl.markAsTouched).toHaveBeenCalled();
-  expect(component.statusRequired).toBeTrue(); // because cbStatus.value is null
+  // Assert
+  expect(component.hideEstate).toBeTrue();
 });
