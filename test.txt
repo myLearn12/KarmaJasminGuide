@@ -1,13 +1,32 @@
-it('OnDivisionChange: when value is null → sets divisionRequired and calls revShareDivMappingMessage', fakeAsync(() => {
+it('OnDivisionChange: when selected division has NO region mapping → shows error modal and resets value to account.divisionId', fakeAsync(() => {
   // Arrange
-  (component as any).cbDivision = { value: null };
+  // user picked division 20, but mapping will be empty so findIndex === -1
+  (component as any).cbDivision = { value: '20' };
+
+  component.account = { divisionId: 10 } as any; // old division to restore
+  component.divisions = [
+    { divisionId: 10, divisionDesc: 'Div A' },
+    { divisionId: 20, divisionDesc: 'Div B' },
+  ] as any[];
+
+  component.regionDivisions = []; // no mappings -> triggers error branch
+
   spyOn(component as any, 'revShareDivMappingMessage');
+  // stub error modal
+  (component as any)._errorModal = { show: jasmine.createSpy('show') };
 
   // Act
   (component as any).OnDivisionChange();
   tick();
 
   // Assert
-  expect(component.divisionRequired).toBeTrue();
   expect((component as any).revShareDivMappingMessage).toHaveBeenCalled();
+  expect((component as any)._errorModal.show).toHaveBeenCalled();
+
+  // messages populated (partial check to avoid brittle exact strings)
+  expect(component.firstValidationErrorMessage).toContain('Division does not have any Region');
+  expect(component.thirdValidationErrorMessage).toContain('Please contact Application Admin');
+
+  // value reset to original account.divisionId (stringified)
+  expect((component as any).cbDivision.value).toEqual(['10']);
 }));
