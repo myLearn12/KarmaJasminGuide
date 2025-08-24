@@ -1,57 +1,32 @@
-it('SetDeltaChanges: when hasDeltaChanges=true → loads deltas, colors fields, and resets flags (no appConfig URL access)', fakeAsync(() => {
+it('SetDeltachanges: should handle error and show message', fakeAsync(() => {
   // Arrange
+  const errorMessage = 'Server Error';
   component.selectedAccountNumber = 'ACC-123';
 
-  // Force delta changes on
+  // hasDeltaChanges → true
   spyOn(component.acctService as any, 'checkDeltaChanges').and.returnValue(true);
-  // In case code uses lowercase acctservice too
-  if ((component as any).acctservice) {
-    spyOn((component as any).acctservice, 'checkDeltaChanges').and.returnValue(true);
-    spyOn((component as any).acctservice, 'setDeltaChanges').and.stub();
-  }
   spyOn(component.acctService as any, 'setDeltaChanges').and.stub();
 
-  // API returns one delta on "status"
-  const feeSpy = spyOn(component.feeApiservice as any, 'getRequest')
-    .and.returnValue(of([{ colModNm: 'status' }]));
+  // readonly getter stub (base URL)
+  const appCfg = TestBed.inject(appconfigservice);
+  spyOnProperty(appCfg as any, 'getDeltaChangeByAcctUrl', 'get').and.returnValue('/api/delta/');
 
-  // Minimal account for painting
-  component.account = { status: 'Active' } as any;
+  const getUrl = `/api/delta/ACC-123`;
 
-  // Resolve method name safely (covers capitalization differences)
-  const callSetDelta =
-    (component as any).SetDeltaChanges ??
-    (component as any).SetDeltachanges ??
-    (component as any).setDeltaChanges ??
-    (component as any).setDeltachanges;
+  spyOn(component.feeApiservice, 'getRequest')
+    .withArgs(getUrl)
+    .and.returnValue(throwError(() => ({ error: { statusMessage: errorMessage } })));
 
-  expect(typeof callSetDelta).toBe('function');
+  const dispatchSpy = spyOn(component['store'], 'dispatch');
+  const errorSpy = spyOn(component as any, 'displayServiceErrors');
 
   // Act
-  callSetDelta.call(component);
+  (component as any).SetDeltachanges();
   tick();
 
-  // Assert: we didn't need appConfig; just ensure URL included account number
-  const urlArg = feeSpy.calls.mostRecent().args[0] as string;
-  expect(urlArg).toContain('ACC-123');
-
-  // Deltas stored
-  expect(component.deltaChangeDetails.length).toBe(1);
-
-  // Completed effects
-  expect(component.hideBacktoDetails).toBeTrue();
-
-  // Dynamic color keys via bracket access (avoid TS property errors)
-  const bgKey = 'statusBgColor';
-  const txtKey = 'statusTxtColor';
-  expect((component.account as any)[bgKey]).toBe(component.t3kDeltaBgColor);
-  expect((component.account as any)[txtKey]).toBe(component.t3kDeltaTextColor);
-
-  // Flags and dispatch
-  expect((component.acctService as any).setDeltaChanges).toHaveBeenCalledWith(false);
-  if ((component as any).acctservice?.setDeltaChanges) {
-    expect((component as any).acctservice.setDeltaChanges).toHaveBeenCalledWith(false);
-  }
+  // Assert
+  expect(component.actionMessage).toBeNull();
   expect(component.loading).toBeFalse();
-  expect((component as any).store.dispatch).toHaveBeenCalledWith(new LOADINGACTION(false));
+  expect(dispatchSpy).toHaveBeenCalledWith(new LOADINGACTION(false));
+  expect(errorSpy).toHaveBeenCalledWith(errorMessage);
 }));
