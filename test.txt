@@ -1,15 +1,13 @@
-it('OnStatusChange: should set showAcctOpenRequiredError=true when dateopen is invalid', fakeAsync(() => {
+it('OnDivisionChange: when value is null → sets divisionRequired and calls revShareDivMappingMessage', fakeAsync(() => {
   // Arrange
-  (component as any).cbStatus = { value: ['1'] };   // dummy status to avoid null
-  (component as any).cbstatus = { value: ['1'] };
-
-  component.account = { dateopen: '' } as any; // empty dateopen
-  spyOn(component['utils'], 'isStringValid').and.returnValue(false);
+  (component as any).cbDivision = { value: null };
+  spyOn(component as any, 'revShareDivMappingMessage');
 
   // Act
-  (component as any).OnStatusChange();
+  (component as any).OnDivisionChange();
   tick();
 
   // Assert
-  expect(component.showAcctOpenRequiredError).toBeTrue();
+  expect(component.divisionRequired).toBeTrue();
+  expect((component as any).revShareDivMappingMessage).toHaveBeenCalled();
 }));
