@@ -1,35 +1,71 @@
-it('setIsOfcrNmbrValid: should set isofcrNmbrValid=true when cbofficer includes "0000"', fakeAsync(() => {
+it('LoadComboBoxSelectedValue: should populate options, values, and old values from account data', fakeAsync(() => {
   // Arrange
-  (component as any).cbofficer = { value: ['0000', '1234'] };
+  component.regionid = '101';
+  component.account = {
+    status: 'ACTIVE',
+    divisionId: 20,
+    altdivision: 30,
+    cycleId: 5,
+    formulaId: 11,
+    categoryId: 7,
+    officer: '100',
+    regionDescription: ''
+  } as any;
+
+  component.regions = [{ regionId: 101, regionDescription: 'East' }] as any;
+  component.divisions = [
+    { divisionId: 20, divisionDesc: 'DivA' },
+    { divisionId: 30, divisionDesc: 'DivB' }
+  ] as any;
+  component.cycles = [{ cycleId: 5, cycleDesc: 'Cycle5' }] as any;
+  component.formulas = [{ formulaId: 11, formulaDesc: 'Formula11' }] as any;
+  component.categories = [{ categoryId: 7, categoryDescription: 'Cat7' }] as any;
+  component.officers = { '100': { officerNm: 'OfficerX' } } as any;
+
+  component.cbStatusData = [{ label: 'ACTIVE', value: 'A' }];
+  component.cbDivisionData = [{ label: 'DivA', value: '20' }];
+  component.cbAltDivisionData = [{ label: 'DivB', value: '30' }];
+  component.cbCycleData = [{ label: 'Cycle5', value: '5' }];
+  component.cbFormulaData = [{ label: 'Formula11', value: '11' }];
+  component.cbCategoryData = [{ label: 'Cat7', value: '7' }];
+  component.cbofficerData = [{ label: 'OfficerX', value: '100' }];
+
+  // stub service
+  spyOn(component.acctService, 'loadStatusData').and.returnValue([{ label: 'ACTIVE', value: 'A' }]);
+
+  // set cbX objects
+  (component as any).cbStatus   = { options: null, value: null };
+  (component as any).cbDivision = { options: null, value: null };
+  (component as any).cbAltDivision = { options: null, value: null };
+  (component as any).cbcycle    = { options: null, value: null };
+  (component as any).cbFormula  = { options: null, value: null };
+  (component as any).cbCategory = { options: null, value: null };
+  (component as any).cbofficer  = { options: null, value: null };
+  component.oldAccountValues = {} as any;
 
   // Act
-  (component as any).setIsOfcrNmbrValid();
+  (component as any).LoadComboBoxSelectedValue();
   tick();
 
-  // Assert
-  expect(component.isofcrNmbrValid).toBeTrue();
-}));
+  // Assert – region description populated
+  expect(component.account.regionDescription).toBe('East');
 
-it('setIsOfcrNmbrValid: should set isofcrNmbrValid=false when cbofficer does not include "0000"', fakeAsync(() => {
-  // Arrange
-  (component as any).cbofficer = { value: ['1111', '2222'] };
+  // combos populated
+  expect((component as any).cbStatus.options).toEqual(component.cbStatusData);
+  expect((component as any).cbDivision.value).toEqual(['20']);
+  expect((component as any).cbAltDivision.value).toEqual(['30']);
+  expect((component as any).cbcycle.value).toEqual(['5']);
+  expect((component as any).cbFormula.value).toEqual(['11']);
+  expect((component as any).cbCategory.value).toEqual(['7']);
+  expect((component as any).cbofficer.value).toEqual(['100']);
 
-  // Act
-  (component as any).setIsOfcrNmbrValid();
-  tick();
-
-  // Assert
-  expect(component.isofcrNmbrValid).toBeFalse();
-}));
-
-it('setIsOfcrNmbrValid: should set isofcrNmbrValid=false when cbofficer value is null', fakeAsync(() => {
-  // Arrange
-  (component as any).cbofficer = { value: null };
-
-  // Act
-  (component as any).setIsOfcrNmbrValid();
-  tick();
-
-  // Assert
-  expect(component.isofcrNmbrValid).toBeFalse();
+  // old values copied
+  expect(component.oldcbStatusValue).toEqual((component as any).cbStatus.value);
+  expect(component.oldcbDivisionValue).toEqual((component as any).cbDivision.value);
+  expect(component.oldcbAltDivisionValue).toEqual((component as any).cbAltDivision.value);
+  expect(component.oldcbCycleValue).toEqual((component as any).cbcycle.value);
+  expect(component.oldcbFormulavalue).toEqual((component as any).cbFormula.value);
+  expect(component.oldcbCategoryValue).toEqual((component as any).cbCategory.value);
+  expect(component.oldcbofficerValue).toEqual((component as any).cbofficer.value);
+  expect(component.oldAccountValues.regionDescription).toBe('East');
 }));
