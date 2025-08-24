@@ -1,8 +1,35 @@
-it('setIsCategoryCdValid: should set true when cbCategory.value includes 62 or 45', fakeAsync(() => {
-  (component as any).cbCategory = { value: ['62', '45'] };
+it('setIsOfcrNmbrValid: should set isofcrNmbrValid=true when cbofficer includes "0000"', fakeAsync(() => {
+  // Arrange
+  (component as any).cbofficer = { value: ['0000', '1234'] };
 
-  (component as any).setIsCategoryCdValid();
+  // Act
+  (component as any).setIsOfcrNmbrValid();
   tick();
 
-  expect(component.isCategoryCdValid).toBeTrue();
+  // Assert
+  expect(component.isofcrNmbrValid).toBeTrue();
+}));
+
+it('setIsOfcrNmbrValid: should set isofcrNmbrValid=false when cbofficer does not include "0000"', fakeAsync(() => {
+  // Arrange
+  (component as any).cbofficer = { value: ['1111', '2222'] };
+
+  // Act
+  (component as any).setIsOfcrNmbrValid();
+  tick();
+
+  // Assert
+  expect(component.isofcrNmbrValid).toBeFalse();
+}));
+
+it('setIsOfcrNmbrValid: should set isofcrNmbrValid=false when cbofficer value is null', fakeAsync(() => {
+  // Arrange
+  (component as any).cbofficer = { value: null };
+
+  // Act
+  (component as any).setIsOfcrNmbrValid();
+  tick();
+
+  // Assert
+  expect(component.isofcrNmbrValid).toBeFalse();
 }));
