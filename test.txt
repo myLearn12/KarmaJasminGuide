@@ -1,21 +1,28 @@
-it('OnDivisionChange: when mapping exists and region differs → sets newRegion fields and shows action modal', fakeAsync(() => {
+it('OnDivisionChange: when mapping exists and region differs sets newRegion fields and shows action modal', fakeAsync(() => {
   // Arrange
-  // user selects division 30 that maps to regionId 2 (different from account.regionId '1')
+  // value chosen → '30' (string so .toString() works)
   (component as any).cbDivision = { value: '30' };
 
+  // current account in region "1"
   component.account = { divisionId: 10, regionId: '1' } as any;
 
+  // divisions & mapping for the chosen division
   component.divisions = [
     { divisionId: 10, divisionDesc: 'Div A' },
     { divisionId: 30, divisionDesc: 'Div C' },
   ] as any[];
 
   component.regionDivisions = [
-    { divisionId: 30, regionId: 2, regionDesc: 'South' },
+    { divisionId: 30, regionId: 2, regionDesc: 'South' }, // maps 30 -> region 2
   ] as any[];
 
+  // revShareDivMappingMessage is called unconditionally at start
   spyOn(component as any, 'revShareDivMappingMessage');
-  (component as any).actionModal = { show: jasmine.createSpy('show') };
+
+  // 🔧 modal spy must cover both field names used in code
+  const modalSpy = jasmine.createSpyObj('modal', ['show']);
+  (component as any).actionModal = modalSpy;
+  (component as any)._actionModal = modalSpy; // in case component uses this name elsewhere
 
   // Act
   (component as any).OnDivisionChange();
@@ -24,12 +31,14 @@ it('OnDivisionChange: when mapping exists and region differs → sets newRegion 
   // Assert
   expect((component as any).revShareDivMappingMessage).toHaveBeenCalled();
 
-  // newRegion resolved from mapping
+  // newRegion resolved correctly
   expect(component.newRegionId).toBe(2);
   expect(component.newRegionDesc).toBe('South');
 
-  // modal content & visibility
+  // Title/message prepared
   expect(component.actionModelTitle).toContain('Region Modified');
   expect(component.actionModelMessage).toContain('belongs to South Region');
-  expect((component as any).actionModal.show).toHaveBeenCalled();
+
+  // ✅ modal should be shown
+  expect(modalSpy.show).toHaveBeenCalled();
 }));
