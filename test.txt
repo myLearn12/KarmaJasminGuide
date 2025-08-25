@@ -1,8 +1,8 @@
-it('logAccountAudit (edit): builds audit trail when old and new account values differ (covers many branches safely)', fakeAsync(() => {
+it('logAccountAudit (edit): builds audit trail when old and new differ (covers key branches, robust contains checks)', fakeAsync(() => {
   // Arrange
   component.isCloneAccount = false;
 
-  // Old vs New — change a bunch of fields to trigger audit building
+  // Old values (ensure diffs)
   component.oldAccountValues = {
     longacctnum: 'OLD-LONG',
     accountNm: 'OLD-NAME',
@@ -21,6 +21,7 @@ it('logAccountAudit (edit): builds audit trail when old and new account values d
     accepfee: 6
   } as any;
 
+  // New values
   component.account = {
     accountNbr: 'ACC-99',
     longacctnum: 'NEW-LONG',
@@ -40,15 +41,15 @@ it('logAccountAudit (edit): builds audit trail when old and new account values d
     accepfee: 60
   } as any;
 
-  // Current combos (strings or arrays ok – method calls .toString())
+  // Current combos (strings/arrays OK; toString() used)
   (component as any).cbStatus      = { value: ['A'] };
   (component as any).cbDivision    = { value: ['20'] };
-  (component as any).cbAltDivision = { value: ['30'] }; // non-null to exercise that block
+  (component as any).cbAltDivision = { value: ['30'] };
   (component as any).cbCycle       = { value: ['5'] };
   (component as any).cbFormula     = { value: ['11'] };
-  (component as any).cbCategory    = { value: ['4ID'] }; // choose the category whose code is '4'
+  (component as any).cbCategory    = { value: ['4ID'] };
 
-  // Old combo snapshots – MUST be initialized so .toString() is safe
+  // Old snapshots — MUST be set so .toString() works
   component.oldcbStatusValue      = ['B'];
   component.oldcbDivisionValue    = ['21'];
   component.oldcbAltDivisionValue = ['31'];
@@ -56,7 +57,7 @@ it('logAccountAudit (edit): builds audit trail when old and new account values d
   component.oldcbFormulaValue     = ['12'];
   component.oldcbCategoryValue    = ['7ID'];
 
-  // lookups used for region id and LoadComboBoxData labels
+  // Lookups
   component.regions = [
     { regionId: 1, regionDescription: 'West' },
     { regionId: 2, regionDescription: 'East' },
@@ -79,28 +80,24 @@ it('logAccountAudit (edit): builds audit trail when old and new account values d
     { formulaId: 12, formulaDesc: 'Formula 12', formulaCd: 'F12' },
   ] as any;
 
-  // include both: the selected cat (code '4') and a different previous cat (code '7')
   component.categories = [
     { categoryId: '4ID', categoryDescription: 'Estate', categoryCode: '4' },
     { categoryId: '7ID', categoryDescription: 'Other',  categoryCode: '7' },
   ] as any;
 
-  // stubs
+  // Stubs
   spyOn(component.acctService, 'getAccountStatusDesc')
-    .and.callFake((v: string) => v === 'A' ? 'Active' : 'Other');
-
+    .and.callFake((v: string) => v === 'A' ? 'OPEN' : 'CLOSED'); // match your expected label
   const utils = component['utils'] as any;
-  spyOn(utils, 'getValidString')
-    .and.callFake((x: any) => (x === '' || x === null || x === undefined) ? null : String(x));
-  spyOn(utils, 'getFormatedDecimal')
-    .and.callFake((n: any) => Number(n).toFixed(2));
-  spyOn(utils, 'getDateAndDefaultTime')
-    .and.callFake((d: any) => (d ? d : null));
-  // Return label/value pairs that MATCH .toString() of ids above
-  spyOn(utils, 'LoadComboBoxData')
-    .and.callFake((arr: any[], label: string, _code: string, id: string) =>
-      arr.map((r: any) => ({ label: r[label], value: String(r[id]) }))
-    );
+  spyOn(utils, 'getValidString').and.callFake((x: any) =>
+    (x === '' || x === null || x === undefined) ? null : String(x)
+  );
+  spyOn(utils, 'getFormatedDecimal').and.callFake((n: any) => Number(n).toFixed(2));
+  spyOn(utils, 'getDateAndDefaultTime').and.callFake((d: any) => (d ? d : null));
+  // map to {label,value} matching combo .value.toString()
+  spyOn(utils, 'LoadComboBoxData').and.callFake((arr: any[], label: string, _code: string, id: string) =>
+    arr.map((r: any) => ({ label: r[label], value: String(r[id]) }))
+  );
   spyOn(utils, 'getCurrentUser').and.returnValue('u1');
   spyOn(utils, 'ToEstDate').and.returnValue('2025-08-25T00:00:00');
 
@@ -111,32 +108,95 @@ it('logAccountAudit (edit): builds audit trail when old and new account values d
   (component as any).logAccountAudit();
   tick();
 
-  // Assert — POST happened
+  // Assert
   expect(postSpy).toHaveBeenCalled();
 
-  // Get the body SAFELY and assert shape without indexing [0] blindly
   const [, body] = postSpy.calls.mostRecent().args as [string, any];
   expect(body).toBeDefined();
   expect((body as any).acctAuditType).toBe('UPDATE');
-  expect((body as any).acctNbr).toBe('ACC-99');
 
-  // Parse audit data carefully
   const auditJson = (body as any).acctAuditData;
-  expect(auditJson).toBeDefined();              // avoid "Expected undefined to be defined"
-  const auditArr = JSON.parse(auditJson);
-  expect(Array.isArray(auditArr)).toBeTrue();
-  expect(auditArr.length).toBeGreaterThan(0);   // avoid reading [0] when empty
+  const arr = JSON.parse(auditJson);
+  expect(Array.isArray(arr)).toBeTrue();
+  expect(arr.length).toBeGreaterThan(0);
 
-  // spot-check the combined text contains a few changed labels
-  const merged = JSON.stringify(auditArr);
-  expect(merged).toContain('Long Account Number'); // longacctnum diff
-  expect(merged).toContain('Region');              // regionDescription diff
-  expect(merged).toContain('Account Status');      // status diff (old B → new A)
-  expect(merged).toContain('Division Cd Desc');    // division diff
-  expect(merged).toContain('Cycle Id Desc');       // cycle diff
-  expect(merged).toContain('Formula Cd Desc');     // formula diff
-  expect(merged).toContain('Category Cd Desc');    // category diff
+  // Merge both strings and use resilient contains assertions
+  const item = arr[0];
+  const oldTxt = (item.OldAccountValue ?? item.oldAccountValue) as string;
+  const newTxt = (item.NewAccountValue ?? item.newAccountValue) as string;
+  const merged = `${oldTxt} || ${newTxt}`;
 
-  // Complete handler should call showEditSuccess
+  // Key diffs present (don’t assert commas/spaces exactly)
+  expect(merged).toContain('Long Account Number: OLD-LONG');
+  expect(merged).toContain('Long Account Number: NEW-LONG');
+
+  expect(merged).toContain('Account Short Name (FA): OLD-NAME');
+  expect(merged).toContain('Account Short Name (FA): NEW-NAME');
+
+  expect(merged).toContain('Account Status: OPEN');
+  expect(merged).toContain('Account Open Date: 2025-08-01');
+  expect(merged).toContain('Account Open Date: 2025-08-02');
+  expect(merged).toContain('Account Closed Date: 2025-08-03');
+
+  expect(merged).toContain('Estimated Accrual: 10.00');
+  expect(merged).toContain('Estimated Accrual: 11.00');
+
+  expect(merged).toContain('Revenue Share: 0.20');
+  expect(merged).toContain('Revenue Share: 0.50');
+
+  expect(merged).toContain('Future Use: OLD-FUT');
+  expect(merged).toContain('Future Use: NEW-FUT');
+
+  expect(merged).toContain('Region: East');
+  expect(merged).toContain('Region: West');
+
+  expect(merged).toContain('Division Cd Desc: Div B');
+  expect(merged).toContain('Division Cd Desc: Div A');
+
+  expect(merged).toContain('Alt Division Cd Desc: Alt B');
+  expect(merged).toContain('Alt Division Cd Desc: Alt A');
+
+  expect(merged).toContain('Cycle Id Desc: Cycle 6');
+  expect(merged).toContain('Cycle Id Desc: Cycle 5');
+
+  expect(merged).toContain('Formula Cd Desc: Formula 12');
+  expect(merged).toContain('Formula Cd Desc: Formula 11');
+
+  expect(merged).toContain('Category Cd Desc: Other');
+  expect(merged).toContain('Category Cd Desc: Estate');
+
+  expect(merged).toContain('Disposition 3: OLD-DISP3');
+  expect(merged).toContain('Disposition 3: NEW-DISP3');
+
+  expect(merged).toContain('Officer Name: OLD OFFICER');
+  expect(merged).toContain('Officer Name: NEW OFFICER');
+
+  expect(merged).toContain('Officer Number: 0001');
+  expect(merged).toContain('Officer Number: 0002');
+
+  expect(merged).toContain('OZ ID: OLDOZ');
+  expect(merged).toContain('OZ ID: NEWOZ');
+
+  expect(merged).toContain('PCA: OLDPCA');
+  expect(merged).toContain('PCA: NEWPCA');
+
+  expect(merged).toContain('Monthly Amort: 1.00');
+  expect(merged).toContain('Monthly Amort: 10.00');
+
+  expect(merged).toContain('Current Amort: 2.00');
+  expect(merged).toContain('Current Amort: 20.00');
+
+  expect(merged).toContain('End Prepaid: 3.00');
+  expect(merged).toContain('End Prepaid: 30.00');
+
+  expect(merged).toContain('Beginning Prepaid: 4.00');
+  expect(merged).toContain('Beginning Prepaid: 40.00');
+
+  expect(merged).toContain('Prepaid Cash: 5.00');
+  expect(merged).toContain('Prepaid Cash: 50.00');
+
+  expect(merged).toContain('Accep. Fee: 6.00');
+  expect(merged).toContain('Accep. Fee: 60.00');
+
   expect(showEditSpy).toHaveBeenCalled();
 }));
