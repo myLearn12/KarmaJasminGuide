@@ -1,79 +1,106 @@
-it('logAccountAudit (edit): with changes → posts audit and calls showEditSuccess on complete', fakeAsync(() => {
-  // Arrange
-  component.isCloneAccount = false;
+it('builds audit trail when old and new account values differ (covers all if branches)', () => {
+  // --- stub utils + acctService helpers
+  spyOn(component.utils, 'getValidString').and.callFake(v => v ? String(v) : null);
+  spyOn(component.utils, 'getDateAndDefaultTime').and.returnValue('2025-08-25');
+  spyOn(component.utils, 'getFormatedDecimal').and.callFake(v => v.toString());
+  spyOn(component.utils, 'LoadComboBoxData').and.callFake((arr: any[], l: string, c: string, i: string) =>
+    arr.map(x => ({ label: `LBL-${x[c] || x[l]}`, value: x[i].toString() }))
+  );
+  spyOn(component.acctService, 'getAccountStatusDesc').and.returnValue('StatusDesc');
 
-  // “old vs new” diffs to trigger UPDATE
+  // --- prepare old vs new with all differences
   component.oldAccountValues = {
-    longacctnum: 'OL1',
-    regionDescription: 'East'
+    accountNm: 'OLDNM',
+    dateopen: '2024-01-01',
+    dateclosed: '2024-01-02',
+    estacc: '1',
+    revshare: '0.1',
+    futureuse: 'OLD',
+    regionDescription: 'OLDREG',
+    disposition3: 'OLD-DISP',
+    ofcrNm: 'OLD-OFFICER-NAME',
+    officer: '111',
+    ozId: 'OLD-OZ',
+    pcanumber: 'OLD-PCA',
+    estpp: '10',
+    actpp: '20',
+    endpp: '30',
+    feepp: '40',
+    cashpp: '50',
+    accepfee: '60'
   } as any;
 
   component.account = {
-    accountNbr: 'ACC-3',
-    longacctnum: 'NL1',               // changed
-    regionDescription: 'West'         // changed
+    accountNm: 'NEWNM',
+    dateopen: '2025-01-01',
+    dateclosed: '2025-01-02',
+    estacc: '2',
+    revshare: '0.2',
+    futureuse: 'NEW',
+    regionDescription: 'NEWREG',
+    disposition3: 'NEW-DISP',
+    ofcrNm: 'NEW-OFFICER-NAME',
+    officer: '222',
+    ozId: 'NEW-OZ',
+    pcanumber: 'NEW-PCA',
+    estpp: '15',
+    actpp: '25',
+    endpp: '35',
+    feepp: '45',
+    cashpp: '55',
+    accepfee: '65'
   } as any;
 
-  // combos + snapshots so .toString() is safe
-  (component as any).cbStatus      = { value: ['A'] };
-  (component as any).cbDivision    = { value: ['20'] };
-  (component as any).cbAltDivision = { value: null };
-  (component as any).cbCycle       = { value: ['5'] };
-  (component as any).cbFormula     = { value: ['11'] };
-  (component as any).cbCategory    = { value: ['7'] };
+  // combos + values
+  (component as any).oldcbStatusValue = '1';
+  (component as any).cbStatus = { value: '2' };
+  (component as any).oldcbDivisionValue = '101';
+  (component as any).cbDivision = { value: '102' };
+  (component as any).oldcbAltDivisionValue = '201';
+  (component as any).cbAltDivision = { value: '202' };
+  (component as any).oldcbCycleValue = '301';
+  (component as any).cbCycle = { value: '302' };
+  (component as any).oldcbFormulaValue = '401';
+  (component as any).cbFormula = { value: '402' };
+  (component as any).oldcbCategoryValue = '501';
+  (component as any).cbCategory = { value: '502' };
 
-  component.oldcbStatusValue      = ['A'];
-  component.oldcbDivisionValue    = ['20'];
-  component.oldcbAltDivisionValue = null;
-  component.oldcbCycleValue       = ['5'];
-  component.oldcbFormulaValue     = ['11'];
-  component.oldcbCategoryValue    = ['7'];
+  // sample lists for LoadComboBoxData
+  component.divisions  = [{ divisionId: 101, divisionCd: 'D1', divisionDesc: 'Div1' },
+                          { divisionId: 102, divisionCd: 'D2', divisionDesc: 'Div2' }] as any;
+  component.cycles     = [{ cycleId: 301, cycleDesc: 'Cycle1' },
+                          { cycleId: 302, cycleDesc: 'Cycle2' }] as any;
+  component.formulas   = [{ formulaId: 401, formulaCd: 'F1', formulaDesc: 'Form1' },
+                          { formulaId: 402, formulaCd: 'F2', formulaDesc: 'Form2' }] as any;
+  component.categories = [{ categoryId: 501, categoryCode: 'C1', categoryDescription: 'Cat1' },
+                          { categoryId: 502, categoryCode: 'C2', categoryDescription: 'Cat2' }] as any;
 
-  // lookups
-  component.regions = [
-    { regionId: 1, regionDescription: 'West' },
-    { regionId: 2, regionDescription: 'East' },
-  ] as any;
+  // --- act
+  (component as any).buildAuditTrail?.(); // replace with the real method name you pasted
 
-  component.divisions  = [{ divisionId: 20, divisionDesc: 'Div A', divisionCd: 'DA' }] as any;
-  component.cycles     = [{ cycleId: 5, cycleDesc: 'Cycle 5' }] as any;
-  component.formulas   = [{ formulaId: 11, formulaDesc: 'Formula 11', formulaCd: 'F11' }] as any;
-  component.categories = [{ categoryId: 7, categoryDescription: 'Cat', categoryCode: '7' }] as any;
-
-  // stubs
-  spyOn(component.acctService, 'getAccountStatusDesc').and.returnValue('Active');
-  const utils = component['utils'] as any;
-  spyOn(utils, 'getValidString').and.callFake((x: any) =>
-    (x === '' || x === null || x === undefined) ? null : String(x)
-  );
-  spyOn(utils, 'getFormatedDecimal').and.callFake((n: any) => Number(n).toFixed(2));
-  spyOn(utils, 'getDateAndDefaultTime').and.callFake((d: any) => (d ? d : null));
-  spyOn(utils, 'LoadComboBoxData').and.callFake((arr: any[], label: string, _code: string, id: string) =>
-    arr.map((r: any) => ({ label: r[label], value: String(r[id]) }))
-  );
-  spyOn(utils, 'getCurrentUser').and.returnValue('u1');
-  spyOn(utils, 'ToEstDate').and.returnValue('2025-08-25T00:00:00');
-
-  const postSpy = spyOn(component.feeApiservice, 'postRequest').and.returnValue(of({}));
-  const showEditSpy = spyOn(component as any, 'showEditSuccess');
-  const dispatchSpy = spyOn(component['store'], 'dispatch'); // may not be called in edit success
-
-  // Act
-  (component as any).logAccountAudit();
-  tick();
-
-  // Assert
-  expect(postSpy).toHaveBeenCalled();             // UPDATE audit posted
-  expect(component.loading).toBeFalse();          // loading cleared
-  expect(showEditSpy).toHaveBeenCalled();         // success handler called
-
-  // Inspect the request body
-  const [, body] = postSpy.calls.mostRecent().args as [string, any];
-  expect((body as any).acctAuditType).toBe('UPDATE');  // cast to any to avoid TS error
-
-  // optional: verify account number carried through
-  expect((body as any).acctNbr).toBe('ACC-3');
-
-  // dispatch isn’t called in edit-success path → assert not called
-  expect(dispatchSpy).not.toHaveBeenCalled();
-}));
+  // --- assert
+  expect((component as any).editAccountAuditData).toBeDefined();
+  const audit = (component as any).editAccountAuditData[0];
+  expect(audit.OldAccountValue).toContain('OLDNM');
+  expect(audit.NewAccountValue).toContain('NEWNM');
+  expect(audit.OldAccountValue).toContain('Account Status');
+  expect(audit.NewAccountValue).toContain('Account Status');
+  expect(audit.OldAccountValue).toContain('Division Cd Desc');
+  expect(audit.NewAccountValue).toContain('Division Cd Desc');
+  expect(audit.OldAccountValue).toContain('Cycle Id Desc');
+  expect(audit.NewAccountValue).toContain('Cycle Id Desc');
+  expect(audit.OldAccountValue).toContain('Formula Cd Desc');
+  expect(audit.NewAccountValue).toContain('Formula Cd Desc');
+  expect(audit.OldAccountValue).toContain('Category Cd Desc');
+  expect(audit.NewAccountValue).toContain('Category Cd Desc');
+  expect(audit.OldAccountValue).toContain('Revenue Share');
+  expect(audit.NewAccountValue).toContain('Revenue Share');
+  expect(audit.OldAccountValue).toContain('Officer Name');
+  expect(audit.NewAccountValue).toContain('Officer Name');
+  expect(audit.OldAccountValue).toContain('Officer Number');
+  expect(audit.NewAccountValue).toContain('Officer Number');
+  expect(audit.OldAccountValue).toContain('PCA');
+  expect(audit.NewAccountValue).toContain('PCA');
+  expect(audit.OldAccountValue).toContain('Accep. Fee');
+  expect(audit.NewAccountValue).toContain('Accep. Fee');
+});
