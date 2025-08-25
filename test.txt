@@ -1,33 +1,46 @@
-it('showCategoryAmor: sets hideCorporate=false when categoryCode includes "6", and hideEstate=true when selected is not code "4"', () => {
-  // cbCategory.value can be string or ['string']; toString() works either way
-  (component as any).cbCategory = { value: '101' };
-  (component as any).cbcategory = (component as any).cbCategory; // alias used in code
+it('setIsRevShareValid: "0.5" → valid, formats to 0.50 and sets flag true', () => {
+  component.account = { revshare: '0.5' } as any;
+  spyOn(component['utils'], 'isStringValid').and.returnValue(true);
 
-  // Must include:
-  // - selected categoryId 101 with code including '6'
-  // - a separate category with code '4' for the estate check
-  component.categories = [
-    { categoryId: 101, categoryCode: '16' } as any, // includes '6' -> hideCorporate=false
-    { categoryId: 999, categoryCode: '4' }  as any  // used only for the '4' lookup
-  ];
+  (component as any).setIsRevShareValid();
 
-  (component as any).showCategoryAmor();
-
-  expect(component.hideCorporate).toBeFalse(); // because '16' includes '6'
-  expect(component.hideEstate).toBeTrue();     // selected 101 != 999 (code '4'), so stays true
+  expect(component.isRevShareValid).toBeTrue();
+  expect(component.account.revshare).toBe('0.50'); // toFixed(2)
 });
 
-it('showCategoryAmor: sets hideCorporate=true when categoryCode lacks "6", and hideEstate=false when selected is code "4"', () => {
-  (component as any).cbCategory = { value: '103' };
-  (component as any).cbcategory = (component as any).cbCategory;
+it('setIsRevShareValid: "0.500" (trailing zeros) → valid, formats to 0.50 and sets flag true', () => {
+  component.account = { revshare: '0.500' } as any;
+  spyOn(component['utils'], 'isStringValid').and.returnValue(true);
 
-  // Include the selected category with code '4' so the .find(...) doesn’t return undefined
-  component.categories = [
-    { categoryId: 103, categoryCode: '4' } as any  // selected matches code '4'
-  ];
+  (component as any).setIsRevShareValid();
 
-  (component as any).showCategoryAmor();
+  expect(component.isRevShareValid).toBeTrue();
+  expect(component.account.revshare).toBe('0.50'); // trimmed via toFixed(2)
+});
 
-  expect(component.hideCorporate).toBeTrue();   // '4' does not include '6'
-  expect(component.hideEstate).toBeFalse();     // selected matches the '4' category
+it('setIsRevShareValid: "0" (not > 0) → invalid, sets flag false', () => {
+  component.account = { revshare: '0' } as any;
+  spyOn(component['utils'], 'isStringValid').and.returnValue(true);
+
+  (component as any).setIsRevShareValid();
+
+  expect(component.isRevShareValid).toBeFalse();
+});
+
+it('setIsRevShareValid: "1.20" (> 1) → invalid, sets flag false', () => {
+  component.account = { revshare: '1.20' } as any;
+  spyOn(component['utils'], 'isStringValid').and.returnValue(true);
+
+  (component as any).setIsRevShareValid();
+
+  expect(component.isRevShareValid).toBeFalse();
+});
+
+it('setIsRevShareValid: empty/invalid string → treated as valid (flag true)', () => {
+  component.account = { revshare: '' } as any;
+  spyOn(component['utils'], 'isStringValid').and.returnValue(false);
+
+  (component as any).setIsRevShareValid();
+
+  expect(component.isRevShareValid).toBeTrue(); // method sets true when string is not valid
 });
