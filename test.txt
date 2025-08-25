@@ -1,54 +1,63 @@
-it('logAccountAudit (clone): handles API error → shows error, stops loading, dispatches', fakeAsync(() => {
+it('logAccountAudit (edit): with changes → posts audit and calls showEditSuccess on complete', fakeAsync(() => {
   // Arrange
-  component.isCloneAccount = true;
-  component.account = {
-    accountNbr: 'ACC-2',
-    longacctnum: 'L2',
-    accountNm: 'Name2',
-    status: 'A',
-    dateopen: '2025-08-02',
-    dateclosed: '',
-    estacc: 0,
-    revshare: '0.40',
-    futureuse: '',
-    regionDescription: 'East',
-    estpp: 0, actpp: 0, endpp: 0, feepp: 0, cashpp: 0,
-    accepfee: 0, disposition3: '', ofcrNm: '', officer: '', ozId: '', pcanumber: ''
+  component.isCloneAccount = false;
+
+  // “old vs new” diffs to trigger UPDATE
+  component.oldAccountValues = {
+    longacctnum: 'OL1',
+    regionDescription: 'East'
   } as any;
 
-  // combos used inside the method (strings/arrays are fine since .toString() is used)
+  component.account = {
+    accountNbr: 'ACC-3',
+    longacctnum: 'NL1',                // changed
+    regionDescription: 'West'          // changed
+  } as any;
+
+  // combos present (strings/arrays ok since .toString() is used)
   (component as any).cbStatus      = { value: ['A'] };
   (component as any).cbDivision    = { value: ['20'] };
-  (component as any).cbAltDivision = { value: null };     // so the Alt-Div block is skipped safely
+  (component as any).cbAltDivision = { value: null };    // keep null to avoid alt-div toString paths
   (component as any).cbCycle       = { value: ['5'] };
   (component as any).cbFormula     = { value: ['11'] };
   (component as any).cbCategory    = { value: ['7'] };
 
-  // lookup arrays
-  component.divisions = [{ divisionId: 20, divisionDesc: 'Div A', divisionCd: 'DA' }] as any;
-  component.cycles    = [{ cycleId: 5, cycleDesc: 'Cycle 5' }] as any;
-  component.formulas  = [{ formulaId: 11, formulaDesc: 'Formula 11', formulaCd: 'F11' }] as any;
-  component.categories = [
-    { categoryId: 7,   categoryDescription: 'Cat7', categoryCode: '7' } as any,   // selected
-    { categoryId: 999, categoryDescription: 'Cat4', categoryCode: '4' } as any    // ensure '4' exists
+  // IMPORTANT: initialize “old” combo snapshots so .toString() is safe
+  component.oldcbStatusValue    = ['A'];
+  component.oldcbDivisionValue  = ['20'];
+  component.oldcbAltDivisionValue = null;                // matches cbAltDivision.value
+  component.oldcbCycleValue     = ['5'];
+  component.oldcbFormulaValue   = ['11'];
+  component.oldcbCategoryValue  = ['7'];
+
+  // lookups for region id resolution & labels used by LoadComboBoxData
+  component.regions = [
+    { regionId: 1, regionDescription: 'West' },
+    { regionId: 2, regionDescription: 'East' },
   ] as any;
+
+  component.divisions  = [{ divisionId: 20, divisionDesc: 'Div A', divisionCd: 'DA' }] as any;
+  component.cycles     = [{ cycleId: 5, cycleDesc: 'Cycle 5' }] as any;
+  component.formulas   = [{ formulaId: 11, formulaDesc: 'Formula 11', formulaCd: 'F11' }] as any;
+  component.categories = [{ categoryId: 7, categoryDescription: 'Cat', categoryCode: '7' }] as any;
 
   // stubs
   spyOn(component.acctService, 'getAccountStatusDesc').and.returnValue('Active');
+
   const utils = component['utils'] as any;
-  spyOn(utils, 'getValidString').and.callFake((x: any) => (x ? String(x) : null));
+  spyOn(utils, 'getValidString')
+    .and.callFake((x: any) => (x === '' || x === null || x === undefined) ? null : String(x));
   spyOn(utils, 'getFormatedDecimal').and.callFake((n: any) => Number(n).toFixed(2));
-  spyOn(utils, 'getDateAndDefaultTime').and.returnValue(null);
-  // IMPORTANT: return label/value pairs that MATCH the combo values above
-  spyOn(utils, 'LoadComboBoxData').and.callFake((arr: any[], label: string, _code: string, id: string) =>
-    arr.map((r: any) => ({ label: r[label], value: String(r[id]) }))
-  );
+  spyOn(utils, 'getDateAndDefaultTime').and.callFake((d: any) => (d ? d : null));
+  spyOn(utils, 'LoadComboBoxData')
+    .and.callFake((arr: any[], label: string, _code: string, id: string) =>
+      arr.map((r: any) => ({ label: r[label], value: String(r[id]) }))
+    );
   spyOn(utils, 'getCurrentUser').and.returnValue('u1');
   spyOn(utils, 'ToEstDate').and.returnValue('2025-08-25T00:00:00');
 
-  const postSpy = spyOn(component.feeApiservice, 'postRequest')
-    .and.returnValue(throwError(() => ({ error: { statusMessage: 'boom' } })));
-  const errorSpy = spyOn(component as any, 'displayServiceErrors');
+  const postSpy = spyOn(component.feeApiservice, 'postRequest').and.returnValue(of({}));
+  const showEditSpy = spyOn(component as any, 'showEditSuccess');
   const dispatchSpy = spyOn(component['store'], 'dispatch');
 
   // Act
@@ -56,8 +65,8 @@ it('logAccountAudit (clone): handles API error → shows error, stops loading, d
   tick();
 
   // Assert
-  expect(postSpy).toHaveBeenCalled();                                   // attempted audit post
-  expect(errorSpy).toHaveBeenCalledWith('boom');                        // error surfaced
-  expect(component.loading).toBeFalse();                                // loading cleared
-  expect(dispatchSpy).toHaveBeenCalledWith(new LOADINGACTION(false));   // loader off
+  expect(postSpy).toHaveBeenCalled();                               // UPDATE audit posted
+  expect(component.loading).toBeFalse();
+  expect(dispatchSpy).toHaveBeenCalledWith(new LOADINGACTION(false));
+  expect(showEditSpy).toHaveBeenCalled();                           // completion path
 }));
