@@ -1,26 +1,53 @@
-it('logAccountAudit (edit): with changes → posts audit and calls showEditSuccess on complete', fakeAsync(() => {
+it('logAccountAudit (edit): with NO changes → does not post, calls showEditSuccess directly', fakeAsync(() => {
   // Arrange
   component.isCloneAccount = false;
 
-  component.oldAccountValues = {
-    longacctnum: 'OL1',
-    regionDescription: 'East'
-  } as any;
-
+  // Current account (keep fields same as old where method compares)
   component.account = {
-    accountNbr: 'ACC-3',
-    longacctnum: 'NL1',               // changed
-    regionDescription: 'West'         // changed
+    accountNbr: 'ACC-4',
+    longacctnum: 'SAME',
+    accountNm: 'Same Name',
+    regionDescription: 'East',
+    dateopen: '2025-08-01',
+    dateclosed: '',
+    estacc: 0,
+    revshare: '',
+    futureuse: '',
+    disposition3: '',
+    ofcrNm: '',
+    officer: '',
+    ozId: '',
+    pcanumber: '',
+    estpp: 0, actpp: 0, endpp: 0, feepp: 0, cashpp: 0, accepfee: 0
   } as any;
 
-  // current combos + old snapshots so .toString() calls are safe
+  // Old values equal to current → no diffs
+  component.oldAccountValues = {
+    longacctnum: 'SAME',
+    accountNm: 'Same Name',
+    regionDescription: 'East',
+    dateopen: '2025-08-01',
+    dateclosed: '',
+    estacc: 0,
+    revshare: '',
+    futureuse: '',
+    disposition3: '',
+    ofcrNm: '',
+    officer: '',
+    ozId: '',
+    pcanumber: '',
+    estpp: 0, actpp: 0, endpp: 0, feepp: 0, cashpp: 0, accepfee: 0
+  } as any;
+
+  // Combos present (strings/arrays ok — code uses .toString())
   (component as any).cbStatus      = { value: ['A'] };
   (component as any).cbDivision    = { value: ['20'] };
-  (component as any).cbAltDivision = { value: null };
+  (component as any).cbAltDivision = { value: null };   // keep null so alt-div check remains equal
   (component as any).cbCycle       = { value: ['5'] };
   (component as any).cbFormula     = { value: ['11'] };
   (component as any).cbCategory    = { value: ['7'] };
 
+  // IMPORTANT: old snapshots must exist & match to avoid false diffs / toString crashes
   component.oldcbStatusValue       = ['A'];
   component.oldcbDivisionValue     = ['20'];
   component.oldcbAltDivisionValue  = null;
@@ -28,43 +55,34 @@ it('logAccountAudit (edit): with changes → posts audit and calls showEditSucce
   component.oldcbFormulaValue      = ['11'];
   component.oldcbCategoryValue     = ['7'];
 
-  component.regions = [
-    { regionId: 1, regionDescription: 'West' },
-    { regionId: 2, regionDescription: 'East' },
-  ] as any;
+  // Lookups (some code paths may read these; keep minimal but valid)
+  component.regions   = [{ regionId: 2, regionDescription: 'East' }] as any;
+  component.divisions = [{ divisionId: 20, divisionDesc: 'Div A', divisionCd: 'DA' }] as any;
+  component.cycles    = [{ cycleId: 5,  cycleDesc: 'Cycle 5' }] as any;
+  component.formulas  = [{ formulaId: 11, formulaDesc: 'Formula 11', formulaCd: 'F11' }] as any;
+  component.categories= [{ categoryId: 7,  categoryDescription: 'Cat', categoryCode: '7' }] as any;
 
-  component.divisions  = [{ divisionId: 20, divisionDesc: 'Div A', divisionCd: 'DA' }] as any;
-  component.cycles     = [{ cycleId: 5, cycleDesc: 'Cycle 5' }] as any;
-  component.formulas   = [{ formulaId: 11, formulaDesc: 'Formula 11', formulaCd: 'F11' }] as any;
-  component.categories = [{ categoryId: 7, categoryDescription: 'Cat', categoryCode: '7' }] as any;
-
+  // Utils used by method (safe stubs)
   spyOn(component.acctService, 'getAccountStatusDesc').and.returnValue('Active');
-
   const utils = component['utils'] as any;
   spyOn(utils, 'getValidString').and.callFake((x: any) =>
     (x === '' || x === null || x === undefined) ? null : String(x)
   );
-  spyOn(utils, 'getFormatedDecimal').and.callFake((n: any) => Number(n).toFixed(2));
-  spyOn(utils, 'getDateAndDefaultTime').and.callFake((d: any) => (d ? d : null));
-  spyOn(utils, 'LoadComboBoxData').and.callFake((arr: any[], label: string, _code: string, id: string) =>
-    arr.map((r: any) => ({ label: r[label], value: String(r[id]) }))
-  );
+  spyOn(utils, 'getFormatedDecimal').and.returnValue('0.00');
+  spyOn(utils, 'getDateAndDefaultTime').and.returnValue(null);
+  spyOn(utils, 'LoadComboBoxData').and.returnValue([{ label: 'L', value: 'V' }]);
   spyOn(utils, 'getCurrentUser').and.returnValue('u1');
   spyOn(utils, 'ToEstDate').and.returnValue('2025-08-25T00:00:00');
 
-  const postSpy = spyOn(component.feeApiservice, 'postRequest').and.returnValue(of({}));
+  // Spies
+  const postSpy = spyOn(component.feeApiservice, 'postRequest'); // should NOT be called
   const showEditSpy = spyOn(component as any, 'showEditSuccess');
-  const dispatchSpy = spyOn(component['store'], 'dispatch'); // keep spy but don't assert it's called
 
   // Act
   (component as any).logAccountAudit();
   tick();
 
   // Assert
-  expect(postSpy).toHaveBeenCalled();             // UPDATE audit posted
-  expect(component.loading).toBeFalse();          // loading cleared in complete path
-  expect(showEditSpy).toHaveBeenCalled();         // success handler called
-
-  // Optional: ensure no dispatch happened on success in edit path
-  expect(dispatchSpy).not.toHaveBeenCalled();
+  expect(postSpy).not.toHaveBeenCalled();  // no API call when nothing changed
+  expect(showEditSpy).toHaveBeenCalled();  // goes directly to success path
 }));
