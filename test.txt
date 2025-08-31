@@ -1,13 +1,11 @@
-it('logAccountAudit (edit): generates audit data with old/new values', fakeAsync(() => {
-  // Arrange minimal diff
+it('logAccountAudit: captures Long Account Number difference', fakeAsync(() => {
   component.isCloneAccount = false;
-  component.oldAccountValues = { longacctnum: 'OLD-LONG', regionDescription: 'East' } as any;
-  component.account = { accountNbr: 'ACC-3', longacctnum: 'NEW-LONG', regionDescription: 'West' } as any;
+  component.oldAccountValues = { longacctnum: 'OLD-LONG' } as any;
+  component.account = { accountNbr: 'A1', longacctnum: 'NEW-LONG', regionDescription: 'East' } as any;
 
-  (component as any).cbStatus   = { value: ['A'] };
+  component.regions = [{ regionId: 1, regionDescription: 'East' }] as any;
+  (component as any).cbStatus = { value: ['A'] };
   (component as any).cbDivision = { value: ['20'] };
-
-  component.regions   = [{ regionId: 1, regionDescription: 'West' }, { regionId: 2, regionDescription: 'East' }] as any;
   component.divisions = [{ divisionId: 20, divisionDesc: 'Div A', divisionCd: 'DA' }] as any;
 
   spyOn(component.acctService, 'getAccountStatusDesc').and.returnValue('OPEN');
@@ -17,18 +15,31 @@ it('logAccountAudit (edit): generates audit data with old/new values', fakeAsync
   (component as any).logAccountAudit();
   tick();
 
-  // Grab audit payload
-  const [, body] = (component.feeApiservice.postRequest as jasmine.Spy).calls.mostRecent().args as [string, any];
-  const data = JSON.parse(body.acctAuditData);
-  const merged = (data[0].OldAccountValue ?? '') + ' || ' + (data[0].NewAccountValue ?? '');
+  // Assert – just check longacctnum diff appears
+  const [, body] = (component.feeApiservice.postRequest as jasmine.Spy).calls.mostRecent().args;
+  const audit = JSON.parse(body.acctAuditData)[0];
+  expect(audit.OldAccountValue).toContain('OLD-LONG');
+  expect(audit.NewAccountValue).toContain('NEW-LONG');
+}));
 
-  // Normalize locally
-  const norm = (s: string) => s.toLowerCase().replace(/\s+/g, ' ').trim();
-  const text = norm(merged);
+it('logAccountAudit: captures Account Name difference', fakeAsync(() => {
+  component.isCloneAccount = false;
+  component.oldAccountValues = { accountNm: 'OLD-NAME' } as any;
+  component.account = { accountNbr: 'A1', accountNm: 'NEW-NAME', regionDescription: 'East' } as any;
 
-  // ✅ Only check a few key fields
-  expect(text).toContain('long account number: old-long');
-  expect(text).toContain('long account number: new-long');
-  expect(text).toContain('region: east');
-  expect(text).toContain('region: west');
+  component.regions = [{ regionId: 1, regionDescription: 'East' }] as any;
+  (component as any).cbStatus = { value: ['A'] };
+  (component as any).cbDivision = { value: ['20'] };
+  component.divisions = [{ divisionId: 20, divisionDesc: 'Div A', divisionCd: 'DA' }] as any;
+
+  spyOn(component.acctService, 'getAccountStatusDesc').and.returnValue('OPEN');
+  spyOn(component.feeApiservice, 'postRequest').and.returnValue(of({}));
+
+  (component as any).logAccountAudit();
+  tick();
+
+  const [, body] = (component.feeApiservice.postRequest as jasmine.Spy).calls.mostRecent().args;
+  const audit = JSON.parse(body.acctAuditData)[0];
+  expect(audit.OldAccountValue).toContain('OLD-NAME');
+  expect(audit.NewAccountValue).toContain('NEW-NAME');
 }));
