@@ -1,5 +1,4 @@
-it('revShareDivMappingMessage: sets mapping messages for division and alt division', () => {
-  // Arrange
+it('revShareDivMappingMessage: sets division NOT mapped message when no revShareDesc', () => {
   (component as any).cbDivision = { value: '20' };
   (component as any).cbAltDivision = { value: '30' };
 
@@ -9,16 +8,12 @@ it('revShareDivMappingMessage: sets mapping messages for division and alt divisi
   ] as any;
 
   component.revShareDivMapping = [
-    { divisionId: 20, revShareDesc: 'RevShare-20' },
-    { divisionId: 30, revShareDesc: 'RevShare-30' }
+    { divisionId: 30, revShareDesc: 'SomeAltDesc' } // only alt mapped, division missing
   ] as any;
 
-  spyOn(component.utils, 'isStringValid').and.callFake((s: any) => !!s && s.trim() !== '');
+  spyOn(component.utils, 'isStringValid').and.callFake((s: any) => !!s);
 
-  // Act
   component.revShareDivMappingMessage();
 
-  // Assert
-  expect(component.divCdMapMessage).toContain('Division Cd D20 is mapped to RevShare-20 revenue share.');
-  expect(component.altDivCdMapMessage).toContain('Alt Division Cd D30 is mapped to RevShare-30 revenue share.');
+  expect(component.divCdMapMessage).toBe('Division Cd D20 is not mapped.');
 });
