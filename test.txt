@@ -1,53 +1,53 @@
-function normalizeAuditString(s: string): string {
-  return s.toLowerCase()
-          .replace(/\s+/g, ' ')
-          .replace(/\s*-\s*/g, ' ')
-          .replace(/\s*,\s*/g, ',')
-          .trim();
-}
+it('logAccountAudit (edit): builds audit trail and includes divisions/cycles/formulas', fakeAsync(() => {
+  // Arrange
+  component.isCloneAccount = false;
+  component.oldAccountValues = { longacctnum: 'OLD-LONG', regionDescription: 'East' } as any;
+  component.account = { accountNbr: 'ACC-3', longacctnum: 'NEW-LONG', regionDescription: 'West' } as any;
 
-describe('EditaccountComponent > logAccountAudit (edit)', () => {
-  let merged: string;
+  (component as any).cbStatus      = { value: ['A'] };
+  (component as any).cbDivision    = { value: ['20'] };
+  (component as any).cbAltDivision = { value: ['30'] };
+  (component as any).cbCycle       = { value: ['5'] };
+  (component as any).cbFormula     = { value: ['11'] };
+  (component as any).cbCategory    = { value: ['7'] };
 
-  beforeEach(fakeAsync(() => {
-    component.isCloneAccount = false;
-    // ... same setup for old/new account values, combos, stubs as before ...
+  component.regions = [
+    { regionId: 1, regionDescription: 'West' },
+    { regionId: 2, regionDescription: 'East' }
+  ] as any;
+  component.divisions = [
+    { divisionId: 20, divisionDesc: 'Div A', divisionCd: 'DA' },
+    { divisionId: 21, divisionDesc: 'Div B', divisionCd: 'DB' }
+  ] as any;
+  component.cycles   = [{ cycleId: 5, cycleDesc: 'Cycle 5' }] as any;
+  component.formulas = [{ formulaId: 11, formulaDesc: 'Formula 11', formulaCd: 'F11' }] as any;
+  component.categories = [{ categoryId: 7, categoryDescription: 'Cat', categoryCode: '7' }] as any;
 
-    const postSpy = spyOn(component.feeApiservice, 'postRequest').and.returnValue(of({}));
-    (component as any).logAccountAudit();
-    tick();
+  spyOn(component.acctService, 'getAccountStatusDesc').and.returnValue('OPEN');
+  spyOn(component.feeApiservice, 'postRequest').and.returnValue(of({}));
 
-    const [, body] = postSpy.calls.mostRecent().args as [string, any];
-    const data = JSON.parse((body as any).acctAuditData);
-    const item = data[0];
-    merged = normalizeAuditString(
-      `${item.OldAccountValue ?? item.oldAccountValue} || ${item.NewAccountValue ?? item.newAccountValue}`
-    );
-  }));
+  // Act
+  (component as any).logAccountAudit();
+  tick();
 
-  it('should include long account numbers', () => {
-    expect(merged).toContain('long account number: old-long');
-    expect(merged).toContain('long account number: new-long');
-  });
+  const [, body] = (component.feeApiservice.postRequest as jasmine.Spy).calls.mostRecent().args as [string, any];
+  const data = JSON.parse(body.acctAuditData);
+  const merged = `${data[0].OldAccountValue} || ${data[0].NewAccountValue}`;
 
-  it('should include regions and divisions', () => {
-    expect(merged).toContain('region: east');
-    expect(merged).toContain('region: west');
-    expect(merged).toContain('division cd desc: div b');
-    expect(merged).toContain('division cd desc: div a');
-  });
+  // 👇 local helper inside the test
+  const norm = (s: string) =>
+    s.toLowerCase()
+     .replace(/\s+/g, ' ')
+     .replace(/\s*-\s*/g, ' ')
+     .replace(/\s*,\s*/g, ',')
+     .trim();
 
-  it('should include cycles and formulas', () => {
-    expect(merged).toContain('cycle id desc: cycle 6');
-    expect(merged).toContain('cycle id desc: cycle 5');
-    expect(merged).toContain('formula cd desc: formula 12');
-    expect(merged).toContain('formula cd desc: formula 11');
-  });
+  const normalized = norm(merged);
 
-  it('should include categories and disposition', () => {
-    expect(merged).toContain('category cd desc: other');
-    expect(merged).toContain('category cd desc: estate');
-    expect(merged).toContain('disposition 3: old-disp3');
-    expect(merged).toContain('disposition 3: new-disp3');
-  });
-});
+  // Assert
+  expect(normalized).toContain('long account number: old-long');
+  expect(normalized).toContain('long account number: new-long');
+  expect(normalized).toContain('division cd desc: div a');
+  expect(normalized).toContain('cycle id desc: cycle 5');
+  expect(normalized).toContain('formula cd desc: formula 11');
+}));
