@@ -1,57 +1,24 @@
-it('logAccountAudit (edit): captures Account Short Name difference safely', fakeAsync(() => {
+it('revShareDivMappingMessage: sets mapping messages for division and alt division', () => {
   // Arrange
-  component.isCloneAccount = false;
+  (component as any).cbDivision = { value: '20' };
+  (component as any).cbAltDivision = { value: '30' };
 
-  component.oldAccountValues = { accountNm: 'OLD-NAME' } as any;
-  component.account = { accountNm: 'NEW-NAME', accountNbr: 'ACC-1', regionDescription: 'West' } as any;
+  component.divisions = [
+    { divisionId: 20, divisionCd: 'D20' },
+    { divisionId: 30, divisionCd: 'D30' }
+  ] as any;
 
-  // minimal combos required for function execution
-  (component as any).cbStatus      = { value: ['A'] };
-  (component as any).cbDivision    = { value: ['20'] };
-  (component as any).cbAltDivision = { value: null };
-  (component as any).cbCycle       = { value: ['5'] };
-  (component as any).cbFormula     = { value: ['11'] };
-  (component as any).cbCategory    = { value: ['7'] };
+  component.revShareDivMapping = [
+    { divisionId: 20, revShareDesc: 'RevShare-20' },
+    { divisionId: 30, revShareDesc: 'RevShare-30' }
+  ] as any;
 
-  // old snapshot values (toString safe)
-  component.oldcbStatusValue      = ['B'];
-  component.oldcbDivisionValue    = ['21'];
-  component.oldcbAltDivisionValue = null;
-  component.oldcbCycleValue       = ['6'];
-  component.oldcbFormulaValue     = ['12'];
-  component.oldcbCategoryValue    = ['8'];
-
-  // lookups
-  component.regions   = [{ regionId: 1, regionDescription: 'West' }] as any;
-  component.divisions = [{ divisionId: 20, divisionDesc: 'Div A', divisionCd: 'DA' }] as any;
-  component.cycles    = [{ cycleId: 5, cycleDesc: 'Cycle 5' }] as any;
-  component.formulas  = [{ formulaId: 11, formulaDesc: 'Formula 11', formulaCd: 'F11' }] as any;
-  component.categories= [{ categoryId: 7, categoryDescription: 'Cat', categoryCode: '7' }] as any;
-
-  // stubs for utils
-  const utils = component['utils'] as any;
-  spyOn(utils, 'getValidString').and.callFake((x: any) => x ? String(x) : null);
-  spyOn(utils, 'getFormatedDecimal').and.callFake((n: any) => Number(n).toFixed(2));
-  spyOn(utils, 'getDateAndDefaultTime').and.returnValue(null);
-  spyOn(utils, 'LoadComboBoxData').and.returnValue([{ label: 'Div A', value: '20' }]);
-  spyOn(utils, 'getCurrentUser').and.returnValue('u1');
-  spyOn(utils, 'ToEstDate').and.returnValue('2025-08-25T00:00:00');
-
-  spyOn(component.acctService, 'getAccountStatusDesc').and.returnValue('OPEN');
-
-  const postSpy = spyOn(component.feeApiservice, 'postRequest').and.returnValue(of({}));
-  spyOn(component as any, 'showEditSuccess');
+  spyOn(component.utils, 'isStringValid').and.callFake((s: any) => !!s && s.trim() !== '');
 
   // Act
-  (component as any).logAccountAudit();
-  tick();
+  component.revShareDivMappingMessage();
 
   // Assert
-  expect(postSpy).toHaveBeenCalled();
-  const [, body] = postSpy.calls.mostRecent().args as [string, any];
-  const auditArr = JSON.parse((body as any).acctAuditData);
-
-  const item = auditArr[0];
-  expect(item.OldAccountValue).toContain('Account Short Name (FA): OLD-NAME');
-  expect(item.NewAccountValue).toContain('Account Short Name (FA): NEW-NAME');
-}));
+  expect(component.divCdMapMessage).toContain('Division Cd D20 is mapped to RevShare-20 revenue share.');
+  expect(component.altDivCdMapMessage).toContain('Alt Division Cd D30 is mapped to RevShare-30 revenue share.');
+});
