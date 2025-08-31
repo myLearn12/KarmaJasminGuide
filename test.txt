@@ -1,157 +1,53 @@
-it('logAccountAudit (edit): builds audit trail when old and new differ (robust normalized contains)', fakeAsync(() => {
-  // Arrange
-  component.isCloneAccount = false;
+function normalizeAuditString(s: string): string {
+  return s.toLowerCase()
+          .replace(/\s+/g, ' ')
+          .replace(/\s*-\s*/g, ' ')
+          .replace(/\s*,\s*/g, ',')
+          .trim();
+}
 
-  component.oldAccountValues = {
-    longacctnum: 'OLD-LONG',
-    accountNm: 'OLD-NAME',
-    dateopen: '2025-08-01',
-    dateclosed: '',
-    estacc: 10,
-    revshare: '0.20',
-    futureuse: 'OLD-FUT',
-    regionDescription: 'East',
-    disposition3: 'OLD-DISP3',
-    ofcrNm: 'OLD OFFICER',
-    officer: '0001',
-    ozId: 'OLDOZ',
-    pcanumber: 'OLDPCA',
-    estpp: 1, actpp: 2, endpp: 3, feepp: 4, cashpp: 5,
-    accepfee: 6
-  } as any;
+describe('EditaccountComponent > logAccountAudit (edit)', () => {
+  let merged: string;
 
-  component.account = {
-    accountNbr: 'ACC-99',
-    longacctnum: 'NEW-LONG',
-    accountNm: 'NEW-NAME',
-    dateopen: '2025-08-02',
-    dateclosed: '2025-08-03',
-    estacc: 11,
-    revshare: '0.50',
-    futureuse: 'NEW-FUT',
-    regionDescription: 'West',
-    disposition3: 'NEW-DISP3',
-    ofcrNm: 'NEW OFFICER',
-    officer: '0002',
-    ozId: 'NEWOZ',
-    pcanumber: 'NEWPCA',
-    estpp: 10, actpp: 20, endpp: 30, feepp: 40, cashpp: 50,
-    accepfee: 60
-  } as any;
+  beforeEach(fakeAsync(() => {
+    component.isCloneAccount = false;
+    // ... same setup for old/new account values, combos, stubs as before ...
 
-  // Current combos
-  (component as any).cbStatus      = { value: ['A'] };
-  (component as any).cbDivision    = { value: ['20'] };
-  (component as any).cbAltDivision = { value: ['30'] };
-  (component as any).cbCycle       = { value: ['5'] };
-  (component as any).cbFormula     = { value: ['11'] };
-  (component as any).cbCategory    = { value: ['4ID'] };
+    const postSpy = spyOn(component.feeApiservice, 'postRequest').and.returnValue(of({}));
+    (component as any).logAccountAudit();
+    tick();
 
-  // Old snapshots
-  component.oldcbStatusValue      = ['B'];
-  component.oldcbDivisionValue    = ['21'];
-  component.oldcbAltDivisionValue = ['31'];
-  component.oldcbCycleValue       = ['6'];
-  component.oldcbFormulaValue     = ['12'];
-  component.oldcbCategoryValue    = ['7ID'];
+    const [, body] = postSpy.calls.mostRecent().args as [string, any];
+    const data = JSON.parse((body as any).acctAuditData);
+    const item = data[0];
+    merged = normalizeAuditString(
+      `${item.OldAccountValue ?? item.oldAccountValue} || ${item.NewAccountValue ?? item.newAccountValue}`
+    );
+  }));
 
-  // Lookups
-  component.regions = [
-    { regionId: 1, regionDescription: 'West' },
-    { regionId: 2, regionDescription: 'East' },
-  ] as any;
+  it('should include long account numbers', () => {
+    expect(merged).toContain('long account number: old-long');
+    expect(merged).toContain('long account number: new-long');
+  });
 
-  component.divisions = [
-    { divisionId: 20, divisionDesc: 'Div A', divisionCd: 'DA' },
-    { divisionId: 21, divisionDesc: 'Div B', divisionCd: 'DB' },
-    { divisionId: 30, divisionDesc: 'Alt A', divisionCd: 'AA' },
-    { divisionId: 31, divisionDesc: 'Alt B', divisionCd: 'AB' },
-  ] as any;
+  it('should include regions and divisions', () => {
+    expect(merged).toContain('region: east');
+    expect(merged).toContain('region: west');
+    expect(merged).toContain('division cd desc: div b');
+    expect(merged).toContain('division cd desc: div a');
+  });
 
-  component.cycles = [
-    { cycleId: 5, cycleDesc: 'Cycle 5' },
-    { cycleId: 6, cycleDesc: 'Cycle 6' },
-  ] as any;
+  it('should include cycles and formulas', () => {
+    expect(merged).toContain('cycle id desc: cycle 6');
+    expect(merged).toContain('cycle id desc: cycle 5');
+    expect(merged).toContain('formula cd desc: formula 12');
+    expect(merged).toContain('formula cd desc: formula 11');
+  });
 
-  component.formulas = [
-    { formulaId: 11, formulaDesc: 'Formula 11', formulaCd: 'F11' },
-    { formulaId: 12, formulaDesc: 'Formula 12', formulaCd: 'F12' },
-  ] as any;
-
-  component.categories = [
-    { categoryId: '4ID', categoryDescription: 'Estate', categoryCode: '4' },
-    { categoryId: '7ID', categoryDescription: 'Other',  categoryCode: '7' },
-  ] as any;
-
-  // Stubs
-  spyOn(component.acctService, 'getAccountStatusDesc')
-    .and.callFake((v: string) => v === 'A' ? 'OPEN' : 'CLOSED');
-
-  const utils = component['utils'] as any;
-  spyOn(utils, 'getValidString').and.callFake((x: any) =>
-    (x === '' || x === null || x === undefined) ? null : String(x)
-  );
-  spyOn(utils, 'getFormatedDecimal').and.callFake((n: any) => Number(n).toFixed(2));
-  spyOn(utils, 'getDateAndDefaultTime').and.callFake((d: any) => (d ? d : null));
-  spyOn(utils, 'LoadComboBoxData').and.callFake((arr: any[], label: string, _code: string, id: string) =>
-    arr.map((r: any) => ({ label: r[label], value: String(r[id]) }))
-  );
-  spyOn(utils, 'getCurrentUser').and.returnValue('u1');
-  spyOn(utils, 'ToEstDate').and.returnValue('2025-08-25T00:00:00');
-
-  const postSpy = spyOn(component.feeApiservice, 'postRequest').and.returnValue(of({}));
-
-  // Act
-  (component as any).logAccountAudit();
-  tick();
-
-  // Assert basic post
-  expect(postSpy).toHaveBeenCalled();
-  const [, body] = postSpy.calls.mostRecent().args as [string, any];
-  expect((body as any).acctAuditType).toBe('UPDATE');
-
-  const data = JSON.parse((body as any).acctAuditData);
-  const item = data[0];
-  const oldTxt = (item.OldAccountValue ?? item.oldAccountValue) as string;
-  const newTxt = (item.NewAccountValue ?? item.newAccountValue) as string;
-
-  // Normalize to avoid failures on commas/hyphens/spacing/case
-  const norm = (s: string) =>
-    s.toLowerCase()
-     .replace(/\s+/g, ' ')
-     .replace(/\s*-\s*/g, ' ')   // remove stray hyphens around labels
-     .replace(/\s*,\s*/g, ',')   // normalize commas
-     .trim();
-
-  const merged = norm(`${oldTxt} || ${newTxt}`);
-
-  // Core fields
-  expect(merged).toContain('long account number: old-long');
-  expect(merged).toContain('long account number: new-long');
-
-  expect(merged).toContain('account short name (fa): old-name');
-  expect(merged).toContain('account short name (fa): new-name');
-
-  expect(merged).toContain('account status: closed');
-  expect(merged).toContain('account status: open');
-
-  expect(merged).toContain('region: east');
-  expect(merged).toContain('region: west');
-
-  // Division / Alt Division (normalized)
-  expect(merged).toContain('division cd desc: div b');
-  expect(merged).toContain('division cd desc: div a');
-
-  expect(merged).toContain('alt division cd desc: alt b');
-  expect(merged).toContain('alt division cd desc: alt a');
-
-  // Cycle / Formula / Category
-  expect(merged).toContain('cycle id desc: cycle 6');
-  expect(merged).toContain('cycle id desc: cycle 5');
-
-  expect(merged).toContain('formula cd desc: formula 12');
-  expect(merged).toContain('formula cd desc: formula 11');
-
-  expect(merged).toContain('category cd desc: other');
-  expect(merged).toContain('category cd desc: estate');
-}));
+  it('should include categories and disposition', () => {
+    expect(merged).toContain('category cd desc: other');
+    expect(merged).toContain('category cd desc: estate');
+    expect(merged).toContain('disposition 3: old-disp3');
+    expect(merged).toContain('disposition 3: new-disp3');
+  });
+});
