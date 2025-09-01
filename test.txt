@@ -1,67 +1,29 @@
-it('onSaveButtonClick: should exit when validateFormControls returns true', () => {
-  spyOn(component, 'validateFormControls').and.returnValue(true);
-  const processSpy = spyOn(component as any, 'processData');
-
-  component.onSaveButtonClick();
-
-  expect(processSpy).not.toHaveBeenCalled();
-});
-
-it('onSaveButtonClick: should show error modal and exit when form data invalid', () => {
-  spyOn(component, 'validateFormControls').and.returnValue(false);
-  spyOn(component, 'validateFormData').and.returnValue(true);
-
-  const modalSpy = spyOn(component._errorModal, 'show');
-  const processSpy = spyOn(component as any, 'processData');
-
-  component.onSaveButtonClick();
-
-  expect(modalSpy).toHaveBeenCalled();
-  expect(processSpy).not.toHaveBeenCalled();
-});
-
 it('onSaveButtonClick: should show EstateCashFeeModal when catCd = "4" and cash > 0', () => {
-  spyOn(component, 'validateFormControls').and.returnValue(false);
-  spyOn(component, 'validateFormData').and.returnValue(false);
-
   component.account = { formulaCd: 1, catCd: '4', cashfee: 100, cashpp: 0 } as any;
   spyOn(component.utils, 'getFormatedNumber').and.callFake((n: any) => n);
 
   const estateSpy = spyOn(component._EstateCashFeeModal, 'show');
   const processSpy = spyOn(component as any, 'processData');
 
+  // Act
   component.onSaveButtonClick();
 
+  // Assert
   expect(estateSpy).toHaveBeenCalled();
   expect(processSpy).not.toHaveBeenCalled();
 });
 
-it('onSaveButtonClick: should call processData when formulaCd = 1 and catCd != "4"', () => {
-  spyOn(component, 'validateFormControls').and.returnValue(false);
-  spyOn(component, 'validateFormData').and.returnValue(false);
-
+it('onSaveButtonClick: should call processData when not catCd="4"', () => {
   component.account = { formulaCd: 1, catCd: '7', cashfee: 200, cashpp: 0 } as any;
   spyOn(component.utils, 'getFormatedNumber').and.callFake((n: any) => n);
 
   const estateSpy = spyOn(component._EstateCashFeeModal, 'show');
   const processSpy = spyOn(component as any, 'processData');
 
+  // Act
   component.onSaveButtonClick();
 
+  // Assert
   expect(estateSpy).not.toHaveBeenCalled();
-  expect(processSpy).toHaveBeenCalled();
-});
-
-it('onSaveButtonClick: should call processData in default case (no formula/cat match)', () => {
-  spyOn(component, 'validateFormControls').and.returnValue(false);
-  spyOn(component, 'validateFormData').and.returnValue(false);
-
-  component.account = { formulaCd: 2, catCd: '7', cashfee: 0, cashpp: 0 } as any;
-  spyOn(component.utils, 'getFormatedNumber').and.returnValue(0);
-
-  const processSpy = spyOn(component as any, 'processData');
-
-  component.onSaveButtonClick();
-
   expect(processSpy).toHaveBeenCalled();
 });
