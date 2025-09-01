@@ -1,19 +1,67 @@
-it('revShareDivMappingMessage: sets division NOT mapped message when no revShareDesc', () => {
-  (component as any).cbDivision = { value: '20' };
-  (component as any).cbAltDivision = { value: '30' };
+it('onSaveButtonClick: should exit when validateFormControls returns true', () => {
+  spyOn(component, 'validateFormControls').and.returnValue(true);
+  const processSpy = spyOn(component as any, 'processData');
 
-  component.divisions = [
-    { divisionId: 20, divisionCd: 'D20' },
-    { divisionId: 30, divisionCd: 'D30' }
-  ] as any;
+  component.onSaveButtonClick();
 
-  component.revShareDivMapping = [
-    { divisionId: 30, revShareDesc: 'SomeAltDesc' } // only alt mapped, division missing
-  ] as any;
+  expect(processSpy).not.toHaveBeenCalled();
+});
 
-  spyOn(component.utils, 'isStringValid').and.callFake((s: any) => !!s);
+it('onSaveButtonClick: should show error modal and exit when form data invalid', () => {
+  spyOn(component, 'validateFormControls').and.returnValue(false);
+  spyOn(component, 'validateFormData').and.returnValue(true);
 
-  component.revShareDivMappingMessage();
+  const modalSpy = spyOn(component._errorModal, 'show');
+  const processSpy = spyOn(component as any, 'processData');
 
-  expect(component.divCdMapMessage).toBe('Division Cd D20 is not mapped.');
+  component.onSaveButtonClick();
+
+  expect(modalSpy).toHaveBeenCalled();
+  expect(processSpy).not.toHaveBeenCalled();
+});
+
+it('onSaveButtonClick: should show EstateCashFeeModal when catCd = "4" and cash > 0', () => {
+  spyOn(component, 'validateFormControls').and.returnValue(false);
+  spyOn(component, 'validateFormData').and.returnValue(false);
+
+  component.account = { formulaCd: 1, catCd: '4', cashfee: 100, cashpp: 0 } as any;
+  spyOn(component.utils, 'getFormatedNumber').and.callFake((n: any) => n);
+
+  const estateSpy = spyOn(component._EstateCashFeeModal, 'show');
+  const processSpy = spyOn(component as any, 'processData');
+
+  component.onSaveButtonClick();
+
+  expect(estateSpy).toHaveBeenCalled();
+  expect(processSpy).not.toHaveBeenCalled();
+});
+
+it('onSaveButtonClick: should call processData when formulaCd = 1 and catCd != "4"', () => {
+  spyOn(component, 'validateFormControls').and.returnValue(false);
+  spyOn(component, 'validateFormData').and.returnValue(false);
+
+  component.account = { formulaCd: 1, catCd: '7', cashfee: 200, cashpp: 0 } as any;
+  spyOn(component.utils, 'getFormatedNumber').and.callFake((n: any) => n);
+
+  const estateSpy = spyOn(component._EstateCashFeeModal, 'show');
+  const processSpy = spyOn(component as any, 'processData');
+
+  component.onSaveButtonClick();
+
+  expect(estateSpy).not.toHaveBeenCalled();
+  expect(processSpy).toHaveBeenCalled();
+});
+
+it('onSaveButtonClick: should call processData in default case (no formula/cat match)', () => {
+  spyOn(component, 'validateFormControls').and.returnValue(false);
+  spyOn(component, 'validateFormData').and.returnValue(false);
+
+  component.account = { formulaCd: 2, catCd: '7', cashfee: 0, cashpp: 0 } as any;
+  spyOn(component.utils, 'getFormatedNumber').and.returnValue(0);
+
+  const processSpy = spyOn(component as any, 'processData');
+
+  component.onSaveButtonClick();
+
+  expect(processSpy).toHaveBeenCalled();
 });
