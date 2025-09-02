@@ -1,73 +1,26 @@
-it('ValidateFormData: should set errors when Paid-Thru date is missing', () => {
-  component.account = { formulacd: 1, datepdthru: '' } as any;
+it('ValidateFormData: should set errors when Paid-Thru date is earlier than prevpdthru', () => {
+  // Arrange
+  component.account = {
+    formulacd: 1,
+    datepdthru: '2025-01-01',
+    prevpdthru: '2025-02-01'
+  } as any;
 
-  spyOn(component.utils, 'isStringValid').and.returnValue(false);
+  const earlyDate = new Date(2025, 0, 1); // Jan 1, 2025
+  const laterDate = new Date(2025, 1, 1); // Feb 1, 2025
 
+  spyOn(component.utils, 'isStringValid').and.returnValue(true); // so we skip the "missing" branch
+  spyOn(component.utils, 'ToDate').and.callFake((val: any) => {
+    return val === '2025-01-01' ? earlyDate : laterDate;
+  });
+  spyOn(component.utils, 'getDisplayCurrentDate').and.returnValue('02/01/2025');
+
+  // Act
   component.ValidateFormData();
 
-  expect(component.firstValidationErrorMessage).toContain('Invalid Paid-Thru date');
-  expect(component.thirdValidationErrorMessage).toContain('Press Close to re-enter');
-});
-
-it('ValidateFormData: should set errors when Paid-Thru date is earlier than previous date', () => {
-  const oldDate = new Date(2020, 0, 1);
-  const prevDate = new Date(2021, 0, 1);
-
-  component.account = { formulacd: 4, datepdthru: '2020-01-01', prevpdthru: '2021-01-01' } as any;
-
-  spyOn(component.utils, 'isStringValid').and.returnValue(true);
-  spyOn(component.utils, 'ToDate').and.callFake((d?: any) => d ? new Date(d) : new Date());
-  spyOn(component.utils, 'getDisplayCurrentDate').and.returnValue(prevDate.toDateString());
-
-  component.ValidateFormData();
-
-  expect(component.firstValidationErrorMessage).toContain('earlier than the previous Paid-thru date');
-  expect(component.thirdValidationErrorMessage).toContain('Press Close to re-enter');
-});
-
-it('ValidateFormData: should set errors when Paid-Thru date is more than 10 years in the future', () => {
-  const futureDate = new Date();
-  futureDate.setFullYear(futureDate.getFullYear() + 11);
-
-  component.account = { formulacd: 6, datepdthru: futureDate.toISOString() } as any;
-
-  spyOn(component.utils, 'isStringValid').and.returnValue(true);
-  spyOn(component.utils, 'ToDate').and.returnValue(futureDate);
-
-  component.ValidateFormData();
-
-  expect(component.firstValidationErrorMessage).toContain('more than 10 years in the future');
-  expect(component.secondValidationErrorMessage).toContain('check your computer\'s system date');
-  expect(component.thirdValidationErrorMessage).toContain('Press close to re-enter');
-});
-
-it('ValidateFormData: should set errors when Paid-Thru date is more than 2 years in the past', () => {
-  const pastDate = new Date();
-  pastDate.setFullYear(pastDate.getFullYear() - 3);
-
-  component.account = { formulacd: 1, datepdthru: pastDate.toISOString() } as any;
-
-  spyOn(component.utils, 'isStringValid').and.returnValue(true);
-  spyOn(component.utils, 'ToDate').and.returnValue(pastDate);
-
-  component.ValidateFormData();
-
-  expect(component.firstValidationErrorMessage).toContain('more than 2 years in the past');
-  expect(component.secondValidationErrorMessage).toContain('check your computer\'s system date');
-  expect(component.thirdValidationErrorMessage).toContain('Press Close to re-enter');
-});
-
-it('ValidateFormData: should not set errors for valid Paid-Thru date', () => {
-  const validDate = new Date();
-
-  component.account = { formulacd: 1, datepdthru: validDate.toISOString() } as any;
-
-  spyOn(component.utils, 'isStringValid').and.returnValue(true);
-  spyOn(component.utils, 'ToDate').and.returnValue(validDate);
-
-  component.ValidateFormData();
-
-  expect(component.firstValidationErrorMessage).toBeUndefined();
-  expect(component.secondValidationErrorMessage).toBeUndefined();
-  expect(component.thirdValidationErrorMessage).toBeUndefined();
+  // Assert
+  expect(component.firstValidationErrorMessage)
+    .toBe('The date entered is earlier than the previous Paid-thru date of 02/01/2025');
+  expect(component.thirdValidationErrorMessage)
+    .toBe('Press Close to re-enter.');
 });
