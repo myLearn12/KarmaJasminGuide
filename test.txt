@@ -1,42 +1,14 @@
-it('OnAccountSelection: should load table rows and enable save button on success', () => {
-  component.selectedAccountNumber = 'ACC123';
-  component.regionid = 'R1';
-
-  // mock control with no error
-  (component as any).fcn_acctNumber = { hasError: () => false };
-
-  const mockData = [{ row: 1 }];
-  spyOn(component.feeApiservice, 'getRequest').and.returnValue(of(mockData));
-  spyOn(component, 'LoadTableRows');
-  const dispatchSpy = spyOn(component['store'], 'dispatch');
-
-  component.OnAccountSelection();
-
-  expect(component.LoadTableRows).toHaveBeenCalledWith(mockData);
-  expect(component.loading).toBeFalse();
-  expect(dispatchSpy).toHaveBeenCalledWith(new LOADINGACTION(false));
-  expect(component.diableSaveButton).toBeFalse();
+it('onActionModalClick: should hide modal, set selectedFeeType and call processData', () => {
+  // Arrange
+  (component as any)._EstateCashFeeModal = { hide: jasmine.createSpy('hide') };
+  spyOn(component, 'processData');
+  
+  // Act
+  component.onActionModalClick('CashFee');
+  
+  // Assert
+  expect((component as any)._EstateCashFeeModal.hide).toHaveBeenCalled();
+  expect(component.selectedFeeType).toBe('CashFee');
+  expect(component.processData).toHaveBeenCalled();
 });
-
-
-it('OnAccountSelection: should reset data and disable save button on error', () => {
-  component.selectedAccountNumber = 'ACC123';
-  component.regionid = 'R1';
-
-  (component as any).fcn_acctNumber = { hasError: () => false };
-
-  const errorMessage = 'Server error';
-  spyOn(component.feeApiservice, 'getRequest').and.returnValue(throwError(() => ({ error: { statusMessage: errorMessage } })));
-  spyOn(component, 'resetData');
-  const errorSpy = spyOn(component, 'displayServiceErrors');
-  const dispatchSpy = spyOn(component['store'], 'dispatch');
-
-  component.OnAccountSelection();
-
-  expect(component.resetData).toHaveBeenCalled();
-  expect(errorSpy).toHaveBeenCalledWith(errorMessage);
-  expect(dispatchSpy).toHaveBeenCalledWith(new LOADINGACTION(false));
-  expect(component.diableSaveButton).toBeTrue();
-});
-
 
