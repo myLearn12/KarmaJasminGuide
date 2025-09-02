@@ -1,8 +1,8 @@
-it('ValidateFormData: should set errors when Paid-Thru date is more than 10 years in the future', () => {
-  const futureDate = new Date();
-  futureDate.setFullYear(futureDate.getFullYear() + 11); // 11 years in future
+it('ValidateFormData: should set errors when Paid-Thru date is more than 2 years in the past', () => {
+  const pastDate = new Date();
+  pastDate.setFullYear(pastDate.getFullYear() - 3); // 3 years back
 
-  component.account = { formulaCd: 1, datepdthru: futureDate.toISOString() } as any;
+  component.account = { formulaCd: 1, datepdthru: pastDate.toISOString() } as any;
 
   spyOn(component.utils, 'ToDate').and.callFake((d?: any) => d ? new Date(d) : new Date());
   spyOn(component.utils, 'isStringValid').and.returnValue(true);
@@ -10,7 +10,7 @@ it('ValidateFormData: should set errors when Paid-Thru date is more than 10 year
   component.ValidateFormData();
 
   expect(component.firstValidationErrorMessage)
-    .toBe("The Paid-Thru date is invalid because it's more than 10 years in the future.");
+    .toBe("The Paid-Thru date is invalid it can't be more than 2 years in the past.");
   expect(component.secondValidationErrorMessage)
     .toContain("check your computer's system date");
   expect(component.thirdValidationErrorMessage)
