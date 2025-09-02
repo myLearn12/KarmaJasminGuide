@@ -1,25 +1,17 @@
-it('ValidateFormData: should set errors when Paid-Thru date is earlier than prevpdthru', () => {
-  // Arrange
+it('should set errors when Paid-Thru date is earlier than prevpdthru', () => {
   component.account = {
-    formulacd: 1,
-    datepdthru: '2025-01-01',  // earlier
-    prevpdthru: '2025-02-01'   // later
+    formulaCd: 1, // trigger formula branch
+    datepdthru: '2025-01-01',
+    prevpdthru: '2025-02-01'
   } as any;
 
-  const earlyDate = new Date(2025, 0, 1); // Jan 1, 2025
-  const laterDate = new Date(2025, 1, 1); // Feb 1, 2025
+  // Make string valid
+  spyOn(component.utils, 'isStringValid').and.returnValue(true);
 
-  // ✅ Make sure isStringValid returns true so we don’t skip into "missing date"
-  spyOn(component.utils, 'isStringValid').and.callFake((val: any) => !!val);
+  // Ensure ToDate works consistently
+  spyOn(component.utils, 'ToDate').and.callFake((val: any) => new Date(val));
 
-  // ✅ Ensure ToDate returns the correct mapping for each field
-  spyOn(component.utils, 'ToDate').and.callFake((val: any) => {
-    if (val === '2025-01-01') return earlyDate;
-    if (val === '2025-02-01') return laterDate;
-    return new Date();
-  });
-
-  // ✅ Fake formatted date for error message
+  // Ensure display date formatting
   spyOn(component.utils, 'getDisplayCurrentDate').and.returnValue('02/01/2025');
 
   // Act
