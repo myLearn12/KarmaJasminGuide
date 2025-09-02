@@ -1,25 +1,18 @@
-it('should set errors when Paid-Thru date is earlier than prevpdthru', () => {
-  component.account = {
-    formulaCd: 1, // trigger formula branch
-    datepdthru: '2025-01-01',
-    prevpdthru: '2025-02-01'
-  } as any;
+it('ValidateFormData: should set errors when Paid-Thru date is more than 10 years in the future', () => {
+  const futureDate = new Date();
+  futureDate.setFullYear(futureDate.getFullYear() + 11); // 11 years in future
 
-  // Make string valid
+  component.account = { formulaCd: 1, datepdthru: futureDate.toISOString() } as any;
+
+  spyOn(component.utils, 'ToDate').and.callFake((d?: any) => d ? new Date(d) : new Date());
   spyOn(component.utils, 'isStringValid').and.returnValue(true);
 
-  // Ensure ToDate works consistently
-  spyOn(component.utils, 'ToDate').and.callFake((val: any) => new Date(val));
-
-  // Ensure display date formatting
-  spyOn(component.utils, 'getDisplayCurrentDate').and.returnValue('02/01/2025');
-
-  // Act
   component.ValidateFormData();
 
-  // Assert
   expect(component.firstValidationErrorMessage)
-    .toBe('The date entered is earlier than the previous Paid-thru date of 02/01/2025');
+    .toBe("The Paid-Thru date is invalid because it's more than 10 years in the future.");
+  expect(component.secondValidationErrorMessage)
+    .toContain("check your computer's system date");
   expect(component.thirdValidationErrorMessage)
-    .toBe('Press Close to re-enter.');
+    .toBe("Press Close to re-enter.");
 });
