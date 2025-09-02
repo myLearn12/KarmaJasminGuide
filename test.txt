@@ -1,18 +1,14 @@
-it('ValidateFormData: should set errors when Paid-Thru date is more than 2 years in the past', () => {
-  const pastDate = new Date();
-  pastDate.setFullYear(pastDate.getFullYear() - 3); // 3 years back
+it('onSaveButtonClick: should show EstateCashFeeModal when catCd="4" and cash > 0', () => {
+  component.account = { catCd: '4', cashfee: 100, cashpp: 0, formulacd: 1 } as any;
 
-  component.account = { formulaCd: 1, datepdthru: pastDate.toISOString() } as any;
+  spyOn(component['_EstateCashFeeModal'], 'show');
+  spyOn(component, 'processData');
+  spyOn(component, 'validateFormControls').and.returnValue(false);
+  spyOn(component, 'validateFormData').and.returnValue(false);
+  spyOn(component['utils'], 'getFormatedNumber').and.callFake((v: any) => v);
 
-  spyOn(component.utils, 'ToDate').and.callFake((d?: any) => d ? new Date(d) : new Date());
-  spyOn(component.utils, 'isStringValid').and.returnValue(true);
+  component.onSaveButtonClick();
 
-  component.ValidateFormData();
-
-  expect(component.firstValidationErrorMessage)
-    .toBe("The Paid-Thru date is invalid it can't be more than 2 years in the past.");
-  expect(component.secondValidationErrorMessage)
-    .toContain("check your computer's system date");
-  expect(component.thirdValidationErrorMessage)
-    .toBe("Press Close to re-enter.");
+  expect(component['_EstateCashFeeModal'].show).toHaveBeenCalled();
+  expect(component.processData).not.toHaveBeenCalled();
 });
