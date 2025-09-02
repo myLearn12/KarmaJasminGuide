@@ -1,5 +1,5 @@
-it('onSaveButtonClick: should show EstateCashFeeModal when catCd="4" and cash > 0', () => {
-  component.account = { catCd: '4', cashfee: 100, cashpp: 0, formulacd: 1 } as any;
+it('onSaveButtonClick: should call processData when formulaCd=1 and cash > 0', () => {
+  component.account = { catCd: '7', cashfee: 50, cashpp: 0, formulacd: 1 } as any;
 
   spyOn(component['_EstateCashFeeModal'], 'show');
   spyOn(component, 'processData');
@@ -9,6 +9,6 @@ it('onSaveButtonClick: should show EstateCashFeeModal when catCd="4" and cash > 
 
   component.onSaveButtonClick();
 
-  expect(component['_EstateCashFeeModal'].show).toHaveBeenCalled();
-  expect(component.processData).not.toHaveBeenCalled();
+  expect(component.processData).toHaveBeenCalled();
+  expect(component['_EstateCashFeeModal'].show).not.toHaveBeenCalled();
 });
