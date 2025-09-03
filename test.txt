@@ -1,27 +1,20 @@
-it('InitialDataLoad: should set infoBlockMessage from error when it contains 14th business day', fakeAsync(() => {
+it('processRecord: should show success modal and disable button on success', fakeAsync(() => {
   // Arrange
-  (component as any).appConfigService = {
-    getProcessControlConfigByType: '/mock-url/',
-    getProcessControlConfigById: '/mock-id-url/'
-  };
+  component.processTypeId = 123;
+  component.regionid = 5;
+  (component as any).appConfigService = { LoadCashFeePostingUrl: '/mock-url' };
 
-  const mockError = {
-    error: { statusMessage: 'Error: 14th business day exceeded' }
-  };
-
-  spyOn(component.feeApiservice, 'getRequest').and.returnValue(
-    throwError(() => mockError)
-  );
-
-  const displaySpy = spyOn(component as any, 'displayServiceErrors');
+  spyOn(component.feeApiservice, 'postRequest').and.returnValue(of({}));
+  const modalSpy = spyOn((component as any).successModal, 'show');
+  const dispatchSpy = spyOn(component.store, 'dispatch');
 
   // Act
-  (component as any).InitialDataLoad();
+  (component as any).processRecord();
   tick();
 
   // Assert
-  expect(component.infoBlockMessage).toBe('14th business day exceeded'); // sliced after "Error: "
-  expect(displaySpy).toHaveBeenCalledWith('Error: 14th business day exceeded');
   expect(component.loading).toBeFalse();
-  expect(component.store.dispatch).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
+  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
+  expect(modalSpy).toHaveBeenCalled();
+  expect(component.disbleButtonAction).toBeTrue();
 }));
