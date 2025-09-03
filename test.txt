@@ -1,9 +1,14 @@
-it('canProcessRecord: should hide modal and call processRecord when canProceed = true', () => {
-  const hideSpy = spyOn((component as any)._actionModal, 'hide');
-  const procSpy = spyOn(component as any, 'processRecord');
+it('InitialDataLoad: should set processTypeId when processType is returned', fakeAsync(() => {
+  spyOn(component.feeApiservice, 'getRequest').and.returnValues(
+    of({ processType: { processTypeId: 123 } }), // first API
+    of(null) // second API
+  );
 
-  (component as any).canProcessRecord(true);
+  const dispatchSpy = spyOn(component['store'], 'dispatch');
 
-  expect(hideSpy).toHaveBeenCalled();
-  expect(procSpy).toHaveBeenCalled();
-});
+  component.InitialDataLoad();
+  tick();
+
+  expect(component.processTypeId).toBe(123);
+  expect(dispatchSpy).toHaveBeenCalledWith(new LOADINGACTION(false));
+}));
