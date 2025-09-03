@@ -1,21 +1,24 @@
-it('processRecord: should show success modal but keep button enabled on error', fakeAsync(() => {
+it('onSaveButtonClick: should update and reset data on success', fakeAsync(() => {
   // Arrange
-  component.processTypeId = 123;
-  component.regionid = 5;
-  (component as any).appConfigService = { LoadCashFeePostingUrl: '/mock-url' };
+  component.account = { acctnum: 'A1', sticurrent: 123 } as any;
+  (component as any).appConfigService = { updateManualFundFeePostingUrl: '/mock-url/' };
 
-  const mockError = { error: { statusMessage: 'Server failed' } };
-  spyOn(component.feeApiservice, 'postRequest').and.returnValue(throwError(() => mockError));
-  const modalSpy = spyOn((component as any).successModal, 'show');
+  const putSpy = spyOn(component.feeApiservice, 'putRequest').and.returnValue(of({}));
+  const resetSpy = spyOn(component as any, 'resetData');
+  const msgSpy = spyOn(component as any, 'SetMessageTypeAndValue');
   const dispatchSpy = spyOn(component.store, 'dispatch');
 
   // Act
-  (component as any).processRecord();
+  (component as any).onSaveButtonClick();
   tick();
 
   // Assert
+  expect(putSpy).toHaveBeenCalled();
   expect(component.loading).toBeFalse();
   expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
-  expect(modalSpy).toHaveBeenCalled(); // still shows modal on error
-  expect(component.disbleButtonAction).toBeFalse();
+  expect(msgSpy).toHaveBeenCalledWith(
+    BlockMessageType.success,
+    jasmine.stringMatching('Details successfully Updated')
+  );
+  expect(resetSpy).toHaveBeenCalled();
 }));
