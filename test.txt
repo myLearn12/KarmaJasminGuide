@@ -1,10 +1,12 @@
-it('InitialDataLoad: should slice error message containing 14th business day', fakeAsync(() => {
+it('InitialDataLoad: should call displayServiceErrors on error', fakeAsync(() => {
+  const errMsg = 'Something went wrong';
   spyOn(component.feeApiservice, 'getRequest').and.returnValue(
-    throwError({ error: { statusMessage: 'ERR: 14th business day cutoff' } })
+    throwError({ error: { statusMessage: errMsg } })
   );
+  const errSpy = spyOn(component as any, 'displayServiceErrors');
 
   component.InitialDataLoad();
   tick();
 
-  expect(component.infoBlockMessage).toBe('14th business day cutoff');
+  expect(errSpy).toHaveBeenCalledWith(errMsg);
 }));
