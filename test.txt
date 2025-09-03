@@ -1,13 +1,10 @@
-it('InitialDataLoad: should set infoBlockMessage when status = INPROGRESS', fakeAsync(() => {
-  spyOn(component.feeApiservice, 'getRequest').and.returnValues(
-    of({ processType: { processTypeId: 321 } }), // first API
-    of({ status: 'INPROGRESS', creatById: 'u1', creatDt: '2025-09-01' }) // second API
+it('InitialDataLoad: should slice error message containing 14th business day', fakeAsync(() => {
+  spyOn(component.feeApiservice, 'getRequest').and.returnValue(
+    throwError({ error: { statusMessage: 'ERR: 14th business day cutoff' } })
   );
-  spyOn(component['utils'], 'getDisplayDate').and.returnValue('09/01/2025');
 
   component.InitialDataLoad();
   tick();
 
-  expect(component.infoBlockMessage).toContain('Load Cash Fees is INPROGRESS');
-  expect(component.infoBlockMessage).toContain('u1');
+  expect(component.infoBlockMessage).toBe('14th business day cutoff');
 }));
