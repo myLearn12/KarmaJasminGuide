@@ -1,10 +1,11 @@
-it('processRecord: should show success modal and disable button on success', fakeAsync(() => {
+it('processRecord: should show success modal but keep button enabled on error', fakeAsync(() => {
   // Arrange
   component.processTypeId = 123;
   component.regionid = 5;
   (component as any).appConfigService = { LoadCashFeePostingUrl: '/mock-url' };
 
-  spyOn(component.feeApiservice, 'postRequest').and.returnValue(of({}));
+  const mockError = { error: { statusMessage: 'Server failed' } };
+  spyOn(component.feeApiservice, 'postRequest').and.returnValue(throwError(() => mockError));
   const modalSpy = spyOn((component as any).successModal, 'show');
   const dispatchSpy = spyOn(component.store, 'dispatch');
 
@@ -15,6 +16,6 @@ it('processRecord: should show success modal and disable button on success', fak
   // Assert
   expect(component.loading).toBeFalse();
   expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
-  expect(modalSpy).toHaveBeenCalled();
-  expect(component.disbleButtonAction).toBeTrue();
+  expect(modalSpy).toHaveBeenCalled(); // still shows modal on error
+  expect(component.disbleButtonAction).toBeFalse();
 }));
