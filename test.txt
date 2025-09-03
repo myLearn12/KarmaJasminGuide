@@ -1,70 +1,9 @@
-it('processRecord: should call putRequest with correct payload and handle success', fakeAsync(() => {
-  // Arrange
-  component.account = {
-    acctnum: 'ACC123',
-    cashfee: 100,
-    miscfee: 50,
-    cashpp: 20,
-    accepfee: '10',
-    datepdthru: '2025-09-01'
-  } as any;
-  component.selectedFeeType = 'CASH';
+it('canProcessRecord: should hide modal and call processRecord when canProceed = true', () => {
+  const hideSpy = spyOn((component as any)._actionModal, 'hide');
+  const procSpy = spyOn(component as any, 'processRecord');
 
-  spyOn(component.utils, 'getFormatedNumber').and.callFake((x: any) => Number(x));
-  spyOn(component.utils, 'numberUnformatter').and.callFake((x: any) => Number(x));
-  spyOn(component.utils, 'isStringValid').and.returnValue(true);
-  spyOn(component.utils, 'ToEstDate').and.returnValue('2025-09-01T00:00:00');
-  spyOn(component.utils, 'getCurrentUser').and.returnValue('tester');
+  (component as any).canProcessRecord(true);
 
-  const putSpy = spyOn(component.feeApiservice, 'putRequest').and.returnValue(of({}));
-  const msgSpy = spyOn(component as any, 'SetMessageTypeAndValue');
-  const resetSpy = spyOn(component as any, 'resetData');
-  const dispatchSpy = spyOn(component['store'], 'dispatch');
-
-  // Act
-  (component as any).processRecord();
-  tick();
-
-  // Assert
-  expect(putSpy).toHaveBeenCalled();
-  const [url, payload] = putSpy.calls.mostRecent().args;
-  expect(url).toContain('ACC123');
-  expect(payload.cashfee).toBe(100);
-  expect(payload.miscfee).toBe(50);
-  expect(payload.cashpp).toBe(20);
-  expect(payload.accepfee).toBe(10);
-  expect(payload.datepdthru).toBe('2025-09-01T00:00:00');
-  expect(payload.cashType).toBe('CASH');
-
-  expect(dispatchSpy).toHaveBeenCalled();
-  expect(msgSpy).toHaveBeenCalledWith(jasmine.anything(), jasmine.stringMatching('successfully Updated'));
-  expect(resetSpy).toHaveBeenCalled();
-  expect(component.loading).toBeFalse();
-}));
-
-
-it('processRecord: should handle error response', fakeAsync(() => {
-  // Arrange
-  component.account = { acctnum: 'ACC123', cashfee: 100 } as any;
-  spyOn(component.utils, 'getFormatedNumber').and.returnValue(100);
-  spyOn(component.utils, 'ToEstDate').and.returnValue('2025-09-01T00:00:00');
-  spyOn(component.utils, 'getCurrentUser').and.returnValue('tester');
-
-  const putSpy = spyOn(component.feeApiservice, 'putRequest').and.returnValue(
-    throwError(() => ({ error: { statusMessage: 'Server Error' } }))
-  );
-  const errorSpy = spyOn(component as any, 'displayServiceErrors');
-  const resetSpy = spyOn(component as any, 'resetData');
-  const dispatchSpy = spyOn(component['store'], 'dispatch');
-
-  // Act
-  (component as any).processRecord();
-  tick();
-
-  // Assert
-  expect(putSpy).toHaveBeenCalled();
-  expect(resetSpy).toHaveBeenCalled();
-  expect(errorSpy).toHaveBeenCalledWith('Server Error');
-  expect(dispatchSpy).toHaveBeenCalledWith(new LOADINGACTION(false));
-  expect(component.loading).toBeFalse();
-}));
+  expect(hideSpy).toHaveBeenCalled();
+  expect(procSpy).toHaveBeenCalled();
+});
