@@ -1,14 +1,13 @@
-it('InitialDataLoad: should set processTypeId when processType is returned', fakeAsync(() => {
+it('InitialDataLoad: should set infoBlockMessage when status = INPROGRESS', fakeAsync(() => {
   spyOn(component.feeApiservice, 'getRequest').and.returnValues(
-    of({ processType: { processTypeId: 123 } }), // first API
-    of(null) // second API
+    of({ processType: { processTypeId: 321 } }), // first API
+    of({ status: 'INPROGRESS', creatById: 'u1', creatDt: '2025-09-01' }) // second API
   );
-
-  const dispatchSpy = spyOn(component['store'], 'dispatch');
+  spyOn(component['utils'], 'getDisplayDate').and.returnValue('09/01/2025');
 
   component.InitialDataLoad();
   tick();
 
-  expect(component.processTypeId).toBe(123);
-  expect(dispatchSpy).toHaveBeenCalledWith(new LOADINGACTION(false));
+  expect(component.infoBlockMessage).toContain('Load Cash Fees is INPROGRESS');
+  expect(component.infoBlockMessage).toContain('u1');
 }));
