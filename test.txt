@@ -1,12 +1,27 @@
-it('InitialDataLoad: should call displayServiceErrors on error', fakeAsync(() => {
-  const errMsg = 'Something went wrong';
-  spyOn(component.feeApiservice, 'getRequest').and.returnValue(
-    throwError({ error: { statusMessage: errMsg } })
-  );
-  const errSpy = spyOn(component as any, 'displayServiceErrors');
+it('InitialDataLoad: should set infoBlockMessage from error when it contains 14th business day', fakeAsync(() => {
+  // Arrange
+  (component as any).appConfigService = {
+    getProcessControlConfigByType: '/mock-url/',
+    getProcessControlConfigById: '/mock-id-url/'
+  };
 
-  component.InitialDataLoad();
+  const mockError = {
+    error: { statusMessage: 'Error: 14th business day exceeded' }
+  };
+
+  spyOn(component.feeApiservice, 'getRequest').and.returnValue(
+    throwError(() => mockError)
+  );
+
+  const displaySpy = spyOn(component as any, 'displayServiceErrors');
+
+  // Act
+  (component as any).InitialDataLoad();
   tick();
 
-  expect(errSpy).toHaveBeenCalledWith(errMsg);
+  // Assert
+  expect(component.infoBlockMessage).toBe('14th business day exceeded'); // sliced after "Error: "
+  expect(displaySpy).toHaveBeenCalledWith('Error: 14th business day exceeded');
+  expect(component.loading).toBeFalse();
+  expect(component.store.dispatch).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
 }));
