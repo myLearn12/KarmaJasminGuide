@@ -1,58 +1,23 @@
-it('LoadRegion: should call getRequest and LoadRegionData on success', fakeAsync(() => {
-  // Arrange
-  component.regionid = '10';
-  (component as any).appConfigService = {
-    getRegionByIdUrl: '/mock-regions/'
-  };
-
-  const mockResponse = { regionId: 10, regionDescription: 'East' };
-  const getSpy = spyOn(component.feeApiservice, 'getRequest').and.returnValue(of(mockResponse));
-
-  const loadRegionDataSpy = spyOn(component as any, 'LoadRegionData');
-  const dispatchSpy = spyOn(component['store'], 'dispatch');
-
-  // Pre-set state so test verifies changes
-  component.loading = true;
+it('canProcessRecord: should hide confirm modal and call processRecord when canProceed is true', () => {
+  const hideSpy = spyOn(component['_confirmModal'], 'hide');
+  const processSpy = spyOn(component as any, 'processRecord');
 
   // Act
-  (component as any).LoadRegion();
-  tick();
+  (component as any).canProcessRecord(true);
 
   // Assert
-  expect(getSpy).toHaveBeenCalled();
-  const calledUrl = getSpy.calls.mostRecent().args[0] as string;
-  expect(calledUrl).toContain('/mock-regions/');
-  expect(calledUrl).toContain(component.regionid);
+  expect(hideSpy).toHaveBeenCalled();
+  expect(processSpy).toHaveBeenCalled();
+});
 
-  expect(loadRegionDataSpy).toHaveBeenCalledWith(mockResponse);
-  expect(component.loading).toBeFalse();
-  expect(dispatchSpy).toHaveBeenCalledWith(new LOADINGACTION(false));
-}));
-
-
-it('LoadRegion: should handle API error, show error and dispatch false', fakeAsync(() => {
-  // Arrange
-  component.regionid = '20';
-  (component as any).appConfigService = {
-    getRegionByIdUrl: '/mock-regions/'
-  };
-
-  const mockError = { error: { statusMessage: 'Region not found' } };
-  const getSpy = spyOn(component.feeApiservice, 'getRequest')
-    .and.returnValue(throwError(() => mockError));
-
-  const displaySpy = spyOn(component as any, 'displayServiceErrors');
-  const dispatchSpy = spyOn(component['store'], 'dispatch');
-
-  component.loading = true;
+it('canProcessRecord: should hide confirm modal and not call processRecord when canProceed is false', () => {
+  const hideSpy = spyOn(component['_confirmModal'], 'hide');
+  const processSpy = spyOn(component as any, 'processRecord');
 
   // Act
-  (component as any).LoadRegion();
-  tick();
+  (component as any).canProcessRecord(false);
 
   // Assert
-  expect(getSpy).toHaveBeenCalled();
-  expect(displaySpy).toHaveBeenCalledWith('Region not found');
-  expect(component.loading).toBeFalse();
-  expect(dispatchSpy).toHaveBeenCalledWith(new LOADINGACTION(false));
-}));
+  expect(hideSpy).toHaveBeenCalled();
+  expect(processSpy).not.toHaveBeenCalled();
+});
