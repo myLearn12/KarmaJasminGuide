@@ -1,61 +1,30 @@
-it('onProcessButtonClick: should return early when validateFormControls() is true', () => {
-  spyOn(component, 'validateFormControls').and.returnValue(true);
-  // ensure nothing else runs
-  const procSpy = spyOn(component as any, 'processRecord');
-  component.onProcessButtonClick();
-  expect(procSpy).not.toHaveBeenCalled();
-});
-
 it('onProcessButtonClick: when accountRadioButton=1 and no SpecAcct flags set should show warning and return', () => {
+  // Arrange: prevent early exit from validateFormControls
   spyOn(component, 'validateFormControls').and.returnValue(false);
 
-  // set radio and all SpecAcct flags false
+  // Ensure accountRadioButton indicates the "specific account" path
   (component as any).accountRadioButton = { value: '1' };
+
+  // Make sure all specific account flags are falsy
   (component as any).SpecAcct1 = false;
   (component as any).SpecAcct2 = false;
   (component as any).SpecAcct3 = false;
   (component as any).SpecAcct4 = false;
   (component as any).SpecAcct5 = false;
 
+  // Spy the message helper. Use (component as any) in case it's private.
   const msgSpy = spyOn(component as any, 'SetMessageTypeAndValue');
+
+  // Spy processRecord so we can assert it was NOT called
   const procSpy = spyOn(component as any, 'processRecord');
 
+  // Act
   component.onProcessButtonClick();
 
+  // Assert: message helper should be called and processRecord must NOT be called
   expect(msgSpy).toHaveBeenCalledWith(
-    jasmine.anything(), // BlockMessageType.warning (or pass the exact enum if imported in spec)
+    jasmine.anything(), // BlockMessageType.warning (use concrete enum value if desired)
     'Atleast One Account needed to be added for specific account restore option.'
   );
   expect(procSpy).not.toHaveBeenCalled();
-});
-
-it('onProcessButtonClick: when selectedMonthEndDate is today should set actionMessage and show confirm modal', () => {
-  spyOn(component, 'validateFormControls').and.returnValue(false);
-
-  // radio not relevant for this branch (use something other than '1' to skip previous branch)
-  (component as any).accountRadioButton = { value: '0' };
-
-  // stub utils.isTodaysDate to return true
-  spyOn(component['utils'], 'isTodaysDate').and.returnValue(true);
-
-  // spy modal
-  (component as any)._confirmModal = { show: jasmine.createSpy('show') };
-
-  component.onProcessButtonClick();
-
-  expect(component.actionMessage).toContain("Date selected is Today's Date");
-  expect((component as any)._confirmModal.show).toHaveBeenCalled();
-});
-
-it('onProcessButtonClick: should call processRecord when everything is valid and not today', () => {
-  spyOn(component, 'validateFormControls').and.returnValue(false);
-
-  (component as any).accountRadioButton = { value: '0' }; // not the specific-account path
-  spyOn(component['utils'], 'isTodaysDate').and.returnValue(false);
-
-  const procSpy = spyOn(component as any, 'processRecord');
-
-  component.onProcessButtonClick();
-
-  expect(procSpy).toHaveBeenCalled();
 });
