@@ -1,38 +1,39 @@
-it('onSaveButtonClick: should handle API error - reset, show error, stop loading and dispatch false', fakeAsync(() => {
-  // Arrange - ensure method does not early-return
-  spyOn(component, 'validateFormControls').and.returnValue(false);
-  spyOn(component, 'validateFormData').and.returnValue(false);
+it('OnAccountSelection: should reset data and disable save button on API error', fakeAsync(() => {
+  // Arrange
+  component.selectedAccountNumber = 'ACC/123';
+  component.regionid = 'R1';
 
-  // Provide account and appConfig URL used by the method
-  component.account = { acctnum: 'A1', sticurrent: 123 } as any;
+  // Simulate the form control is valid (no 'required' error)
+  (component as any).fcn_acctNumber = { hasError: (name: string) => false };
+
+  // appConfigService must provide the URL used in the method
   (component as any).appConfigService = {
-    updateManualFundFeePostingUrl: '/mock-update-manual-fund-fee/'
+    getManualFundFeePostingUrl: '/mock-manual-fund-fee/'
   };
 
-  // Stub utils used when building payload so no runtime errors
-  const utils = component['utils'] as any;
-  spyOn(utils, 'getFormatedNumber').and.callFake((v: any) => Number(v));
-  spyOn(utils, 'getCurrentUser').and.returnValue('tester');
-  spyOn(utils, 'ToEstDate').and.returnValue('2025-09-01T00:00:00');
+  // Make feeApiservice.getRequest throw an error
+  const mockError = { error: { statusMessage: 'Fetch failed' } };
+  const getSpy = spyOn(component.feeApiservice, 'getRequest')
+    .and.returnValue(throwError(() => mockError));
 
-  // Make feeApiservice.putRequest throw an error (simulates server error)
-  const apiError = { error: { statusMessage: 'Update failed' } };
-  const putSpy = spyOn(component.feeApiservice, 'putRequest')
-    .and.returnValue(throwError(() => apiError));
-
-  // Spies for side-effect helpers that should be called in the error path
+  // Spy side-effect methods used in error branch
   const resetSpy = spyOn(component as any, 'resetData');
   const displaySpy = spyOn(component as any, 'displayServiceErrors');
-  const dispatchSpy = spyOn(component.store, 'dispatch');
+  const dispatchSpy = spyOn(component['store'], 'dispatch');
 
   // Act
-  component.onSaveButtonClick();
-  tick(); // flush async
+  component.OnAccountSelection();
+  tick();
 
   // Assert
-  expect(putSpy).toHaveBeenCalled(); // request was attempted
-  expect(resetSpy).toHaveBeenCalled(); // resetData should be called on error
-  expect(displaySpy).toHaveBeenCalledWith('Update failed'); // error message displayed
-  expect(component.loading).toBeFalse(); // loading flag reset
-  expect(dispatchSpy).toHaveBeenCalledWith(new LOADINGACTION(false)); // loading action false dispatched
+  // ensure getRequest was attempted with constructed URL
+  expect(getSpy).toHaveBeenCalled();
+  const calledUrl = getSpy.calls.mostRecent().args[0] as string;
+  expect(calledUrl).toContain('/mock-manual-fund-fee/');
+  // ensure error branch effects ran
+  expect(resetSpy).toHaveBeenCalled();
+  expect(displaySpy).toHaveBeenCalledWith('Fetch failed');
+  expect(component.loading).toBeFalse();
+  expect(dispatchSpy).toHaveBeenCalledWith(new LOADINGACTION(false));
+  expect(component.diableSaveButton).toBeTrue();
 }));
