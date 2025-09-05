@@ -1,41 +1,58 @@
-it('OnAccountSelection: should load table rows and enable save button on success', fakeAsync(() => {
+it('LoadRegion: should call getRequest and LoadRegionData on success', fakeAsync(() => {
   // Arrange
-  component.selectedAccountNumber = 'ACC/123';
-  component.regionid = 'R1';
-
-  // Simulate the form control is valid (no 'required' error)
-  (component as any).fcn_acctNumber = { hasError: (name: string) => false };
-
-  // appConfigService must provide the URL used in the method
+  component.regionid = '10';
   (component as any).appConfigService = {
-    getManualFundFeePostingUrl: '/mock-manual-fund-fee/'
+    getRegionByIdUrl: '/mock-regions/'
   };
 
-  // Prepare mock response
-  const mockResponse = [{ id: 1, name: 'row1' }];
+  const mockResponse = { regionId: 10, regionDescription: 'East' };
   const getSpy = spyOn(component.feeApiservice, 'getRequest').and.returnValue(of(mockResponse));
 
-  // Spy the LoadTableRows and store.dispatch
-  const loadSpy = spyOn(component as any, 'LoadTableRows');
+  const loadRegionDataSpy = spyOn(component as any, 'LoadRegionData');
   const dispatchSpy = spyOn(component['store'], 'dispatch');
 
-  // Ensure initial state is different (so we can see the change)
-  component.loading = false;
-  component.diableSaveButton = true;
+  // Pre-set state so test verifies changes
+  component.loading = true;
 
   // Act
-  component.OnAccountSelection();
+  (component as any).LoadRegion();
   tick();
 
   // Assert
-  expect(getSpy).toHaveBeenCalled(); // HTTP attempted
+  expect(getSpy).toHaveBeenCalled();
   const calledUrl = getSpy.calls.mostRecent().args[0] as string;
-  expect(calledUrl).toContain('/mock-manual-fund-fee/');
-  // encoded account in URL
-  expect(calledUrl).toContain(encodeURIComponent(component.selectedAccountNumber));
+  expect(calledUrl).toContain('/mock-regions/');
+  expect(calledUrl).toContain(component.regionid);
 
-  expect(loadSpy).toHaveBeenCalledWith(mockResponse);          // LoadTableRows called with response
-  expect(component.loading).toBeFalse();                       // loading reset
-  expect(dispatchSpy).toHaveBeenCalledWith(new LOADINGACTION(false)); // dispatched false
-  expect(component.diableSaveButton).toBeFalse();              // save button enabled
+  expect(loadRegionDataSpy).toHaveBeenCalledWith(mockResponse);
+  expect(component.loading).toBeFalse();
+  expect(dispatchSpy).toHaveBeenCalledWith(new LOADINGACTION(false));
+}));
+
+
+it('LoadRegion: should handle API error, show error and dispatch false', fakeAsync(() => {
+  // Arrange
+  component.regionid = '20';
+  (component as any).appConfigService = {
+    getRegionByIdUrl: '/mock-regions/'
+  };
+
+  const mockError = { error: { statusMessage: 'Region not found' } };
+  const getSpy = spyOn(component.feeApiservice, 'getRequest')
+    .and.returnValue(throwError(() => mockError));
+
+  const displaySpy = spyOn(component as any, 'displayServiceErrors');
+  const dispatchSpy = spyOn(component['store'], 'dispatch');
+
+  component.loading = true;
+
+  // Act
+  (component as any).LoadRegion();
+  tick();
+
+  // Assert
+  expect(getSpy).toHaveBeenCalled();
+  expect(displaySpy).toHaveBeenCalledWith('Region not found');
+  expect(component.loading).toBeFalse();
+  expect(dispatchSpy).toHaveBeenCalledWith(new LOADINGACTION(false));
 }));
