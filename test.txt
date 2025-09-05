@@ -1,23 +1,39 @@
-it('canProcessRecord: should hide confirm modal and call processRecord when canProceed is true', () => {
-  const hideSpy = spyOn(component['_confirmModal'], 'hide');
-  const processSpy = spyOn(component as any, 'processRecord');
+onProcessButtonClick() {
 
-  // Act
-  (component as any).canProcessRecord(true);
+if (this.validateFormControls()) { return; }
 
-  // Assert
-  expect(hideSpy).toHaveBeenCalled();
-  expect(processSpy).toHaveBeenCalled();
-});
+I
 
-it('canProcessRecord: should hide confirm modal and not call processRecord when canProceed is false', () => {
-  const hideSpy = spyOn(component['_confirmModal'], 'hide');
-  const processSpy = spyOn(component as any, 'processRecord');
+if (this. accountRadioButton.value === '1') {
 
-  // Act
-  (component as any).canProcessRecord(false);
+if (!(this.SpecAcct1 || this.SpecAcct2 || this.SpecAcct3 || this.SpecAcct4 || this.SpecAcct5)) {
 
-  // Assert
-  expect(hideSpy).toHaveBeenCalled();
-  expect(processSpy).not.toHaveBeenCalled();
-});
+this.SetMessageTypeAndValue(
+
+BlockMessageType.warning,
+
+'Atleast One Account needed to be added for specific account restore option.'
+
+);
+
+return;
+
+}
+
+}
+
+if (this.utils.isTodaysDate(this.selectedMonthEndDate)) {
+
+this.actionMessage =
+
+Date selected is Today's Date. Choose OK to continue or cancel to re-enter.`;
+
+this._confirmModal.show();
+
+} else {
+
+this.processRecord();
+
+}
+
+}
