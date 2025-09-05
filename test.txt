@@ -1,24 +1,52 @@
 it('onSaveButtonClick: should update and reset data on success', fakeAsync(() => {
-  // Arrange
-  component.account = { acctnum: 'A1', sticurrent: 123 } as any;
-  (component as any).appConfigService = { updateManualFundFeePostingUrl: '/mock-url/' };
+  // Arrange - make sure validations do NOT block execution
+  spyOn(component, 'validateFormControls').and.returnValue(false);
+  spyOn(component, 'validateFormData').and.returnValue(false);
 
+  // account + minimal fields used by onSaveButtonClick
+  component.account = {
+    acctnum: 'A1',
+    sticurrent: 123,
+    // add any other fields your real implementation reads
+  } as any;
+
+  // appConfigService must exist and provide the URL used in the method
+  (component as any).appConfigService = {
+    updateManualFundFeePostingUrl: '/mock-update-manual-fund-fee/'
+  };
+
+  // utils used when building payload — stub them so they don't throw
+  const utils = component['utils'] as any;
+  spyOn(utils, 'getFormatedNumber').and.callFake((v: any) => Number(v)); // or desired formatting
+  spyOn(utils, 'getCurrentUser').and.returnValue('tester');
+  spyOn(utils, 'ToEstDate').and.returnValue('2025-09-01T00:00:00');
+
+  // Spy the HTTP call to return a success observable
   const putSpy = spyOn(component.feeApiservice, 'putRequest').and.returnValue(of({}));
+
+  // Spy side-effect helpers
   const resetSpy = spyOn(component as any, 'resetData');
   const msgSpy = spyOn(component as any, 'SetMessageTypeAndValue');
   const dispatchSpy = spyOn(component.store, 'dispatch');
 
   // Act
-  (component as any).onSaveButtonClick();
-  tick();
+  component.onSaveButtonClick();
+  tick(); // flush any async
 
-  // Assert
+  // Assert - that putRequest was called with correct URL and payload shape
   expect(putSpy).toHaveBeenCalled();
+  const [calledUrl, calledPayload] = putSpy.calls.mostRecent().args as [string, any];
+  expect(calledUrl).toContain('/mock-update-manual-fund-fee/'); // url used
+  expect(calledPayload).toBeDefined();
+  expect(calledPayload.updatedBy).toBe('tester');          // example payload property
+  expect(calledPayload.updatedDt).toBe('2025-09-01T00:00:00');
+
+  // Success behavior expectations
   expect(component.loading).toBeFalse();
   expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
   expect(msgSpy).toHaveBeenCalledWith(
     BlockMessageType.success,
-    jasmine.stringMatching('Details successfully Updated')
+    jasmine.stringMatching(/Details successfully Updated/)
   );
   expect(resetSpy).toHaveBeenCalled();
 }));
