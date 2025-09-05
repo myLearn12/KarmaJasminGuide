@@ -1,21 +1,38 @@
-it('onSaveButtonClick: should reset and show error message on API error', fakeAsync(() => {
-  // Arrange
-  component.account = { acctnum: 'A1', sticurrent: 123 } as any;
-  (component as any).appConfigService = { updateManualFundFeePostingUrl: '/mock-url/' };
+it('onSaveButtonClick: should handle API error - reset, show error, stop loading and dispatch false', fakeAsync(() => {
+  // Arrange - ensure method does not early-return
+  spyOn(component, 'validateFormControls').and.returnValue(false);
+  spyOn(component, 'validateFormData').and.returnValue(false);
 
-  const mockError = { error: { statusMessage: 'Update failed' } };
-  spyOn(component.feeApiservice, 'putRequest').and.returnValue(throwError(() => mockError));
+  // Provide account and appConfig URL used by the method
+  component.account = { acctnum: 'A1', sticurrent: 123 } as any;
+  (component as any).appConfigService = {
+    updateManualFundFeePostingUrl: '/mock-update-manual-fund-fee/'
+  };
+
+  // Stub utils used when building payload so no runtime errors
+  const utils = component['utils'] as any;
+  spyOn(utils, 'getFormatedNumber').and.callFake((v: any) => Number(v));
+  spyOn(utils, 'getCurrentUser').and.returnValue('tester');
+  spyOn(utils, 'ToEstDate').and.returnValue('2025-09-01T00:00:00');
+
+  // Make feeApiservice.putRequest throw an error (simulates server error)
+  const apiError = { error: { statusMessage: 'Update failed' } };
+  const putSpy = spyOn(component.feeApiservice, 'putRequest')
+    .and.returnValue(throwError(() => apiError));
+
+  // Spies for side-effect helpers that should be called in the error path
   const resetSpy = spyOn(component as any, 'resetData');
-  const errorSpy = spyOn(component as any, 'displayServiceErrors');
+  const displaySpy = spyOn(component as any, 'displayServiceErrors');
   const dispatchSpy = spyOn(component.store, 'dispatch');
 
   // Act
-  (component as any).onSaveButtonClick();
-  tick();
+  component.onSaveButtonClick();
+  tick(); // flush async
 
   // Assert
-  expect(resetSpy).toHaveBeenCalled();
-  expect(errorSpy).toHaveBeenCalledWith('Update failed');
-  expect(component.loading).toBeFalse();
-  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
+  expect(putSpy).toHaveBeenCalled(); // request was attempted
+  expect(resetSpy).toHaveBeenCalled(); // resetData should be called on error
+  expect(displaySpy).toHaveBeenCalledWith('Update failed'); // error message displayed
+  expect(component.loading).toBeFalse(); // loading flag reset
+  expect(dispatchSpy).toHaveBeenCalledWith(new LOADINGACTION(false)); // loading action false dispatched
 }));
