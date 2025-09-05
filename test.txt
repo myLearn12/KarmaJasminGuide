@@ -1,4 +1,4 @@
-it('OnAccountSelection: should reset data and disable save button on API error', fakeAsync(() => {
+it('OnAccountSelection: should load table rows and enable save button on success', fakeAsync(() => {
   // Arrange
   component.selectedAccountNumber = 'ACC/123';
   component.regionid = 'R1';
@@ -11,29 +11,31 @@ it('OnAccountSelection: should reset data and disable save button on API error',
     getManualFundFeePostingUrl: '/mock-manual-fund-fee/'
   };
 
-  // Make feeApiservice.getRequest throw an error
-  const mockError = { error: { statusMessage: 'Fetch failed' } };
-  const getSpy = spyOn(component.feeApiservice, 'getRequest')
-    .and.returnValue(throwError(() => mockError));
+  // Prepare mock response
+  const mockResponse = [{ id: 1, name: 'row1' }];
+  const getSpy = spyOn(component.feeApiservice, 'getRequest').and.returnValue(of(mockResponse));
 
-  // Spy side-effect methods used in error branch
-  const resetSpy = spyOn(component as any, 'resetData');
-  const displaySpy = spyOn(component as any, 'displayServiceErrors');
+  // Spy the LoadTableRows and store.dispatch
+  const loadSpy = spyOn(component as any, 'LoadTableRows');
   const dispatchSpy = spyOn(component['store'], 'dispatch');
+
+  // Ensure initial state is different (so we can see the change)
+  component.loading = false;
+  component.diableSaveButton = true;
 
   // Act
   component.OnAccountSelection();
   tick();
 
   // Assert
-  // ensure getRequest was attempted with constructed URL
-  expect(getSpy).toHaveBeenCalled();
+  expect(getSpy).toHaveBeenCalled(); // HTTP attempted
   const calledUrl = getSpy.calls.mostRecent().args[0] as string;
   expect(calledUrl).toContain('/mock-manual-fund-fee/');
-  // ensure error branch effects ran
-  expect(resetSpy).toHaveBeenCalled();
-  expect(displaySpy).toHaveBeenCalledWith('Fetch failed');
-  expect(component.loading).toBeFalse();
-  expect(dispatchSpy).toHaveBeenCalledWith(new LOADINGACTION(false));
-  expect(component.diableSaveButton).toBeTrue();
+  // encoded account in URL
+  expect(calledUrl).toContain(encodeURIComponent(component.selectedAccountNumber));
+
+  expect(loadSpy).toHaveBeenCalledWith(mockResponse);          // LoadTableRows called with response
+  expect(component.loading).toBeFalse();                       // loading reset
+  expect(dispatchSpy).toHaveBeenCalledWith(new LOADINGACTION(false)); // dispatched false
+  expect(component.diableSaveButton).toBeFalse();              // save button enabled
 }));
