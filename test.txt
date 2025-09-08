@@ -1,30 +1,81 @@
+it('onProcessButtonClick: returns early when validateFormControls() is true', () => {
+  spyOn(component, 'validateFormControls').and.returnValue(true);
+  const procSpy = spyOn(component as any, 'processRecord');
+  component.onProcessButtonClick();
+  expect(procSpy).not.toHaveBeenCalled();
+});
+
 it('onProcessButtonClick: when accountRadioButton=1 and no SpecAcct flags set should show warning and return', () => {
-  // Arrange: prevent early exit from validateFormControls
+  // Prevent early return
   spyOn(component, 'validateFormControls').and.returnValue(false);
 
-  // Ensure accountRadioButton indicates the "specific account" path
+  // Force the specific-account branch (try typical shapes)
   (component as any).accountRadioButton = { value: '1' };
 
-  // Make sure all specific account flags are falsy
+  // Ensure all SpecAcct flags falsy
   (component as any).SpecAcct1 = false;
   (component as any).SpecAcct2 = false;
   (component as any).SpecAcct3 = false;
   (component as any).SpecAcct4 = false;
   (component as any).SpecAcct5 = false;
 
-  // Spy the message helper. Use (component as any) in case it's private.
-  const msgSpy = spyOn(component as any, 'SetMessageTypeAndValue');
+  // Ensure we capture the message call even if private or missing
+  const METHOD_NAME = 'SetMessageTypeAndValue';
+  const wantedText = 'Atleast One Account needed to be added for specific account restore option.';
 
-  // Spy processRecord so we can assert it was NOT called
+  // Backup original (if any) then override with spy function
+  const orig = (component as any)[METHOD_NAME];
+  (component as any)[METHOD_NAME] = jasmine.createSpy(METHOD_NAME);
+
   const procSpy = spyOn(component as any, 'processRecord');
 
   // Act
   component.onProcessButtonClick();
 
-  // Assert: message helper should be called and processRecord must NOT be called
-  expect(msgSpy).toHaveBeenCalledWith(
-    jasmine.anything(), // BlockMessageType.warning (use concrete enum value if desired)
-    'Atleast One Account needed to be added for specific account restore option.'
+  // Assert
+  expect((component as any)[METHOD_NAME]).toHaveBeenCalledWith(
+    jasmine.anything(), // BlockMessageType.warning (or use the real enum if available)
+    wantedText
   );
   expect(procSpy).not.toHaveBeenCalled();
+
+  // restore original
+  if (orig) (component as any)[METHOD_NAME] = orig;
+  else delete (component as any)[METHOD_NAME];
+});
+
+it('onProcessButtonClick: when selectedMonthEndDate is today should set actionMessage and show confirm modal', () => {
+  spyOn(component, 'validateFormControls').and.returnValue(false);
+
+  // ensure not in specific-account branch
+  (component as any).accountRadioButton = { value: '0' };
+
+  // stub utils.isTodaysDate to return true
+  (component as any).utils = (component as any).utils || {};
+  spyOn(component['utils'], 'isTodaysDate').and.returnValue(true);
+
+  // ensure _confirmModal exists and spy its show()
+  (component as any)._confirmModal = { show: jasmine.createSpy('show') };
+
+  component.onProcessButtonClick();
+
+  expect(component.actionMessage).toContain("Today's Date");
+  expect((component as any)._confirmModal.show).toHaveBeenCalled();
+});
+
+it('onProcessButtonClick: should call processRecord when not specific-account and not today', () => {
+  spyOn(component, 'validateFormControls').and.returnValue(false);
+
+  // not specific-account
+  (component as any).accountRadioButton = { value: '0' };
+
+  // utils.isTodaysDate -> false
+  (component as any).utils = (component as any).utils || {};
+  spyOn(component['utils'], 'isTodaysDate').and.returnValue(false);
+
+  const procSpy = spyOn(component as any, 'processRecord');
+
+  component.onProcessButtonClick();
+
+  expect(procSpy).toHaveBeenCalled();
 });
