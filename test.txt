@@ -1,43 +1,53 @@
-it('processRecord: outer postRequest error -> calls onClearButtonClick, shows error, resets loading and dispatches false', fakeAsync(() => {
-  // Arrange: ensure we hit the outer (all-accounts) branch
-  (component as any).accountRadioButton = { value: '' }; // empty string -> all-accounts path
-  component.region = { regionId: 10 } as any;
+it('processRecord: subscription success -> next handler runs, totals set, complete handler called', fakeAsync(() => {
+  // Arrange: all-accounts branch
+  (component as any).accountRadioButton = { value: '' };
+  component.region = { regionId: 99 } as any;
   component.selectedMonthEndDate = new Date('2025-08-01');
-  component.currentDateTime = '10:00:00';
-
-  // stub appConfigService URL used in postRequest
+  component.currentDateTime = '08:30:00';
   (component as any).appConfigService = { restoreAccountUrl: '/mock-restore/' };
 
-  // stub utils used before HTTP so no runtime errors
+  // stub utils
   const utils = component['utils'] as any;
-  spyOn(utils, 'getFormatedDateAndTimeEST').and.returnValue('2025-08-01T10:00:00');
+  spyOn(utils, 'getFormatedDateAndTimeEST').and.returnValue('2025-08-01T08:30:00');
   spyOn(utils, 'getCurrentUser').and.returnValue('tester');
-  spyOn(utils, 'ToEstDate').and.returnValue('2025-08-01T10:00:00');
+  spyOn(utils, 'ToEstDate').and.returnValue('2025-08-01T08:30:00');
 
-  // Make feeApiservice.postRequest throw for the outer subscription
-  const serverError = { error: { statusMessage: 'Outer failed' } };
-  const postSpy = spyOn(component.feeApiservice, 'postRequest').and.returnValue(
-    throwError(() => serverError)
-  );
+  // Prepare service response that LoadTableRows will consume
+  const apiResponse = [{ recordCount: 3 }];
 
-  // Spies for error branch side-effects
-  const clearSpy = spyOn(component as any, 'onClearButtonClick');
-  const displaySpy = spyOn(component as any, 'displayServiceErrors');
+  // Make postRequest return the response (synchronous next + complete)
+  const postSpy = spyOn(component.feeApiservice, 'postRequest').and.returnValue(of(apiResponse));
+
+  // Spy LoadTableRows and simulate it setting restoreAccounts (so totals logic sees data)
+  const loadSpy = spyOn(component as any, 'LoadTableRows').and.callFake((resp: any) => {
+    (component as any).restoreAccounts = resp;
+  });
+
+  // Spy modal & dispatch
+  const actionModalSpy = spyOn((component as any)._actionModal || (component as any), 'show').and.callFake(() => {});
   const dispatchSpy = spyOn(component['store'], 'dispatch');
 
-  // set flags to detect reset
+  // initial state
   component.loading = true;
   component.disbleButtonAction = true;
 
   // Act
   (component as any).processRecord();
-  tick(); // flush async
+  tick();
 
-  // Assert
-  expect(postSpy).toHaveBeenCalled(); // outer request attempted
-  expect(clearSpy).toHaveBeenCalled(); // onClearButtonClick invoked
-  expect(displaySpy).toHaveBeenCalledWith('Outer failed'); // error message displayed
-  expect(component.loading).toBeFalse(); // loading reset
-  expect(component.disbleButtonAction).toBeFalse(); // button re-enabled
-  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION)); // dispatched (false)
+  // Assert: next handler executed
+  expect(postSpy).toHaveBeenCalled();
+  expect(loadSpy).toHaveBeenCalledWith(apiResponse);
+
+  // Totals set from restoreAccounts[0].recordCount
+  expect(component.totalRecordCount).toBe(3);
+  expect(component.totalSuccessRecordCount).toBe(3);
+  expect(component.totalErrorRecordCount).toBe(0);
+
+  // UI/state
+  expect(component.isData).toBeFalse();
+  expect(component.disbleButtonAction).toBeFalse();
+  expect(component.loading).toBeFalse();
+  expect(actionModalSpy).toHaveBeenCalled();
+  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
 }));
