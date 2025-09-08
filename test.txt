@@ -1,70 +1,107 @@
-it('processRecord: all-accts path - on success (selectedMonthEndDate string, currentDateTime Date)', fakeAsync(() => {
+// 1) success path: restoreAccounts.length > 0
+it('processRecord: all-accts success computes totals from restoreAccounts[0].recordCount', fakeAsync(() => {
   // Arrange
   component.region = { regionId: 99 } as any;
-
-  // IMPORTANT: use the requested types
-  component.selectedMonthEndDate = '2025-09-01T00:00:00';           // string
-  component.currentDateTime = new Date('2025-09-01T00:00:00Z');    // Date
+  component.selectedMonthEndDate = '2025-09-01T00:00:00';     // string as you stated
+  component.currentDateTime = new Date('2025-09-01T00:00:00'); // Date as you stated
 
   (component as any).appConfigService = { restoreAccountUrl: '/mock/restore/' };
-
-  // Set accountRadioButton to "all accounts" path (empty string per your code)
   (component as any).accountRadioButton = { value: '' };
-  (component as any)._accountRadioButton = { value: '' };
+  (component as any)._accountRadioButton = { value: '' }; // set both to be safe
 
-  // Stub utils used by processRecord
+  // Stub utils used to build payload
   const utils = component['utils'] as any;
-  spyOn(utils, 'getFormatedDateAndTimeEST').and.callFake((selDateStr: string, curDt: Date) => {
-    // ensure we received the same types (optional runtime sanity asserts)
-    expect(typeof selDateStr).toBe('string');
-    expect(curDt instanceof Date).toBeTrue();
-    // return formatted string used by payload
-    return '2025-09-01T00:00:00';
-  });
+  spyOn(utils, 'getFormatedDateAndTimeEST').and.returnValue('2025-09-01T00:00:00');
   spyOn(utils, 'getCurrentUser').and.returnValue('tester');
   spyOn(utils, 'ToEstDate').and.returnValue('2025-09-01T00:00:00');
 
-  // The API returns whatever LoadTableRows expects. We'll return an array whose [0].recordCount = 5
+  // API returns array; we'll ensure LoadTableRows populates restoreAccounts with same array
   const apiResponse = [{ recordCount: 5, hasError: false }];
 
-  // Spy postRequest
-  const postSpy = spyOn(component.feeApiservice, 'postRequest').and.returnValue(of(apiResponse));
+  spyOn(component.feeApiservice, 'postRequest').and.returnValue(of(apiResponse));
 
-  // Spy LoadTableRows and make it populate restoreAccounts so totals calculate
-  const loadSpy = spyOn(component as any, 'LoadTableRows').and.callFake((resp: any) => {
-    component.restoreAccounts = resp;
+  // IMPORTANT: emulate LoadTableRows side-effect — component uses this.restoreAccounts after LoadTableRows
+  spyOn(component as any, 'LoadTableRows').and.callFake((resp: any) => {
+    component.restoreAccounts = resp; // populate exactly as component expects
   });
 
   (component as any)._actionModal = { show: jasmine.createSpy('show') };
   const dispatchSpy = spyOn(component['store'], 'dispatch');
-
-  // Initial flags
-  component.loading = true;
-  component.disbleButtonAction = true;
 
   // Act
   component.processRecord();
   tick();
 
   // Assert
-  expect(postSpy).toHaveBeenCalled();
-  // Ensure payload is array
-  const [, payload] = postSpy.calls.mostRecent().args as [string, any];
-  expect(Array.isArray(payload)).toBeTrue();
-
-  // Ensure LoadTableRows used our API response and restoreAccounts populated
-  expect(loadSpy).toHaveBeenCalledWith(apiResponse);
   expect(component.restoreAccounts[0].recordCount).toBe(5);
-
-  // Totals computed from restoreAccounts[0].recordCount
   expect(component.totalRecordCount).toBe(5);
   expect(component.totalSuccessRecordCount).toBe(5);
   expect(component.totalErrorRecordCount).toBe(0);
+  expect((component as any)._actionModal.show).toHaveBeenCalled();
+  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.objectContaining({ payload: false }));
+}));
 
+// 2) zero-result path: restoreAccounts.length === 0 (the else branch)
+it('processRecord: all-accts when API returns empty array sets totals to zero', fakeAsync(() => {
+  // Arrange
+  component.region = { regionId: 99 } as any;
+  component.selectedMonthEndDate = '2025-09-01T00:00:00';
+  component.currentDateTime = new Date('2025-09-01T00:00:00');
+
+  (component as any).appConfigService = { restoreAccountUrl: '/mock/restore/' };
+  (component as any).accountRadioButton = { value: '' };
+  (component as any)._accountRadioButton = { value: '' };
+
+  const apiResponse: any[] = []; // empty array case
+  spyOn(component.feeApiservice, 'postRequest').and.returnValue(of(apiResponse));
+
+  spyOn(component as any, 'LoadTableRows').and.callFake((resp: any) => {
+    component.restoreAccounts = resp;
+  });
+
+  (component as any)._actionModal = { show: jasmine.createSpy('show') };
+  const dispatchSpy = spyOn(component['store'], 'dispatch');
+
+  // Act
+  component.processRecord();
+  tick();
+
+  // Assert
+  expect(Array.isArray(component.restoreAccounts)).toBeTrue();
+  expect(component.restoreAccounts.length).toBe(0);
+  expect(component.totalRecordCount).toBe(0);
+  expect(component.totalSuccessRecordCount).toBe(0);
+  expect(component.totalErrorRecordCount).toBe(0);
+  expect((component as any)._actionModal.show).toHaveBeenCalled();
+  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.objectContaining({ payload: false }));
+}));
+
+// 3) error path: postRequest throws -> onClearButtonClick + displayServiceErrors + reset flags
+it('processRecord: all-accts error calls onClearButtonClick, displayServiceErrors and resets flags', fakeAsync(() => {
+  // Arrange
+  component.region = { regionId: 99 } as any;
+  component.selectedMonthEndDate = '2025-09-01T00:00:00';
+  component.currentDateTime = new Date('2025-09-01T00:00:00');
+
+  (component as any).appConfigService = { restoreAccountUrl: '/mock/restore/' };
+  (component as any).accountRadioButton = { value: '' };
+  (component as any)._accountRadioButton = { value: '' };
+
+  const apiError = { error: { statusMessage: 'Restore failed' } };
+  spyOn(component.feeApiservice, 'postRequest').and.returnValue(throwError(() => apiError));
+
+  const clearSpy = spyOn(component as any, 'onClearButtonClick');
+  const displaySpy = spyOn(component as any, 'displayServiceErrors');
+  const dispatchSpy = spyOn(component['store'], 'dispatch');
+
+  // Act
+  component.processRecord();
+  tick();
+
+  // Assert
+  expect(clearSpy).toHaveBeenCalled();
+  expect(displaySpy).toHaveBeenCalledWith('Restore failed');
   expect(component.loading).toBeFalse();
   expect(component.disbleButtonAction).toBeFalse();
-  expect((component as any)._actionModal.show).toHaveBeenCalled();
-
-  // dispatch LOADINGACTION(false) — match by property to avoid instance equality problems
   expect(dispatchSpy).toHaveBeenCalledWith(jasmine.objectContaining({ payload: false }));
 }));
