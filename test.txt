@@ -1,107 +1,147 @@
-// 1) success path: restoreAccounts.length > 0
-it('processRecord: all-accts success computes totals from restoreAccounts[0].recordCount', fakeAsync(() => {
+it('processRecord: should POST all-account payload, load rows and show action modal on success', fakeAsync(() => {
   // Arrange
+  (component as any).appConfigService = { restoreAccountUrl: '/mock-restore/' };
   component.region = { regionId: 99 } as any;
-  component.selectedMonthEndDate = '2025-09-01T00:00:00';     // string as you stated
-  component.currentDateTime = new Date('2025-09-01T00:00:00'); // Date as you stated
-
-  (component as any).appConfigService = { restoreAccountUrl: '/mock/restore/' };
+  component.selectedMonthEndDate = new Date('2025-08-01');
+  component.currentDateTime = '10:00:00';
+  // radio value empty string triggers "all" branch per code snippet
   (component as any).accountRadioButton = { value: '' };
-  (component as any)._accountRadioButton = { value: '' }; // set both to be safe
 
-  // Stub utils used to build payload
+  // stub utils used
   const utils = component['utils'] as any;
-  spyOn(utils, 'getFormatedDateAndTimeEST').and.returnValue('2025-09-01T00:00:00');
+  spyOn(utils, 'getFormatedDateAndTimeEST').and.returnValue('2025-08-01T10:00:00');
   spyOn(utils, 'getCurrentUser').and.returnValue('tester');
-  spyOn(utils, 'ToEstDate').and.returnValue('2025-09-01T00:00:00');
+  spyOn(utils, 'ToEstDate').and.returnValue('2025-08-01T10:00:00');
 
-  // API returns array; we'll ensure LoadTableRows populates restoreAccounts with same array
-  const apiResponse = [{ recordCount: 5, hasError: false }];
+  // Mock response for postRequest and restoreAccounts returned by LoadTableRows
+  const apiResponse = [{ recordCount: 5 }];
+  const postSpy = spyOn(component.feeApiservice, 'postRequest').and.returnValue(of(apiResponse));
 
-  spyOn(component.feeApiservice, 'postRequest').and.returnValue(of(apiResponse));
-
-  // IMPORTANT: emulate LoadTableRows side-effect — component uses this.restoreAccounts after LoadTableRows
-  spyOn(component as any, 'LoadTableRows').and.callFake((resp: any) => {
-    component.restoreAccounts = resp; // populate exactly as component expects
+  // Spies for side-effects
+  const loadSpy = spyOn(component as any, 'LoadTableRows').and.callFake((r) => {
+    // simulate component.restoreAccounts being filled in LoadTableRows
+    (component as any).restoreAccounts = apiResponse as any;
   });
+  const actionModalSpy = spyOn((component as any)._actionModal || (component as any), 'show').and.callFake(() => {});
+  const dispatchSpy = spyOn(component['store'], 'dispatch').and.callThrough();
 
-  (component as any)._actionModal = { show: jasmine.createSpy('show') };
-  const dispatchSpy = spyOn(component['store'], 'dispatch');
+  // initial states
+  component.loading = true;
+  component.disbleButtonAction = true;
 
   // Act
-  component.processRecord();
+  (component as any).processRecord();
   tick();
 
   // Assert
-  expect(component.restoreAccounts[0].recordCount).toBe(5);
+  expect(postSpy).toHaveBeenCalled();
+  const [calledUrl, calledPayload] = postSpy.calls.mostRecent().args as [string, any];
+  expect(calledUrl).toContain('/mock-restore/');
+  expect(Array.isArray(calledPayload)).toBeTrue();
+  // UI/state assertions
+  expect(loadSpy).toHaveBeenCalledWith(apiResponse);
   expect(component.totalRecordCount).toBe(5);
   expect(component.totalSuccessRecordCount).toBe(5);
   expect(component.totalErrorRecordCount).toBe(0);
-  expect((component as any)._actionModal.show).toHaveBeenCalled();
-  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.objectContaining({ payload: false }));
+  expect(component.isData).toBeFalse();
+  expect(component.disbleButtonAction).toBeFalse();
+  expect(component.loading).toBeFalse();
+  expect(actionModalSpy).toHaveBeenCalled();
+  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
 }));
 
-// 2) zero-result path: restoreAccounts.length === 0 (the else branch)
-it('processRecord: all-accts when API returns empty array sets totals to zero', fakeAsync(() => {
+
+it('processRecord: should POST spec-account payload, compute totals and show action modal on success', fakeAsync(() => {
   // Arrange
-  component.region = { regionId: 99 } as any;
-  component.selectedMonthEndDate = '2025-09-01T00:00:00';
-  component.currentDateTime = new Date('2025-09-01T00:00:00');
+  (component as any).appConfigService = { restoreAccountUrl: '/mock-restore/' };
+  component.region = { regionId: 11 } as any;
+  component.selectedMonthEndDate = new Date('2025-08-01');
+  component.currentDateTime = '10:00:00';
+  // radio non-empty triggers spec-account branch
+  (component as any).accountRadioButton = { value: 'SOMEVAL' };
 
-  (component as any).appConfigService = { restoreAccountUrl: '/mock/restore/' };
-  (component as any).accountRadioButton = { value: '' };
-  (component as any)._accountRadioButton = { value: '' };
+  // Provide some SpecAcct entries (only some defined)
+  (component as any).SpecAcct1 = 'ACC1';
+  (component as any).SpecAcct2 = null;
+  (component as any).SpecAcct3 = 'ACC3';
+  (component as any).SpecAcct4 = null;
+  (component as any).SpecAcct5 = null;
 
-  const apiResponse: any[] = []; // empty array case
-  spyOn(component.feeApiservice, 'postRequest').and.returnValue(of(apiResponse));
+  // stub utils
+  const utils = component['utils'] as any;
+  spyOn(utils, 'getFormatedDateAndTimeEST').and.returnValue('2025-08-01T10:00:00');
+  spyOn(utils, 'getCurrentUser').and.returnValue('tester');
+  spyOn(utils, 'ToEstDate').and.returnValue('2025-08-01T10:00:00');
 
-  spyOn(component as any, 'LoadTableRows').and.callFake((resp: any) => {
-    component.restoreAccounts = resp;
+  // Simulate restoreAccounts returned by service that include hasError flags
+  const serviceResult = [
+    { id: 1, hasError: true },
+    { id: 2, hasError: false },
+    { id: 3, hasError: false }
+  ];
+  // postRequest returns the response and LoadTableRows will set restoreAccounts
+  spyOn(component.feeApiservice, 'postRequest').and.returnValue(of(serviceResult));
+  const loadSpy = spyOn(component as any, 'LoadTableRows').and.callFake((r) => {
+    (component as any).restoreAccounts = serviceResult as any;
   });
+  const actionModalSpy = spyOn((component as any)._actionModal || (component as any), 'show').and.callFake(() => {});
+  const dispatchSpy = spyOn(component['store'], 'dispatch').and.callThrough();
 
-  (component as any)._actionModal = { show: jasmine.createSpy('show') };
-  const dispatchSpy = spyOn(component['store'], 'dispatch');
+  component.loading = true;
+  component.disbleButtonAction = true;
 
   // Act
-  component.processRecord();
+  (component as any).processRecord();
   tick();
 
   // Assert
-  expect(Array.isArray(component.restoreAccounts)).toBeTrue();
-  expect(component.restoreAccounts.length).toBe(0);
-  expect(component.totalRecordCount).toBe(0);
-  expect(component.totalSuccessRecordCount).toBe(0);
-  expect(component.totalErrorRecordCount).toBe(0);
-  expect((component as any)._actionModal.show).toHaveBeenCalled();
-  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.objectContaining({ payload: false }));
+  expect(loadSpy).toHaveBeenCalledWith(serviceResult);
+  expect(component.restoreAccounts.length).toBe(3);
+  expect(component.totalRecordCount).toBe(3);
+  expect(component.totalErrorRecordCount).toBe(1);
+  expect(component.totalSuccessRecordCount).toBe(2);
+  // isData true because totalErrorRecordCount !== 0
+  expect(component.isData).toBeTrue();
+  expect(actionModalSpy).toHaveBeenCalled();
+  expect(component.disbleButtonAction).toBeFalse();
+  expect(component.loading).toBeFalse();
+  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
 }));
 
-// 3) error path: postRequest throws -> onClearButtonClick + displayServiceErrors + reset flags
-it('processRecord: all-accts error calls onClearButtonClick, displayServiceErrors and resets flags', fakeAsync(() => {
+
+it('processRecord: should handle API error by clearing, showing error and resetting state', fakeAsync(() => {
   // Arrange
-  component.region = { regionId: 99 } as any;
-  component.selectedMonthEndDate = '2025-09-01T00:00:00';
-  component.currentDateTime = new Date('2025-09-01T00:00:00');
+  (component as any).appConfigService = { restoreAccountUrl: '/mock-restore/' };
+  component.region = { regionId: 55 } as any;
+  component.selectedMonthEndDate = new Date('2025-08-01');
+  component.currentDateTime = '10:00:00';
+  (component as any).accountRadioButton = { value: '' }; // try all-accounts path
 
-  (component as any).appConfigService = { restoreAccountUrl: '/mock/restore/' };
-  (component as any).accountRadioButton = { value: '' };
-  (component as any)._accountRadioButton = { value: '' };
+  const utils = component['utils'] as any;
+  spyOn(utils, 'getFormatedDateAndTimeEST').and.returnValue('2025-08-01T10:00:00');
+  spyOn(utils, 'getCurrentUser').and.returnValue('tester');
+  spyOn(utils, 'ToEstDate').and.returnValue('2025-08-01T10:00:00');
 
-  const apiError = { error: { statusMessage: 'Restore failed' } };
+  // make postRequest throw
+  const apiError = { error: { statusMessage: 'Server crashed' } };
   spyOn(component.feeApiservice, 'postRequest').and.returnValue(throwError(() => apiError));
 
+  // spies for error path
   const clearSpy = spyOn(component as any, 'onClearButtonClick');
   const displaySpy = spyOn(component as any, 'displayServiceErrors');
-  const dispatchSpy = spyOn(component['store'], 'dispatch');
+  const dispatchSpy = spyOn(component['store'], 'dispatch').and.callThrough();
+
+  component.loading = true;
+  component.disbleButtonAction = true;
 
   // Act
-  component.processRecord();
+  (component as any).processRecord();
   tick();
 
   // Assert
   expect(clearSpy).toHaveBeenCalled();
-  expect(displaySpy).toHaveBeenCalledWith('Restore failed');
+  expect(displaySpy).toHaveBeenCalledWith('Server crashed');
   expect(component.loading).toBeFalse();
   expect(component.disbleButtonAction).toBeFalse();
-  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.objectContaining({ payload: false }));
+  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
 }));
