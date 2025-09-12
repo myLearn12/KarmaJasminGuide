@@ -1,10 +1,12 @@
 it('ngOnInit complete: sets combo data, viewchild options, clears loading and dispatches LOADINGACTION(false)', fakeAsync(() => {
   // Arrange
+  // Ensure auth return predictable result
   spyOn(component['authService'], 'canHideFinanceAdminControls').and.returnValue(false);
 
-  // Data that forkJoin will return
+  // Realistic data for each forkJoin item (each item must match the appConfigService URL)
   const costcenters = [{ id: 1 }];
-  const revShareDivMaps = [];
+
+  const revShareDivMaps = []; // used by LoadTableRows (we don't assert LoadTableRows here)
   const revenueShares = [
     { revShareTypeId: 10, revShareTypeDesc: 'Revenue A', revShareTypeCd: 'R1' }
   ];
@@ -12,16 +14,27 @@ it('ngOnInit complete: sets combo data, viewchild options, clears loading and di
     { divisionId: 20, divisionDesc: 'Division A', divisionCd: 'D1' }
   ];
 
-  // Make feeApiservice.getRequest return the correct observables for each URL
+  // Make getRequest return the right piece depending on the URL the component uses.
+  // Use the appConfigService values the component will pass in.
   spyOn(component.feeApiservice, 'getRequest').and.callFake((url: string) => {
-    if (url === component.appConfigService.getAllCostCenterUrl) { return of(costcenters); }
-    if (url === component.appConfigService.getAllRevShareDivMappingUrl) { return of(revShareDivMaps); }
-    if (url === component.appConfigService.getAllRevShareTypeCdUrl) { return of(revenueShares); }
-    if (url === component.appConfigService.getAllDivisionUrl) { return of(divisions); }
+    const cfg = component.appConfigService;
+    if (url === cfg.getAllCostCenterUrl) {
+      return of(costcenters);
+    }
+    if (url === cfg.getAllRevShareDivMappingUrl) {
+      return of(revShareDivMaps);
+    }
+    if (url === cfg.getAllRevShareTypeCdUrl) {
+      return of(revenueShares);
+    }
+    if (url === cfg.getAllDivisionUrl) {
+      return of(divisions);
+    }
+    // fallback so test doesn't blow up if other urls are called
     return of(null);
   });
 
-  // Spy utils.LoadComboBoxData to return a predictable options array
+  // utils.LoadComboBoxData should return the mapping used in combo data
   const mappedRevenue = [{ label: 'Revenue A', value: '10' }];
   const mappedDivisions = [{ label: 'Division A', value: '20' }];
   spyOn(component['utils'], 'LoadComboBoxData').and.callFake((arr: any[], label: string, _code: string, id: string) => {
@@ -30,22 +43,21 @@ it('ngOnInit complete: sets combo data, viewchild options, clears loading and di
     return [];
   });
 
-  // Provide the ViewChild mocks so .options assignment doesn't blow up
+  // Provide the ViewChild mocks so .options assignment doesn't fail
   (component as any)._revenueShareComboBox = { options: null };
   (component as any)._divisionComboBox = { options: null };
 
-  // spy store.dispatch
   const dispatchSpy = spyOn(component['store'], 'dispatch');
 
   // Act
   component.ngOnInit();
-  tick(); // flush forkJoin + subscribe next/complete
+  tick(); // flush forkJoin and subscription
 
   // Assert: combo data arrays built using utils.LoadComboBoxData
   expect(component.revenueShareComboBoxData).toEqual([{ options: mappedRevenue }]);
   expect(component.divisionComboBoxData).toEqual([{ options: mappedDivisions }]);
 
-  // Assert: ViewChild options set to deep-cloned arrays
+  // Assert: ViewChild options set to deep-cloned arrays (original revenueShares/divisions preserved shape)
   expect((component as any)._revenueShareComboBox.options).toEqual(JSON.parse(JSON.stringify(revenueShares)));
   expect((component as any)._divisionComboBox.options).toEqual(JSON.parse(JSON.stringify(divisions)));
 
