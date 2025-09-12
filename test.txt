@@ -1,1 +1,51 @@
-node --max_old_space_size=4096 ./node_modules/@angular/cli/bin/ng test --code-coverage
+it('ngOnInit() error handler: when API returns 404 should call LoadDefaultComboBox, stop loading and dispatch LOADINGACTION(false)', fakeAsync(() => {
+  // Arrange
+  spyOn(component['authService'], 'canHideFinanceAdminControls').and.returnValue(false);
+
+  // Make every getRequest throw a 404-like error
+  const notFound = { error: { statusMessage: 'Not found', statusCode: '404' } };
+  spyOn(component.feeApiservice, 'getRequest').and.returnValue(throwError(() => notFound));
+
+  const displaySpy = spyOn(component as any, 'displayServiceErrors');
+  const loadDefaultSpy = spyOn(component as any, 'LoadDefaultComboBox');
+  const dispatchSpy = spyOn(component['store'], 'dispatch');
+
+  // ensure loading starts true (ngOnInit sets it)
+  component.loading = false;
+
+  // Act
+  component.ngOnInit();
+  tick();
+
+  // Assert
+  expect(displaySpy).toHaveBeenCalledWith('Not found');
+  expect(loadDefaultSpy).toHaveBeenCalled();                     // special 404 behavior
+  expect(component.loading).toBeFalse();                         // loading cleared
+  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION)); // dispatched false
+}));
+
+
+it('ngOnInit() error handler: non-404 error -> displayServiceErrors called and loading reset (no LoadDefaultComboBox)', fakeAsync(() => {
+  // Arrange
+  spyOn(component['authService'], 'canHideFinanceAdminControls').and.returnValue(false);
+
+  const serverErr = { error: { statusMessage: 'Server err', statusCode: '500' } };
+  spyOn(component.feeApiservice, 'getRequest').and.returnValue(throwError(() => serverErr));
+
+  const displaySpy = spyOn(component as any, 'displayServiceErrors');
+  const loadDefaultSpy = spyOn(component as any, 'LoadDefaultComboBox');
+  const dispatchSpy = spyOn(component['store'], 'dispatch');
+
+  component.loading = false;
+
+  // Act
+  component.ngOnInit();
+  tick();
+
+  // Assert
+  expect(displaySpy).toHaveBeenCalledWith('Server err');
+  expect(loadDefaultSpy).not.toHaveBeenCalled();                // only 404 triggers LoadDefaultComboBox
+  expect(component.loading).toBeFalse();
+  // optional: non-404 path in your snippet doesn't explicitly dispatch false, so check it was not called or is ok to be called
+  // expect(dispatchSpy).not.toHaveBeenCalledWith(new LOADINGACTION(false));
+}));
