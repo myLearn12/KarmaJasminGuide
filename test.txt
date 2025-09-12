@@ -1,51 +1,55 @@
-it('ngOnInit() error handler: when API returns 404 should call LoadDefaultComboBox, stop loading and dispatch LOADINGACTION(false)', fakeAsync(() => {
+it('ngOnInit complete: sets combo data, viewchild options, clears loading and dispatches LOADINGACTION(false)', fakeAsync(() => {
   // Arrange
   spyOn(component['authService'], 'canHideFinanceAdminControls').and.returnValue(false);
 
-  // Make every getRequest throw a 404-like error
-  const notFound = { error: { statusMessage: 'Not found', statusCode: '404' } };
-  spyOn(component.feeApiservice, 'getRequest').and.returnValue(throwError(() => notFound));
+  // Data that forkJoin will return
+  const costcenters = [{ id: 1 }];
+  const revShareDivMaps = [];
+  const revenueShares = [
+    { revShareTypeId: 10, revShareTypeDesc: 'Revenue A', revShareTypeCd: 'R1' }
+  ];
+  const divisions = [
+    { divisionId: 20, divisionDesc: 'Division A', divisionCd: 'D1' }
+  ];
 
-  const displaySpy = spyOn(component as any, 'displayServiceErrors');
-  const loadDefaultSpy = spyOn(component as any, 'LoadDefaultComboBox');
+  // Make feeApiservice.getRequest return the correct observables for each URL
+  spyOn(component.feeApiservice, 'getRequest').and.callFake((url: string) => {
+    if (url === component.appConfigService.getAllCostCenterUrl) { return of(costcenters); }
+    if (url === component.appConfigService.getAllRevShareDivMappingUrl) { return of(revShareDivMaps); }
+    if (url === component.appConfigService.getAllRevShareTypeCdUrl) { return of(revenueShares); }
+    if (url === component.appConfigService.getAllDivisionUrl) { return of(divisions); }
+    return of(null);
+  });
+
+  // Spy utils.LoadComboBoxData to return a predictable options array
+  const mappedRevenue = [{ label: 'Revenue A', value: '10' }];
+  const mappedDivisions = [{ label: 'Division A', value: '20' }];
+  spyOn(component['utils'], 'LoadComboBoxData').and.callFake((arr: any[], label: string, _code: string, id: string) => {
+    if (label === 'revShareTypeDesc') return mappedRevenue;
+    if (label === 'divisionDesc') return mappedDivisions;
+    return [];
+  });
+
+  // Provide the ViewChild mocks so .options assignment doesn't blow up
+  (component as any)._revenueShareComboBox = { options: null };
+  (component as any)._divisionComboBox = { options: null };
+
+  // spy store.dispatch
   const dispatchSpy = spyOn(component['store'], 'dispatch');
-
-  // ensure loading starts true (ngOnInit sets it)
-  component.loading = false;
 
   // Act
   component.ngOnInit();
-  tick();
+  tick(); // flush forkJoin + subscribe next/complete
 
-  // Assert
-  expect(displaySpy).toHaveBeenCalledWith('Not found');
-  expect(loadDefaultSpy).toHaveBeenCalled();                     // special 404 behavior
-  expect(component.loading).toBeFalse();                         // loading cleared
-  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION)); // dispatched false
-}));
+  // Assert: combo data arrays built using utils.LoadComboBoxData
+  expect(component.revenueShareComboBoxData).toEqual([{ options: mappedRevenue }]);
+  expect(component.divisionComboBoxData).toEqual([{ options: mappedDivisions }]);
 
+  // Assert: ViewChild options set to deep-cloned arrays
+  expect((component as any)._revenueShareComboBox.options).toEqual(JSON.parse(JSON.stringify(revenueShares)));
+  expect((component as any)._divisionComboBox.options).toEqual(JSON.parse(JSON.stringify(divisions)));
 
-it('ngOnInit() error handler: non-404 error -> displayServiceErrors called and loading reset (no LoadDefaultComboBox)', fakeAsync(() => {
-  // Arrange
-  spyOn(component['authService'], 'canHideFinanceAdminControls').and.returnValue(false);
-
-  const serverErr = { error: { statusMessage: 'Server err', statusCode: '500' } };
-  spyOn(component.feeApiservice, 'getRequest').and.returnValue(throwError(() => serverErr));
-
-  const displaySpy = spyOn(component as any, 'displayServiceErrors');
-  const loadDefaultSpy = spyOn(component as any, 'LoadDefaultComboBox');
-  const dispatchSpy = spyOn(component['store'], 'dispatch');
-
-  component.loading = false;
-
-  // Act
-  component.ngOnInit();
-  tick();
-
-  // Assert
-  expect(displaySpy).toHaveBeenCalledWith('Server err');
-  expect(loadDefaultSpy).not.toHaveBeenCalled();                // only 404 triggers LoadDefaultComboBox
+  // loading turned off and LOADINGACTION(false) dispatched
   expect(component.loading).toBeFalse();
-  // optional: non-404 path in your snippet doesn't explicitly dispatch false, so check it was not called or is ok to be called
-  // expect(dispatchSpy).not.toHaveBeenCalledWith(new LOADINGACTION(false));
+  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
 }));
