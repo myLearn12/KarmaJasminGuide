@@ -1,9 +1,32 @@
-it('onClearButtonClick: ...', () => {
-  component.errorBlockMessage = 'err';
-  spyOn(component as any, 'GenerateTableRows').and.stub();
+it('onClearButtonClick: should reset error message, clear search combos and regenerate table rows (robust)', () => {
+  // Arrange: set an initial error and ensure both combo obj refs exist
+  component.errorBlockMessage = 'some error';
+
+  // The component sometimes uses searchRevenueShareComboBox and sometimes the underscored version.
+  // Create both and make sure they have a .value property so assignments won't crash.
+  (component as any).searchRevenueShareComboBox = (component as any).searchRevenueShareComboBox || { value: '10' };
+  (component as any)._searchRevenueShareComboBox = (component as any)._searchRevenueShareComboBox || (component as any).searchRevenueShareComboBox;
+  (component as any)._searchDivisionComboBox = (component as any)._searchDivisionComboBox || { value: '20' };
+  (component as any).searchDivisionComboBox = (component as any).searchDivisionComboBox || (component as any)._searchDivisionComboBox;
+
+  // Sanity check - if any of these are still missing, throw a clear error so you can see what's undefined
+  if (!((component as any).searchRevenueShareComboBox) || !((component as any)._searchDivisionComboBox)) {
+    // show exact diagnostics instead of the cryptic TS runtime error
+    const missing = [
+      (component as any).searchRevenueShareComboBox ? null : 'searchRevenueShareComboBox',
+      (component as any)._searchDivisionComboBox ? null : '_searchDivisionComboBox'
+    ].filter(Boolean);
+    throw new Error('Test setup failed — missing combo object(s): ' + missing.join(', '));
+  }
+
+  const genSpy = spyOn(component as any, 'GenerateTableRows').and.stub();
+
+  // Act
   component.onClearButtonClick();
-  expect(component.errorBlockMessage).toBeNull();
-  expect((component as any).searchRevenueShareComboBox.value).toBeNull();
-  expect((component as any)._searchDivisionComboBox.value).toBeNull();
-  expect((component as any).GenerateTableRows).toHaveBeenCalled();
+
+  // Assert
+  expect(component.errorBlockMessage).toBeNull('errorBlockMessage should be cleared');
+  expect((component as any).searchRevenueShareComboBox.value).toBeNull('searchRevenueShareComboBox.value should be cleared');
+  expect((component as any)._searchDivisionComboBox.value).toBeNull('_searchDivisionComboBox.value should be cleared');
+  expect(genSpy).toHaveBeenCalled();
 });
