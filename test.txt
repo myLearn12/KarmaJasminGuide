@@ -1,6 +1,15 @@
-it('ngOnInit complete: sets divisionComboBoxData, deep-clones viewchild.options, clears loading and dispatches LOADINGACTION(false) (exact URL matching)', fakeAsync(() => {
-  // Arrange
+it('ngOnInit complete (else): sets divisionComboBoxData, deep-clones viewchild.options, clears loading and dispatches LOADINGACTION(false)', fakeAsync(() => {
+  // --- Arrange ---------------------------------------------------------
+  // Ensure auth check is stable
   spyOn(component['authService'], 'canHideFinanceAdminControls').and.returnValue(false);
+
+  // Provide explicit URLs on appConfigService so test is deterministic
+  component.appConfigService = {
+    getAllCostCenterUrl: '/api/costcenters',
+    getAllRevShareDivMappingUrl: '/api/revsharedivmaps',
+    getAllRevShareTypeCdUrl: '/api/revsharetypes',
+    getAllDivisionUrl: '/api/divisions'
+  } as any;
 
   // Realistic API-returned raw model objects (RevShareTypeCd & Division)
   const revenueShares = [
@@ -42,29 +51,30 @@ it('ngOnInit complete: sets divisionComboBoxData, deep-clones viewchild.options,
     }
   ];
 
-  // other forkJoin returns (not asserted)
+  // other forkJoin returns (not asserted here)
   const costcenters = [{ id: 1 }];
   const revShareDivMaps: any[] = [];
 
-  // Stub getRequest to exactly match appConfigService URLs used in the component
-  const cfg = component.appConfigService as any;
-  const called: string[] = [];
+  // Spy getRequest; match exactly the properties set above
+  const calledUrls: string[] = [];
   spyOn(component.feeApiservice, 'getRequest').and.callFake((url: string) => {
-    called.push(String(url));
-    // exact match using the config properties
-    try {
-      if (url === cfg.getAllCostCenterUrl) { return of(costcenters); }
-      if (url === cfg.getAllRevShareDivMappingUrl) { return of(revShareDivMaps); }
-      if (url === cfg.getAllRevShareTypeCdUrl) { return of(revenueShares); }
-      if (url === cfg.getAllDivisionUrl) { return of(divisions); }
-    } catch (e) {
-      // if cfg isn't shaped how we expect, fall through to safe defaults
+    calledUrls.push(String(url));
+    if (url === component.appConfigService.getAllCostCenterUrl) {
+      return of(costcenters);
     }
-    // Fallback: return an identifiable object so we can debug if mismatch occurs
-    return of([{ _unexpectedUrl: url }]);
+    if (url === component.appConfigService.getAllRevShareDivMappingUrl) {
+      return of(revShareDivMaps);
+    }
+    if (url === component.appConfigService.getAllRevShareTypeCdUrl) {
+      return of(revenueShares);
+    }
+    if (url === component.appConfigService.getAllDivisionUrl) {
+      return of(divisions);
+    }
+    return of([]); // safe fallback
   });
 
-  // Ensure LoadComboBoxData returns label/value arrays
+  // Make LoadComboBoxData return the label/value arrays expected by the component
   const mappedRevenue = [{ label: 'Revenue A', value: '10' }]; // value is stringified id
   const mappedDivisions = [{ label: 'Division A', value: '20' }];
   spyOn(component['utils'], 'LoadComboBoxData').and.callFake((arr: any[], label: string, _code: string, id: string) => {
@@ -73,30 +83,30 @@ it('ngOnInit complete: sets divisionComboBoxData, deep-clones viewchild.options,
     return [];
   });
 
-  // Provide ViewChild mocks so .options assignment doesn't crash
+  // Provide ViewChild mocks so assignments succeed
   (component as any)._revenueShareComboBox = { options: null };
   (component as any)._divisionComboBox = { options: null };
 
   const dispatchSpy = spyOn(component['store'], 'dispatch');
 
-  // Act
+  // --- Act ------------------------------------------------------------
   component.ngOnInit();
-  tick();
+  tick(); // flush the forkJoin and subscription handlers
 
-  // If test didn't match the expected URLs, print them for debugging
-  const sawRev = called.includes(cfg.getAllRevShareTypeCdUrl);
-  const sawDiv = called.includes(cfg.getAllDivisionUrl);
-  if (!sawRev || !sawDiv) {
-    fail('URL mismatch in test. Called urls: ' + JSON.stringify(called, null, 2) +
-      '\nExpected to see: ' + cfg.getAllRevShareTypeCdUrl + ' and ' + cfg.getAllDivisionUrl);
-    return;
-  }
+  // --- Debug / sanity checks ------------------------------------------
+  // If URLs are missing, fail with helpful message
+  expect(calledUrls.length).toBeGreaterThan(0, 'feeApiservice.getRequest was not called at all; check ngOnInit implementation.');
 
-  // Assert: combo data arrays built using utils.LoadComboBoxData (label/value)
+  // Assert we called the exact URLs we set up
+  expect(calledUrls).toContain(component.appConfigService.getAllRevShareTypeCdUrl);
+  expect(calledUrls).toContain(component.appConfigService.getAllDivisionUrl);
+
+  // --- Assert final state ---------------------------------------------
+  // combo data uses LoadComboBoxData output (label/value)
   expect(component.revenueShareComboBoxData).toEqual([{ options: mappedRevenue }]);
   expect(component.divisionComboBoxData).toEqual([{ options: mappedDivisions }]);
 
-  // Assert: ViewChild.options deep-cloned from API arrays (raw objects)
+  // viewchild options deep-cloned from API arrays (raw objects)
   expect((component as any)._revenueShareComboBox.options).toEqual(JSON.parse(JSON.stringify(revenueShares)));
   expect((component as any)._divisionComboBox.options).toEqual(JSON.parse(JSON.stringify(divisions)));
 
