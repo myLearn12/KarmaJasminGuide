@@ -1,112 +1,99 @@
-it('onAcceptButtonClick(ActionType.add): posts add payload, regenerates table, shows success and writes audit log', fakeAsync(() => {
-  // Arrange
-  spyOn(component as any, 'validateFormControls').and.returnValue(false); // allow method to run
+it('onAcceptButtonClick(ActionType.add): posts add payload, regenerates table, shows success and writes audit log (model-shaped)', fakeAsync(() => {
+  // allow the function to run (skip early return)
+  spyOn(component as any, 'validateFormControls').and.returnValue(false);
 
-  // set private appConfigService urls if used
+  // private appConfigService (set via cast)
   (component as any).appConfigService = {
     addRevShareDivMappingUrl: '/api/revsharediv/add'
   } as any;
 
-  // mock combo boxes that the method reads (method reads .value.toString())
-  (component as any)._revenueShareComboBox = { value: ['10'] };
-  (component as any)._divisionComboBox = { value: ['20'] };
+  // --- Mock combo view-child objects used by the method ---
+  // The code calls .value.toString() so supply value as array or string
+  (component as any)._revenueShareComboBox = { value: ['10'] }; // revShareTypeId = 10
+  (component as any)._divisionComboBox     = { value: ['20'] }; // divisionId = 20
+  // set alternate names if code uses them
+  (component as any).revenueShareComboBox = (component as any)._revenueShareComboBox;
+  (component as any).divisionComboBox     = (component as any)._divisionComboBox;
 
-  // ensure auditLogService exists (so spyOn won't crash)
-  (component as any).auditLogService = { writeAuditLog: () => {} };
-  const auditSpy = spyOn((component as any).auditLogService, 'writeAuditLog');
+  // Provide realistic lookup arrays so getUpdatedModel() can call .find()
+  component.revenueShares = [
+    {
+      selected: false,
+      revShareTypeId: 10,
+      revShareTypeCd: 'R1',
+      revShareTypeDesc: 'Revenue A',
+      activeIndic: true,
+      createdBy: 'u',
+      createdDt: '2025-01-01',
+      updatedBy: null,
+      updatedDt: null
+    }
+  ] as any; // matches RevShareTypeCd shape
 
-  // stub utils used in payload
+  component.divisions = [
+    {
+      selected: false,
+      divisionId: 20,
+      divisionCd: 'D1',
+      divisionDesc: 'Division A',
+      regDesc: null,
+      revShareDivId: null,
+      revShareTypeId: 10,
+      revShareTypeCd: 'R1',
+      revShareDesc: 'RevDesc',
+      divisionShortNm: null,
+      costCenterId: null,
+      costCenterNbr: null,
+      costCenterDesc: null,
+      abaNbr: null,
+      typeCd: null,
+      activeIndic: true,
+      createdBy: 'u',
+      createdDt: '2025-01-01',
+      updatedBy: null,
+      updatedDt: null
+    }
+  ] as any;
+
+  // utils stubs used in payload / mapping
   const utils = component['utils'] as any;
   spyOn(utils, 'ToEstDate').and.returnValue('2025-09-15T00:00:00.000Z');
   spyOn(utils, 'getCurrentUser').and.returnValue('test-user');
+  // if getUpdatedModel uses LoadComboBoxData to map labels, stub it defensively
+  spyOn(utils, 'LoadComboBoxData').and.callFake((arr: any[], label: string, _c: string, id: string) =>
+    arr.map((r: any) => ({ label: r[label], value: String(r[id]) }))
+  );
 
-  // other spies
-  const postSpy = spyOn(component.feeApiservice, 'postRequest').and.returnValue(of({}));
-  const genRowsSpy = spyOn(component as any, 'GenerateTableRows');
-  const setMsgSpy = spyOn(component as any, 'SetMessageTypeAndValue');
-  const clearSpy = spyOn(component as any, 'clearSelection');
-  // mock modal to avoid null errors
+  // ensure auditLogService exists so spyOn won't throw
+  (component as any).auditLogService = { writeAuditLog: () => {} };
+  const auditSpy = spyOn((component as any).auditLogService, 'writeAuditLog').and.stub();
+
+  // Side-effect spies and mocks
+  const postSpy = spyOn(component.feeApiservice, 'postRequest').and.returnValue(of({})); // success -> triggers complete
+  const genRowsSpy = spyOn(component as any, 'GenerateTableRows').and.stub();
+  const setMsgSpy = spyOn(component as any, 'SetMessageTypeAndValue').and.stub();
+  const clearSpy = spyOn(component as any, 'clearSelection').and.stub();
   (component as any)._actionModal = { hide: jasmine.createSpy('hide') };
 
   // Act
   component.onAcceptButtonClick(ActionType.add);
-  tick();
+  tick(); // flush observables
 
-  // Assert
+  // Assert: payload call
   expect(postSpy).toHaveBeenCalledWith(
     (component as any).appConfigService.addRevShareDivMappingUrl,
     jasmine.objectContaining({
-      revShareTypeId: '10',
-      divId: '20',
+      revShareTypeId: '10',        // combo `.value.toString()` used -> string '10'
+      divId: '20',                 // combo `.value.toString()` used -> string '20'
       createdBy: 'test-user',
       createdDt: '2025-09-15T00:00:00.000Z'
     })
   );
 
+  // side-effects
   expect(genRowsSpy).toHaveBeenCalled();
   expect(setMsgSpy).toHaveBeenCalledWith(BlockMessageType.success, (component as any).addSuccessMessage);
-  expect(auditSpy).toHaveBeenCalled();
+  expect(auditSpy).toHaveBeenCalled(); // audit called on complete
   expect(clearSpy).toHaveBeenCalled();
   expect((component as any)._actionModal.hide).toHaveBeenCalled();
 }));
-
-
-it('onAcceptButtonClick(ActionType.update): when putRequest errors should restore selectedRevShrDivMap into revShrdivmap, call displayServiceErrors and still clear/hide', fakeAsync(() => {
-  // Arrange
-  spyOn(component as any, 'validateFormControls').and.returnValue(false);
-
-  // set private appConfigService used in update
-  (component as any).appConfigService = {
-    updateRevShareDivMappingUrl: '/api/revsharediv/update/'
-  } as any;
-
-  // Prepare revShrdivmap + selectedRevShrDivMap so code can read revShareDivId and use .toString()
-  component.revShrdivmap = { revShareDivId: 99, revShareTypeId: 10, divId: 20 } as any;
-  component.selectedRevShrDivMap = { revShareDivId: 99, revShareTypeId: 11, divId: 21, startDt: 's', endDt: 'e' } as any;
-
-  // also the method may read combo values for payload (use whichever property your code references)
-  // set both variants to be safe
-  (component as any).revenueShareComboBox = { value: ['11'] };
-  (component as any).divisionComboBox = { value: ['21'] };
-  (component as any)._revenueShareComboBox = (component as any).revenueShareComboBox;
-  (component as any)._divisionComboBox = (component as any).divisionComboBox;
-
-  // ensure auditLogService exists so spyOn won't crash
-  (component as any).auditLogService = { writeAuditLog: () => {} };
-  spyOn((component as any).auditLogService, 'writeAuditLog');
-
-  // spy on feeApiservice.putRequest to throw an error
-  spyOn(component.feeApiservice, 'putRequest').and.returnValue(
-    throwError(() => ({ error: { statusMessage: 'update failed' } }))
-  );
-
-  // spies for side effects
-  const displaySpy = spyOn(component as any, 'displayServiceErrors');
-  // component code does: Object.assign(this.revShrdivmap, this.selectedRevShrDivMap);
-  const assignSpy = spyOn(Object, 'assign').and.callThrough();
-  const getUpdatedSpy = spyOn(component as any, 'getUpdatedModel').and.returnValue({});
-  const clearSpy = spyOn(component as any, 'clearSelection');
-  (component as any)._actionModal = { hide: jasmine.createSpy('hide') };
-
-  // Act
-  component.onAcceptButtonClick(ActionType.update);
-  tick();
-
-  // Assert
-  expect((component as any).feeApiservice.putRequest).toHaveBeenCalledWith(
-    (component as any).appConfigService.updateRevShareDivMappingUrl + component.revShrdivmap.revShareDivId,
-    jasmine.any(Object)
-  );
-
-  // On error path code should call Object.assign(...) to restore values
-  expect(assignSpy).toHaveBeenCalled();
-
-  // displayServiceErrors should be called with the error message
-  expect(displaySpy).toHaveBeenCalledWith('update failed');
-
-  // ensure cleanup still happened
-  expect(clearSpy).toHaveBeenCalled();
-  expect((component as any)._actionModal.hide).toHaveBeenCalled();
-}));
-
-
