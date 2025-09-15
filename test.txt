@@ -1,24 +1,92 @@
-it('onUpdateModalClick: when row is selected should deep clone revShrdivmap, set values, and show modal', () => {
+it('onAcceptButtonClick(ActionType.add): posts add payload, regenerates table, shows success and writes audit log', fakeAsync(() => {
   // Arrange
-  component.isRowSelected = true;
-  component.revShrdivmap = { id: 1, name: 'Test Map' } as any;
+  spyOn(component as any, 'validateFormControls').and.returnValue(false); // allow method to run
 
-  // Spy dependencies inside else block
-  const setInitialSpy = spyOn(component as any, 'setIntialValues');
-  const getRevSpy = spyOn(component as any, 'getRevenueShareComboBoxValue');
-  const getDivSpy = spyOn(component as any, 'getDivisionComboBoxVal');
-  const modalSpy = spyOn((component as any)._actionModal, 'show');
+  // set private appConfigService urls
+  (component as any).appConfigService = {
+    addRevShareDivMappingUrl: '/api/revsharediv/add'
+  } as any;
+
+  // mock combo boxes that the method reads
+  (component as any)._revenueShareComboBox = { value: ['10'] };
+  (component as any)._divisionComboBox = { value: ['20'] };
+
+  // stub utils used in payload
+  const utils = component['utils'] as any;
+  spyOn(utils, 'ToEstDate').and.returnValue('2025-09-15T00:00:00.000Z');
+  spyOn(utils, 'getCurrentUser').and.returnValue('test-user');
+
+  // spies for side effects
+  const postSpy = spyOn(component.feeApiservice, 'postRequest').and.returnValue(of({}));
+  const genRowsSpy = spyOn(component as any, 'GenerateTableRows');
+  const setMsgSpy = spyOn(component as any, 'SetMessageTypeAndValue');
+  const auditSpy = spyOn(component['auditlogService'], 'writeAuditLog').and.stub();
+  const clearSpy = spyOn(component as any, 'clearSelection').and.stub();
+  const hideSpy = spyOn((component as any)._actionModal, 'hide').and.stub();
 
   // Act
-  component.onUpdateModalclick();
+  component.onAcceptButtonClick(ActionType.add);
+  tick();
 
   // Assert
-  expect(component.selectedRevShrDivMap).toEqual(component.revShrdivmap);
-  expect(component.selectedRevShrDivMap).not.toBe(component.revShrdivmap); // deep cloned, not same reference
-  expect(setInitialSpy).toHaveBeenCalled();
-  expect(getRevSpy).toHaveBeenCalled();
-  expect(getDivSpy).toHaveBeenCalled();
-  expect(modalSpy).toHaveBeenCalled();
-  expect(component.actionModalTitle).toBe('Update');
-  expect(component.actionModalType).toBe(ActionType.update);
-});
+  expect(postSpy).toHaveBeenCalledWith(
+    (component as any).appConfigService.addRevShareDivMappingUrl,
+    jasmine.objectContaining({
+      revShareTypeId: '10',
+      divId: '20',
+      createdBy: 'test-user',
+      createdDt: '2025-09-15T00:00:00.000Z'
+    })
+  );
+  expect(genRowsSpy).toHaveBeenCalled();
+  expect(setMsgSpy).toHaveBeenCalledWith(BlockMessageType.success, (component as any).addSuccessMessage);
+  expect(auditSpy).toHaveBeenCalled(); // written on complete
+  expect(clearSpy).toHaveBeenCalled();
+  expect(hideSpy).toHaveBeenCalled();
+}));
+
+
+it('onAcceptButtonClick(ActionType.update): when putRequest errors should restore selectedRevShrDivMap into revShrdivmap, call displayServiceErrors and still clear/hide', fakeAsync(() => {
+  // Arrange
+  spyOn(component as any, 'validateFormControls').and.returnValue(false);
+
+  // set private appConfigService url used in update
+  (component as any).appConfigService = {
+    updateRevShareDivMappingUrl: '/api/revsharediv/update/'
+  } as any;
+
+  // prepare revshrdivmap and selectedRevShrDivMap (update will use revShrdivmap.revShareDivId)
+  component.revShrdivmap = { revShareDivId: 99, revShareTypeId: 10, divId: 20 } as any;
+  component.selectedRevShrDivMap = { revShareDivId: 99, revShareTypeId: 11, divId: 21, startDt: 's', endDt: 'e' } as any;
+
+  // spies
+  const putSpy = spyOn(component.feeApiservice, 'putRequest').and.returnValue(
+    throwError(() => ({ error: { statusMessage: 'update failed' } }))
+  );
+
+  const displaySpy = spyOn(component as any, 'displayServiceErrors');
+  const assignSpy = spyOn(Object, 'assign').and.callThrough(); // code does Object.assign(this.revShrdivmap, this.selectedRevShrDivMap);
+  const getUpdatedSpy = spyOn(component as any, 'getUpdatedModel').and.returnValue({}); // used in complete normally
+  const auditSpy = spyOn(component['auditLogService'], 'writeAuditLog').and.stub();
+  const clearSpy = spyOn(component as any, 'clearSelection').and.stub();
+  const hideSpy = spyOn((component as any)._actionModal, 'hide').and.stub();
+
+  // Act
+  component.onAcceptButtonClick(ActionType.update);
+  tick();
+
+  // Assert
+  expect(putSpy).toHaveBeenCalledWith(
+    (component as any).appConfigService.updateRevShareDivMappingUrl + component.revShrdivmap.revShareDivId,
+    jasmine.any(Object)
+  );
+
+  // On error path component should call Object.assign to restore revShrdivmap from selectedRevShrDivMap
+  expect(assignSpy).toHaveBeenCalled();
+  // displayServiceErrors should be called with server message
+  expect(displaySpy).toHaveBeenCalledWith('update failed');
+
+  // cleanup calls
+  expect(clearSpy).toHaveBeenCalled();
+  expect(hideSpy).toHaveBeenCalled();
+}));
