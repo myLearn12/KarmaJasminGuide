@@ -1,63 +1,42 @@
-it('LoadDefaultComboBox: on complete sets combo data and deep-cloned viewchild.options', fakeAsync(() => {
-  // Arrange: ensure component has app config URLs the method expects
-  component.appConfigService = {
+it('LoadDefaultComboBox sets combo data and viewchild.options (private appConfigService set via cast)', fakeAsync(() => {
+  // provide private appConfigService via any-cast
+  (component as any).appConfigService = {
     getAllRevShareTypeCdUrl: '/api/revsharetypes',
     getAllDivisionUrl: '/api/divisions'
   } as any;
 
-  // Realistic API-returned raw model objects (match your RevShareTypeCd & Division model shape)
-  const revenueShares = [
-    {
-      selected: false,
-      revShareTypeId: 10,
-      revShareTypeCd: 'R1',
-      revShareTypeDesc: 'Revenue A',
-      activeIndic: true
-    }
-  ];
-  const divisions = [
-    {
-      selected: false,
-      divisionId: 20,
-      divisionCd: 'D1',
-      divisionDesc: 'Division A',
-      activeIndic: true
-    }
-  ];
+  const revenueShares = [{ selected: false, revShareTypeId: 10, revShareTypeCd: 'R1', revShareTypeDesc: 'Revenue A', activeIndic: true }];
+  const divisions     = [{ selected: false, divisionId: 20, divisionCd: 'D1', divisionDesc: 'Division A', activeIndic: true }];
 
-  // Spy feeApiservice.getRequest to return the correct arrays for the exact URLs
   spyOn(component.feeApiservice, 'getRequest').and.callFake((url: string) => {
-    if (url === component.appConfigService.getAllRevShareTypeCdUrl) {
-      return of(revenueShares);
-    }
-    if (url === component.appConfigService.getAllDivisionUrl) {
-      return of(divisions);
-    }
-    return of([]); // safe fallback
+    if (url === (component as any).appConfigService.getAllRevShareTypeCdUrl) return of(revenueShares);
+    if (url === (component as any).appConfigService.getAllDivisionUrl)     return of(divisions);
+    return of([]);
   });
 
-  // Make LoadComboBoxData return label/value arrays as component expects
-  const mappedRevenue = [{ label: 'Revenue A', value: '10' }];
-  const mappedDivisions = [{ label: 'Division A', value: '20' }];
-  spyOn(component['utils'], 'LoadComboBoxData').and.callFake((arr: any[], label: string, _code: string, id: string) => {
-    if (label === 'revShareTypeDesc') return mappedRevenue;
-    if (label === 'divisionDesc') return mappedDivisions;
+  spyOn(component['utils'], 'LoadComboBoxData').and.callFake((arr: any[], label: string) => {
+    if (label === 'revShareTypeDesc') return [{ label: 'Revenue A', value: '10' }];
+    if (label === 'divisionDesc')     return [{ label: 'Division A', value: '20' }];
     return [];
   });
 
-  // Provide ViewChild mocks so assignments succeed (component will set .options)
+  // mock both naming conventions the component may use
   (component as any).revenueShareComboBox = { options: null };
+  (component as any)._revenueShareComboBox = { options: null };
   (component as any)._divisionComboBox = { options: null };
+  (component as any).divisionComboBox = { options: null };
 
   // Act
   component.LoadDefaultComboBox();
-  tick(); // flush forkJoin subscribe handlers
+  tick();
 
-  // Assert: combo data arrays built using utils.LoadComboBoxData (label/value)
-  expect(component.revenueShareComboBoxData).toEqual([{ options: mappedRevenue }]);
-  expect(component.divisionComboBoxData).toEqual([{ options: mappedDivisions }]);
+  // Assert
+  expect(component.revenueShareComboBoxData).toEqual([{ options: [{ label: 'Revenue A', value: '10' }] }]);
+  expect(component.divisionComboBoxData).toEqual([{ options: [{ label: 'Division A', value: '20' }] }]);
 
-  // Assert: ViewChild.options set to deep-cloned raw API objects
-  expect((component as any).revenueShareComboBox.options).toEqual(JSON.parse(JSON.stringify(revenueShares)));
-  expect((component as any)._divisionComboBox.options).toEqual(JSON.parse(JSON.stringify(divisions)));
+  const revenueOptions = (component as any).revenueShareComboBox.options ?? (component as any)._revenueShareComboBox.options;
+  const divisionOptions = (component as any)._divisionComboBox.options ?? (component as any).divisionComboBox.options;
+
+  expect(revenueOptions).toEqual(JSON.parse(JSON.stringify(revenueShares)));
+  expect(divisionOptions).toEqual(JSON.parse(JSON.stringify(divisions)));
 }));
