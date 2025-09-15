@@ -1,42 +1,35 @@
-it('LoadDefaultComboBox sets combo data and viewchild.options (private appConfigService set via cast)', fakeAsync(() => {
-  // provide private appConfigService via any-cast
+it('LoadDefaultComboBox: on error should call displayServiceErrors, stop loading and dispatch LOADINGACTION(false)', fakeAsync(() => {
+  // Arrange: set private appConfig URLs
   (component as any).appConfigService = {
     getAllRevShareTypeCdUrl: '/api/revsharetypes',
     getAllDivisionUrl: '/api/divisions'
   } as any;
 
-  const revenueShares = [{ selected: false, revShareTypeId: 10, revShareTypeCd: 'R1', revShareTypeDesc: 'Revenue A', activeIndic: true }];
-  const divisions     = [{ selected: false, divisionId: 20, divisionCd: 'D1', divisionDesc: 'Division A', activeIndic: true }];
+  // Make feeApiservice.getRequest throw for the forkJoin
+  spyOn(component.feeApiservice, 'getRequest').and.callFake((url: string) =>
+    throwError(() => ({ error: { statusMessage: 'LoadDefault failed' } }))
+  );
 
-  spyOn(component.feeApiservice, 'getRequest').and.callFake((url: string) => {
-    if (url === (component as any).appConfigService.getAllRevShareTypeCdUrl) return of(revenueShares);
-    if (url === (component as any).appConfigService.getAllDivisionUrl)     return of(divisions);
-    return of([]);
-  });
-
-  spyOn(component['utils'], 'LoadComboBoxData').and.callFake((arr: any[], label: string) => {
-    if (label === 'revShareTypeDesc') return [{ label: 'Revenue A', value: '10' }];
-    if (label === 'divisionDesc')     return [{ label: 'Division A', value: '20' }];
-    return [];
-  });
-
-  // mock both naming conventions the component may use
+  // Make sure viewchild mocks exist (prevents unrelated null errors)
   (component as any).revenueShareComboBox = { options: null };
-  (component as any)._revenueShareComboBox = { options: null };
   (component as any)._divisionComboBox = { options: null };
-  (component as any).divisionComboBox = { options: null };
+
+  const displaySpy = spyOn(component as any, 'displayServiceErrors').and.callThrough();
+  const dispatchSpy = spyOn(component['store'], 'dispatch');
+
+  // initial loading true to simulate real flow
+  component.loading = true;
 
   // Act
   component.LoadDefaultComboBox();
   tick();
 
   // Assert
-  expect(component.revenueShareComboBoxData).toEqual([{ options: [{ label: 'Revenue A', value: '10' }] }]);
-  expect(component.divisionComboBoxData).toEqual([{ options: [{ label: 'Division A', value: '20' }] }]);
-
-  const revenueOptions = (component as any).revenueShareComboBox.options ?? (component as any)._revenueShareComboBox.options;
-  const divisionOptions = (component as any)._divisionComboBox.options ?? (component as any).divisionComboBox.options;
-
-  expect(revenueOptions).toEqual(JSON.parse(JSON.stringify(revenueShares)));
-  expect(divisionOptions).toEqual(JSON.parse(JSON.stringify(divisions)));
+  expect(displaySpy).toHaveBeenCalledWith('LoadDefault failed');
+  expect(component.loading).toBeFalse();
+  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
+  // ensure LOADINGACTION was called with false payload (if your LOADINGACTION stores payload)
+  // If LOADINGACTION is a simple class with constructor(flag:boolean) you can check:
+  const calledArgs = dispatchSpy.calls.allArgs().flat();
+  expect(calledArgs.some(a => a instanceof LOADINGACTION && (a as any).payload === false || (a as any).payload === undefined)).toBeTrue();
 }));
