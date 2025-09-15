@@ -1,18 +1,32 @@
-it('GenerateTableRows: should handle error by calling displayServiceErrors, reset loading, and dispatch LOADINGACTION(false)', fakeAsync(() => {
+it('getRevenueShareComboBoxValue: should set value when revShareTypeId matches', () => {
   // Arrange
-  // make getRequest throw an error
-  const errorResponse = { error: { statusMessage: 'Test error' } };
-  spyOn(component.feeApiservice, 'getRequest').and.returnValue(throwError(() => errorResponse));
+  component.revenueShares = [
+    { revShareTypeId: 10, revShareTypeDesc: 'Revenue A', revShareTypeCd: 'R1' } as any,
+    { revShareTypeId: 20, revShareTypeDesc: 'Revenue B', revShareTypeCd: 'R2' } as any
+  ];
+  component.revShrdivmap = { revShareTypeId: 10 } as any;
 
-  const errorSpy = spyOn(component as any, 'displayServiceErrors');
-  const dispatchSpy = spyOn(component['store'], 'dispatch');
+  (component as any)._revenueShareComboBox = { value: null };
 
   // Act
-  component.GenerateTableRows();
-  tick(); // flush the observable
+  component.getRevenueShareComboBoxValue();
 
   // Assert
-  expect(errorSpy).toHaveBeenCalledWith('Test error');
-  expect(component.loading).toBeFalse();
-  expect(dispatchSpy).toHaveBeenCalledWith(new LOADINGACTION(false));
-}));
+  expect((component as any)._revenueShareComboBox.value).toEqual(['10']);
+});
+
+it('getRevenueShareComboBoxValue: should set empty array when no revShareTypeId matches', () => {
+  // Arrange
+  component.revenueShares = [
+    { revShareTypeId: 30, revShareTypeDesc: 'Revenue C', revShareTypeCd: 'R3' } as any
+  ];
+  component.revShrdivmap = { revShareTypeId: 99 } as any;
+
+  (component as any)._revenueShareComboBox = { value: null };
+
+  // Act
+  component.getRevenueShareComboBoxValue();
+
+  // Assert
+  expect((component as any)._revenueShareComboBox.value).toEqual([]);
+});
