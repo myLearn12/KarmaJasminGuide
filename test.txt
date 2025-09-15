@@ -1,66 +1,24 @@
-it('ngOnInit complete: sets combo data, viewchild options, clears loading and dispatches LOADINGACTION(false)', fakeAsync(() => {
+it('onUpdateModalClick: when row is selected should deep clone revShrdivmap, set values, and show modal', () => {
   // Arrange
-  spyOn(component['authService'], 'canHideFinanceAdminControls').and.returnValue(false);
+  component.isRowSelected = true;
+  component.revShrdivmap = { id: 1, name: 'Test Map' } as any;
 
-  // --- set private appConfigService via cast so URLs are defined at runtime ---
-  (component as any).appConfigService = {
-    getAllCostCenterUrl: '/api/costcenters',
-    getAllRevShareDivMappingUrl: '/api/revsharedivmaps',
-    getAllRevShareTypeCdUrl: '/api/revsharetypes',
-    getAllDivisionUrl: '/api/divisions'
-  } as any;
-
-  // Data that forkJoin will return
-  const costcenters = [{ id: 1 }];
-  const revShareDivMaps: any[] = [];
-  const revenueShares = [
-    { revShareTypeId: 10, revShareTypeDesc: 'Revenue A', revShareTypeCd: 'R1' }
-  ];
-  const divisions = [
-    { divisionId: 20, divisionDesc: 'Division A', divisionCd: 'D1' }
-  ];
-
-  // IMPORTANT: stub feeApiservice.getRequest AFTER setting the private appConfigService
-  spyOn(component.feeApiservice, 'getRequest').and.callFake((url: string) => {
-    if (url === (component as any).appConfigService.getAllCostCenterUrl) { return of(costcenters); }
-    if (url === (component as any).appConfigService.getAllRevShareDivMappingUrl) { return of(revShareDivMaps); }
-    if (url === (component as any).appConfigService.getAllRevShareTypeCdUrl) { return of(revenueShares); }
-    if (url === (component as any).appConfigService.getAllDivisionUrl) { return of(divisions); }
-    return of(null);
-  });
-
-  // Spy utils.LoadComboBoxData to return a predictable options array
-  const mappedRevenue = [{ label: 'Revenue A', value: '10' }];
-  const mappedDivisions = [{ label: 'Division A', value: '20' }];
-  spyOn(component['utils'], 'LoadComboBoxData').and.callFake((arr: any[], label: string, _code: string, id: string) => {
-    if (label === 'revShareTypeDesc') return mappedRevenue;
-    if (label === 'divisionDesc') return mappedDivisions;
-    return [];
-  });
-
-  // Provide the ViewChild mocks so .options assignment doesn't blow up
-  // component might use _revenueShareComboBox or revenueShareComboBox — mock both to be safe
-  (component as any)._revenueShareComboBox = { options: null };
-  (component as any).revenueShareComboBox  = (component as any)._revenueShareComboBox;
-  (component as any)._divisionComboBox     = { options: null };
-  (component as any).divisionComboBox     = (component as any)._divisionComboBox;
-
-  // spy store.dispatch
-  const dispatchSpy = spyOn(component['store'], 'dispatch');
+  // Spy dependencies inside else block
+  const setInitialSpy = spyOn(component as any, 'setIntialValues');
+  const getRevSpy = spyOn(component as any, 'getRevenueShareComboBoxValue');
+  const getDivSpy = spyOn(component as any, 'getDivisionComboBoxVal');
+  const modalSpy = spyOn((component as any)._actionModal, 'show');
 
   // Act
-  component.ngOnInit();
-  tick(); // flush forkJoin + subscribe next/complete
+  component.onUpdateModalclick();
 
-  // Assert: combo data arrays built using utils.LoadComboBoxData
-  expect(component.revenueShareComboBoxData).toEqual([{ options: mappedRevenue }]);
-  expect(component.divisionComboBoxData).toEqual([{ options: mappedDivisions }]);
-
-  // Assert: ViewChild options set to deep-cloned arrays
-  expect((component as any)._revenueShareComboBox.options).toEqual(JSON.parse(JSON.stringify(revenueShares)));
-  expect((component as any)._divisionComboBox.options).toEqual(JSON.parse(JSON.stringify(divisions)));
-
-  // loading turned off and LOADINGACTION(false) dispatched
-  expect(component.loading).toBeFalse();
-  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
-}));
+  // Assert
+  expect(component.selectedRevShrDivMap).toEqual(component.revShrdivmap);
+  expect(component.selectedRevShrDivMap).not.toBe(component.revShrdivmap); // deep cloned, not same reference
+  expect(setInitialSpy).toHaveBeenCalled();
+  expect(getRevSpy).toHaveBeenCalled();
+  expect(getDivSpy).toHaveBeenCalled();
+  expect(modalSpy).toHaveBeenCalled();
+  expect(component.actionModalTitle).toBe('Update');
+  expect(component.actionModalType).toBe(ActionType.update);
+});
