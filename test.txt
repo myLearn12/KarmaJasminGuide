@@ -1,66 +1,62 @@
-it('onAcceptButtonClick(ActionType.update) - when putRequest errors should restore revShrdivmap, call displayServiceErrors, clear selection and hide modal', fakeAsync(() => {
-  // prevent early exit
+it('onAcceptButtonClick(ActionType.update) - on complete should override start/end dates and call auditLogService.writeAuditLog', fakeAsync(() => {
+  // Arrange
   spyOn(component as any, 'validateFormControls').and.returnValue(false);
 
-  // provide private appConfigService URL
+  // Setup URLs and IDs
   (component as any).appConfigService = {
     updateRevShareDivMappingUrl: '/api/revsharediv/update/'
   } as any;
 
-  // Prepare model objects used by the method
-  component.revShrdivmap = { revShareDivId: 99, revShareTypeId: 10, divId: 20 } as any;
+  component.revShrdivmap = { revShareDivId: 101, revShareTypeId: 10, divId: 20 } as any;
   component.selectedRevShrDivMap = {
-    revShareDivId: 99,
+    revShareDivId: 101,
     revShareTypeId: 11,
     divId: 21,
-    startDt: 'S-DT',
-    endDt: 'E-DT'
+    startDt: 'OLD-START',
+    endDt: 'OLD-END'
   } as any;
 
-  // mock combo boxes that method reads (toString() must not blow up)
-  (component as any).revenueShareComboBox = { value: ['11'] }; // new revShareTypeId
-  (component as any).divisionComboBox     = { value: ['21'] }; // new divId
-  // also set underscore variants in case implementation uses them
+  // mocks for combo boxes (avoid .toString null errors)
+  (component as any).revenueShareComboBox = { value: ['11'] };
+  (component as any).divisionComboBox     = { value: ['21'] };
   (component as any)._revenueShareComboBox = (component as any).revenueShareComboBox;
   (component as any)._divisionComboBox     = (component as any).divisionComboBox;
 
-  // ensure auditLogService exists so method doesn't throw if referenced elsewhere
-  (component as any).auditLogService = { writeAuditLog: () => {}, updateAction: 'UPD' };
+  // Spy getUpdatedModel to return a model that we can assert later
+  const fakeModel: any = { revShareTypeId: 99, divId: 77, startDt: '', endDt: '' };
+  spyOn(component as any, 'getUpdatedModel').and.returnValue(fakeModel);
 
-  // make the API call fail to force the error handler
-  spyOn(component.feeApiservice, 'putRequest').and.returnValue(
-    throwError(() => ({ error: { statusMessage: 'update failed' } }))
-  );
+  // Spy auditLogService.writeAuditLog
+  (component as any).auditLogService = { writeAuditLog: jasmine.createSpy('writeAuditLog'), updateAction: 'UPD' };
 
-  // spies for side effects
-  const displaySpy = spyOn(component as any, 'displayServiceErrors').and.stub();
-  const clearSpy = spyOn(component as any, 'clearSelection').and.stub();
+  // Spy feeApiservice.putRequest to return a successful observable (triggers complete)
+  spyOn(component.feeApiservice, 'putRequest').and.returnValue(of({}));
+
+  // needed to avoid UI cleanup blowing up
+  spyOn(component as any, 'clearSelection').and.stub();
   (component as any)._actionModal = { hide: jasmine.createSpy('hide') };
-
-  // ensure store.dispatch exists and is spy-able
-  const dispatchSpy = spyOn(component['store'], 'dispatch').and.stub();
 
   // Act
   component.onAcceptButtonClick(ActionType.update);
-  tick();
+  tick(); // flush observable complete
 
-  // Assert - putRequest called with correct URL (id appended)
-  expect(component.feeApiservice.putRequest).toHaveBeenCalledWith(
-    (component as any).appConfigService.updateRevShareDivMappingUrl + component.revShrdivmap.revShareDivId,
-    jasmine.any(Object)
+  // Assert - putRequest called
+  expect(component.feeApiservice.putRequest).toHaveBeenCalled();
+
+  // getUpdatedModel called
+  expect(component['getUpdatedModel']).toHaveBeenCalled();
+
+  // startDt and endDt overridden from selectedRevShrDivMap
+  expect(fakeModel.startDt).toBe('OLD-START');
+  expect(fakeModel.endDt).toBe('OLD-END');
+
+  // auditLogService.writeAuditLog called with expected args
+  expect((component as any).auditLogService.writeAuditLog).toHaveBeenCalledWith(
+    'revShareDivId',
+    '101',
+    component.selectedRevShrDivMap,
+    fakeModel,
+    'UPD',
+    component.PageTitle
   );
-
-  // After error handler runs the code does Object.assign(this.revShrdivmap, this.selectedRevShrDivMap)
-  expect(component.revShrdivmap.revShareTypeId).toBe(11);
-  expect(component.revShrdivmap.divId).toBe(21);
-
-  // displayServiceErrors called with server status message
-  expect(displaySpy).toHaveBeenCalledWith('update failed');
-
-  // cleanup: clear selection and hide modal
-  expect(clearSpy).toHaveBeenCalled();
-  expect((component as any)._actionModal.hide).toHaveBeenCalled();
-
-  // store LOADINGACTION(false) should have been dispatched
-  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
 }));
