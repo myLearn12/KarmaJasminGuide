@@ -1,6 +1,8 @@
 it('onClearButtonClick: should reset error message, clear search combos and regenerate table rows', () => {
-  // Arrange
+  // Arrange - make sure the combo objects exist so .value assignment won't crash
   component.errorBlockMessage = 'some error';
+
+  // both names to be safe: the method sets searchRevenueShareComboBox.value and _searchDivisionComboBox.value
   (component as any).searchRevenueShareComboBox = { value: '10' };
   (component as any)._searchDivisionComboBox = { value: '20' };
 
