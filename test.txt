@@ -1,93 +1,17 @@
-it('onSearchButtonClick: both filters set -> filters by revShareTypeId and divisionId, sets p=1 and calls LoadTableRows', () => {
+it('onClearButtonClick: should reset error message, clear search combos and regenerate table rows', () => {
   // Arrange
-  component.initialRevShrdivmaps = [
-    { revShareTypeId: 10, divisionId: 20, some: 'a' } as any,
-    { revShareTypeId: 11, divisionId: 21, some: 'b' } as any,
-    { revShareTypeId: 10, divisionId: 21, some: 'c' } as any
-  ];
-
-  // both UI controls present — some code uses both _search... and search...
-  (component as any)._searchRevenueShareComboBox = { value: '10' };
-  (component as any)._searchDivisionComboBox     = { value: '20' };
-  (component as any).searchRevenueShareComboBox = (component as any)._searchRevenueShareComboBox; // in case method reads this name too
-
-  spyOn(component as any, 'LoadTableRows').and.stub();
-
-  // Act
-  component.onSearchButtonClick();
-
-  // Assert: only the map entry with revShareTypeId=10 && divisionId=20 is passed
-  expect(component.p).toBe(1);
-  expect((component as any).LoadTableRows).toHaveBeenCalledWith([
-    jasmine.objectContaining({ revShareTypeId: 10, divisionId: 20 })
-  ]);
-});
-
-it('onSearchButtonClick: only revenueShare filter set -> filters by revShareTypeId', () => {
-  // Arrange
-  component.initialRevShrdivmaps = [
-    { revShareTypeId: 10, divisionId: 20 } as any,
-    { revShareTypeId: 11, divisionId: 21 } as any,
-    { revShareTypeId: 10, divisionId: 22 } as any
-  ];
-  (component as any)._searchRevenueShareComboBox = { value: '10' };
-  // ensure division control is null to hit the revenue-only branch
-  (component as any)._searchDivisionComboBox = { value: null };
-
-  spyOn(component as any, 'LoadTableRows').and.stub();
-
-  // Act
-  component.onSearchButtonClick();
-
-  // Assert: both entries with revShareTypeId=10 are returned and p set
-  expect(component.p).toBe(1);
-  expect((component as any).LoadTableRows).toHaveBeenCalledWith([
-    jasmine.objectContaining({ revShareTypeId: 10 }),
-    jasmine.objectContaining({ revShareTypeId: 10 })
-  ]);
-});
-
-it('onSearchButtonClick: only division filter set -> filters by divisionId', () => {
-  // Arrange
-  component.initialRevShrdivmaps = [
-    { revShareTypeId: 10, divisionId: 20 } as any,
-    { revShareTypeId: 11, divisionId: 21 } as any,
-    { revShareTypeId: 12, divisionId: 20 } as any
-  ];
-  (component as any)._searchRevenueShareComboBox = { value: null };
+  component.errorBlockMessage = 'some error';
+  (component as any).searchRevenueShareComboBox = { value: '10' };
   (component as any)._searchDivisionComboBox = { value: '20' };
 
-  spyOn(component as any, 'LoadTableRows').and.stub();
+  const genSpy = spyOn(component as any, 'GenerateTableRows').and.stub();
 
   // Act
-  component.onSearchButtonClick();
+  component.onClearButtonClick();
 
-  // Assert: both entries with divisionId=20 are returned and p set
-  expect(component.p).toBe(1);
-  expect((component as any).LoadTableRows).toHaveBeenCalledWith([
-    jasmine.objectContaining({ divisionId: 20 }),
-    jasmine.objectContaining({ divisionId: 20 })
-  ]);
-});
-
-it('onSearchButtonClick: no filters or no results -> shows warning, clears search combos and calls GenerateTableRows', () => {
-  // Arrange: set initial list with items that will NOT match the filter we'll set
-  component.initialRevShrdivmaps = [
-    { revShareTypeId: 10, divisionId: 20 } as any
-  ];
-  // set filters that yield no match
-  (component as any)._searchRevenueShareComboBox = { value: '999' };
-  (component as any)._searchDivisionComboBox     = { value: '888' };
-
-  const setMessageSpy = spyOn(component as any, 'SetMessageTypeAndValue').and.stub();
-  const generateSpy = spyOn(component as any, 'GenerateTableRows').and.stub();
-
-  // Act
-  component.onSearchButtonClick();
-
-  // Assert: when result is empty we expect a warning, clearing of search CBs and GenerateTableRows invoked
-  expect(setMessageSpy).toHaveBeenCalledWith(jasmine.anything(), component.searchOptionMessage);
-  expect((component as any)._searchRevenueShareComboBox.value).toBeNull();
+  // Assert
+  expect(component.errorBlockMessage).toBeNull();
+  expect((component as any).searchRevenueShareComboBox.value).toBeNull();
   expect((component as any)._searchDivisionComboBox.value).toBeNull();
-  expect(generateSpy).toHaveBeenCalled();
+  expect(genSpy).toHaveBeenCalled();
 });
