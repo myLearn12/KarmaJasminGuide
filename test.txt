@@ -1,32 +1,32 @@
-it('getRevenueShareComboBoxValue: should set value when revShareTypeId matches', () => {
+it('getDivisionComboBoxVal: should set value when divisionId matches', () => {
   // Arrange
-  component.revenueShares = [
-    { revShareTypeId: 10, revShareTypeDesc: 'Revenue A', revShareTypeCd: 'R1' } as any,
-    { revShareTypeId: 20, revShareTypeDesc: 'Revenue B', revShareTypeCd: 'R2' } as any
+  component.divisions = [
+    { divisionId: 20, divisionDesc: 'Division A', divisionCd: 'D1' } as any,
+    { divisionId: 30, divisionDesc: 'Division B', divisionCd: 'D2' } as any
   ];
-  component.revShrdivmap = { revShareTypeId: 10 } as any;
+  component.revShrdivmap = { divisionId: 20 } as any;
 
-  (component as any)._revenueShareComboBox = { value: null };
+  (component as any)._divisionComboBox = { value: null };
 
   // Act
-  component.getRevenueShareComboBoxValue();
+  component.getDivisionComboBoxVal();
 
   // Assert
-  expect((component as any)._revenueShareComboBox.value).toEqual(['10']);
+  expect((component as any)._divisionComboBox.value).toEqual(['20']);
 });
 
-it('getRevenueShareComboBoxValue: should set empty array when no revShareTypeId matches', () => {
+it('getDivisionComboBoxVal: should set empty array when no divisionId matches', () => {
   // Arrange
-  component.revenueShares = [
-    { revShareTypeId: 30, revShareTypeDesc: 'Revenue C', revShareTypeCd: 'R3' } as any
+  component.divisions = [
+    { divisionId: 40, divisionDesc: 'Division C', divisionCd: 'D3' } as any
   ];
-  component.revShrdivmap = { revShareTypeId: 99 } as any;
+  component.revShrdivmap = { divisionId: 99 } as any;
 
-  (component as any)._revenueShareComboBox = { value: null };
+  (component as any)._divisionComboBox = { value: null };
 
   // Act
-  component.getRevenueShareComboBoxValue();
+  component.getDivisionComboBoxVal();
 
   // Assert
-  expect((component as any)._revenueShareComboBox.value).toEqual([]);
+  expect((component as any)._divisionComboBox.value).toEqual([]);
 });
