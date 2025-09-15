@@ -1,76 +1,18 @@
-it('onAcceptButtonClick(ActionType.update) - on complete should override start/end dates and call auditLogService.writeAuditLog (no leftover timers)', fakeAsync(() => {
-  // Arrange: avoid early return
-  spyOn(component as any, 'validateFormControls').and.returnValue(false);
+it('GenerateTableRows: should handle error by calling displayServiceErrors, reset loading, and dispatch LOADINGACTION(false)', fakeAsync(() => {
+  // Arrange
+  // make getRequest throw an error
+  const errorResponse = { error: { statusMessage: 'Test error' } };
+  spyOn(component.feeApiservice, 'getRequest').and.returnValue(throwError(() => errorResponse));
 
-  // appConfig stub (private)
-  (component as any).appConfigService = {
-    updateRevShareDivMappingUrl: '/api/revsharediv/update/'
-  } as any;
-
-  // Prepare model objects used by the method
-  component.revShrdivmap = { revShareDivId: 101, revShareTypeId: 10, divId: 20 } as any;
-  component.selectedRevShrDivMap = {
-    revShareDivId: 101,
-    revShareTypeId: 11,
-    divId: 21,
-    startDt: 'EXPECTED-START',
-    endDt: 'EXPECTED-END'
-  } as any;
-
-  // Mock combo boxes to avoid .toString() errors
-  (component as any).revenueShareComboBox = { value: ['11'] };
-  (component as any).divisionComboBox     = { value: ['21'] };
-  (component as any)._revenueShareComboBox = (component as any).revenueShareComboBox;
-  (component as any)._divisionComboBox     = (component as any).divisionComboBox;
-
-  // Provide getUpdatedModel() to return a simple object (no timers inside)
-  const fakeModel: any = { revShareTypeId: 99, divId: 77, startDt: '', endDt: '' };
-  spyOn(component as any, 'getUpdatedModel').and.returnValue(fakeModel);
-
-  // Provide auditLogService with a spy (no async work inside)
-  (component as any).auditLogService = {
-    writeAuditLog: jasmine.createSpy('writeAuditLog'),
-    updateAction: 'UPD'
-  };
-
-  // putRequest should complete synchronously
-  spyOn(component.feeApiservice, 'putRequest').and.returnValue(of({}));
-
-  // Avoid UI cleanup blowing up
-  spyOn(component as any, 'clearSelection').and.stub();
-  (component as any)._actionModal = { hide: jasmine.createSpy('hide') };
+  const errorSpy = spyOn(component as any, 'displayServiceErrors');
+  const dispatchSpy = spyOn(component['store'], 'dispatch');
 
   // Act
-  component.onAcceptButtonClick(ActionType.update);
+  component.GenerateTableRows();
+  tick(); // flush the observable
 
-  // allow synchronous microtasks + macrotasks to run
-  tick();    // advance virtual time for tasks scheduled by RxJS or setTimeout
-  flush();   // flush any remaining timers that are scheduled
-  // If any periodic tasks remain, discard them to avoid fakeAsync error
-  try {
-    discardPeriodicTasks();
-  } catch (e) {
-    // discardPeriodicTasks throws if there were none — ignore
-  }
-
-  // Assert - putRequest called
-  expect(component.feeApiservice.putRequest).toHaveBeenCalled();
-
-  // getUpdatedModel called and its startDt/endDt overridden
-  expect(component['getUpdatedModel']).toHaveBeenCalled();
-  expect(fakeModel.startDt).toBe('EXPECTED-START');
-  expect(fakeModel.endDt).toBe('EXPECTED-END');
-
-  // auditLogService.writeAuditLog called with expected args
-  expect((component as any).auditLogService.writeAuditLog).toHaveBeenCalledWith(
-    'revShareDivId',
-    '101',
-    component.selectedRevShrDivMap,
-    fakeModel,
-    'UPD',
-    component.PageTitle
-  );
-
-  // cleanup assertions
-  expect((component as any)._actionModal.hide).toHaveBeenCalled();
+  // Assert
+  expect(errorSpy).toHaveBeenCalledWith('Test error');
+  expect(component.loading).toBeFalse();
+  expect(dispatchSpy).toHaveBeenCalledWith(new LOADINGACTION(false));
 }));
