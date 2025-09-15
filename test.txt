@@ -1,12 +1,9 @@
-it('ngOnInit complete: robust URL matching -> sets combo data, viewchild options, clears loading and dispatches LOADINGACTION(false)', fakeAsync(() => {
+it('ngOnInit else/complete: sets divisionComboBoxData, deep-clones viewchild.options, clears loading and dispatches LOADINGACTION(false)', fakeAsync(() => {
   // Arrange
   spyOn(component['authService'], 'canHideFinanceAdminControls').and.returnValue(false);
 
-  // Realistic data matching your models
-  const costcenters = [{ id: 1 }];
-
-  const revShareDivMaps: any[] = []; // not asserted here
-  const revenueShares: Array<any> = [
+  // API-returned raw model objects (match your RevShareTypeCd and Division shapes)
+  const revenueShares = [
     {
       selected: false,
       revShareTypeId: 10,
@@ -20,7 +17,7 @@ it('ngOnInit complete: robust URL matching -> sets combo data, viewchild options
     }
   ];
 
-  const divisions: Array<any> = [
+  const divisions = [
     {
       selected: false,
       divisionId: 20,
@@ -45,11 +42,14 @@ it('ngOnInit complete: robust URL matching -> sets combo data, viewchild options
     }
   ];
 
-  // Capture called URLs (helpful if matching fails)
+  // other forkJoin item(s) — not asserted here
+  const costcenters = [{ id: 1 }];
+  const revShareDivMaps: any[] = [];
+
+  // Capture called URLs for debugging
   const calledUrls: string[] = [];
   spyOn(component.feeApiservice, 'getRequest').and.callFake((url: string) => {
     calledUrls.push(String(url).toLowerCase());
-    // robust substring matching
     if (String(url).toLowerCase().includes('cost') || String(url).toLowerCase().includes('costcenter')) {
       return of(costcenters);
     }
@@ -62,20 +62,18 @@ it('ngOnInit complete: robust URL matching -> sets combo data, viewchild options
     if (String(url).toLowerCase().includes('division')) {
       return of(divisions);
     }
-    // fallback - helps debug if URL doesn't match expectations
-    return of([{ _unexpectedUrl: url }]);
+    return of(null);
   });
 
-  // utils.LoadComboBoxData returns label/value pairs (what the component stores in *ComboBoxData)
-  const mappedRevenue = [{ label: 'Revenue A', value: '10' }]; // value is stringified id
+  // utils.LoadComboBoxData should return label/value option arrays (what the component stores in *ComboBoxData)
   const mappedDivisions = [{ label: 'Division A', value: '20' }];
   spyOn(component['utils'], 'LoadComboBoxData').and.callFake((arr: any[], label: string, _code: string, id: string) => {
-    if (label === 'revShareTypeDesc') return mappedRevenue;
     if (label === 'divisionDesc') return mappedDivisions;
+    if (label === 'revShareTypeDesc') return [{ label: 'Revenue A', value: '10' }];
     return [];
   });
 
-  // Provide ViewChild mocks so assignments succeed
+  // Provide ViewChild mocks so assignments succeed (these are the targets of JSON.parse(JSON.stringify(...)))
   (component as any)._revenueShareComboBox = { options: null };
   (component as any)._divisionComboBox = { options: null };
 
@@ -83,25 +81,27 @@ it('ngOnInit complete: robust URL matching -> sets combo data, viewchild options
 
   // Act
   component.ngOnInit();
-  tick(); // flush forkJoin and subscription handlers
+  tick(); // flush forkJoin subscribe next + complete
 
-  // Debug check: ensure we saw URLs for revenueShares & divisions; fail with called URLs if not
+  // Quick sanity: make sure the test actually triggered the revenue & division API calls
   const sawRevenueUrl = calledUrls.some(u => /revsharetype|revsharetypecd/i.test(u));
   const sawDivisionUrl = calledUrls.some(u => /division/i.test(u));
   if (!sawRevenueUrl || !sawDivisionUrl) {
-    fail('ngOnInit test URL mismatch. Calls made: ' + JSON.stringify(calledUrls, null, 2));
+    fail('ngOnInit complete branch not reached; actual called URLs: ' + JSON.stringify(calledUrls, null, 2));
     return;
   }
 
-  // Assert: combo data arrays built using utils.LoadComboBoxData (label/value)
-  expect(component.revenueShareComboBoxData).toEqual([{ options: mappedRevenue }]);
+  // ASSERTIONS for the exact lines you provided (else/complete branch)
+  // 1) divisionComboBoxData uses utils.LoadComboBoxData output
   expect(component.divisionComboBoxData).toEqual([{ options: mappedDivisions }]);
 
-  // Assert: ViewChild.options set to deep-cloned raw API objects
+  // 2) viewchild.options deep-cloned from API arrays
   expect((component as any)._revenueShareComboBox.options).toEqual(JSON.parse(JSON.stringify(revenueShares)));
   expect((component as any)._divisionComboBox.options).toEqual(JSON.parse(JSON.stringify(divisions)));
 
-  // loading turned off and LOADINGACTION(false) dispatched
+  // 3) loading turned off
   expect(component.loading).toBeFalse();
+
+  // 4) LOADINGACTION(false) dispatched
   expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
 }));
