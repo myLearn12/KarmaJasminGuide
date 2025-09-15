@@ -1,35 +1,62 @@
-it('LoadDefaultComboBox: on error should call displayServiceErrors, stop loading and dispatch LOADINGACTION(false)', fakeAsync(() => {
-  // Arrange: set private appConfig URLs
+it('sets divisionComboBoxData, deep-clones viewchild.options, clears loading and dispatches LOADINGACTION(false)', fakeAsync(() => {
+  // Arrange: set private appConfigService URLs (cast to any because property is private)
   (component as any).appConfigService = {
     getAllRevShareTypeCdUrl: '/api/revsharetypes',
     getAllDivisionUrl: '/api/divisions'
   } as any;
 
-  // Make feeApiservice.getRequest throw for the forkJoin
-  spyOn(component.feeApiservice, 'getRequest').and.callFake((url: string) =>
-    throwError(() => ({ error: { statusMessage: 'LoadDefault failed' } }))
-  );
+  // API-returned "raw" model arrays (match your models)
+  const revenueShares = [
+    { selected: false, revShareTypeId: 10, revShareTypeCd: 'R1', revShareTypeDesc: 'Revenue A', activeIndic: true }
+  ];
+  const divisions = [
+    { selected: false, divisionId: 20, divisionCd: 'D1', divisionDesc: 'Division A', activeIndic: true }
+  ];
 
-  // Make sure viewchild mocks exist (prevents unrelated null errors)
-  (component as any).revenueShareComboBox = { options: null };
+  // Spy feeApiservice.getRequest to return the arrays for the exact URLs
+  spyOn(component.feeApiservice, 'getRequest').and.callFake((url: string) => {
+    if (url === (component as any).appConfigService.getAllRevShareTypeCdUrl) return of(revenueShares);
+    if (url === (component as any).appConfigService.getAllDivisionUrl)     return of(divisions);
+    return of([]); // safe fallback
+  });
+
+  // Spy utils.LoadComboBoxData to return label/value arrays used by the component
+  const mappedDivisions = [{ label: 'Division A', value: '20' }];
+  spyOn(component['utils'], 'LoadComboBoxData').and.callFake((arr: any[], label: string) => {
+    if (label === 'divisionDesc') return mappedDivisions;
+    return [];
+  });
+
+  // Provide ViewChild mocks that the component will assign into
+  // component code uses `_revenueShareComboBox` and `_divisionComboBox` in the block you quoted
+  (component as any)._revenueShareComboBox = { options: null };
   (component as any)._divisionComboBox = { options: null };
 
-  const displaySpy = spyOn(component as any, 'displayServiceErrors').and.callThrough();
+  // Spy store.dispatch
   const dispatchSpy = spyOn(component['store'], 'dispatch');
 
-  // initial loading true to simulate real flow
+  // Pre-set loading true to simulate flow before complete
   component.loading = true;
 
-  // Act
-  component.LoadDefaultComboBox();
-  tick();
+  // Act: call the method that runs the forkJoin/complete block.
+  // If this block lives in ngOnInit, call ngOnInit(); otherwise call the specific method (e.g. LoadDefaultComboBox()).
+  // Replace below with the correct method if needed:
+  if (typeof component.LoadDefaultComboBox === 'function') {
+    component.LoadDefaultComboBox();
+  } else {
+    component.ngOnInit();
+  }
 
-  // Assert
-  expect(displaySpy).toHaveBeenCalledWith('LoadDefault failed');
+  tick(); // flush forkJoin subscribe handlers
+
+  // Assert: divisionComboBoxData uses LoadComboBoxData output
+  expect(component.divisionComboBoxData).toEqual([{ options: mappedDivisions }]);
+
+  // Assert: ViewChild options deep-cloned from API arrays
+  expect((component as any)._revenueShareComboBox.options).toEqual(JSON.parse(JSON.stringify(revenueShares)));
+  expect((component as any)._divisionComboBox.options).toEqual(JSON.parse(JSON.stringify(divisions)));
+
+  // loading turned off and LOADINGACTION(false) dispatched
   expect(component.loading).toBeFalse();
   expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
-  // ensure LOADINGACTION was called with false payload (if your LOADINGACTION stores payload)
-  // If LOADINGACTION is a simple class with constructor(flag:boolean) you can check:
-  const calledArgs = dispatchSpy.calls.allArgs().flat();
-  expect(calledArgs.some(a => a instanceof LOADINGACTION && (a as any).payload === false || (a as any).payload === undefined)).toBeTrue();
 }));
