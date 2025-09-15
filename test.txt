@@ -1,60 +1,66 @@
-it('onAcceptButtonClick(ActionType.update): on putRequest error restores revShrdivmap, calls displayServiceErrors, clears selection and hides modal', fakeAsync(() => {
-  // Arrange: avoid early validateFormControls return
+it('onAcceptButtonClick(ActionType.update) - when putRequest errors should restore revShrdivmap, call displayServiceErrors, clear selection and hide modal', fakeAsync(() => {
+  // prevent early exit
   spyOn(component as any, 'validateFormControls').and.returnValue(false);
 
-  // Ensure appConfigService private URL exists
+  // provide private appConfigService URL
   (component as any).appConfigService = {
     updateRevShareDivMappingUrl: '/api/revsharediv/update/'
   } as any;
 
-  // Prepare objects so code can run and then be restored on error
+  // Prepare model objects used by the method
   component.revShrdivmap = { revShareDivId: 99, revShareTypeId: 10, divId: 20 } as any;
-  component.selectedRevShrDivMap = { revShareDivId: 99, revShareTypeId: 11, divId: 21, startDt: 's', endDt: 'e' } as any;
+  component.selectedRevShrDivMap = {
+    revShareDivId: 99,
+    revShareTypeId: 11,
+    divId: 21,
+    startDt: 'S-DT',
+    endDt: 'E-DT'
+  } as any;
 
-  // Combo view-child mocks used when building payload (ensure .value exists and .toString() won't crash)
-  (component as any).revenueShareComboBox = { value: ['11'] };
-  (component as any).divisionComboBox     = { value: ['21'] };
+  // mock combo boxes that method reads (toString() must not blow up)
+  (component as any).revenueShareComboBox = { value: ['11'] }; // new revShareTypeId
+  (component as any).divisionComboBox     = { value: ['21'] }; // new divId
+  // also set underscore variants in case implementation uses them
   (component as any)._revenueShareComboBox = (component as any).revenueShareComboBox;
   (component as any)._divisionComboBox     = (component as any).divisionComboBox;
 
-  // Provide auditLogService so spyOn won't throw (method not required for this assertion)
-  (component as any).auditLogService = { writeAuditLog: () => {} };
+  // ensure auditLogService exists so method doesn't throw if referenced elsewhere
+  (component as any).auditLogService = { writeAuditLog: () => {}, updateAction: 'UPD' };
 
-  // Make the putRequest call fail (trigger error handler)
+  // make the API call fail to force the error handler
   spyOn(component.feeApiservice, 'putRequest').and.returnValue(
     throwError(() => ({ error: { statusMessage: 'update failed' } }))
   );
 
-  // Spies for side effects we will assert
+  // spies for side effects
   const displaySpy = spyOn(component as any, 'displayServiceErrors').and.stub();
   const clearSpy = spyOn(component as any, 'clearSelection').and.stub();
   (component as any)._actionModal = { hide: jasmine.createSpy('hide') };
 
-  // Ensure store.dispatch exists and we can assert LOADINGACTION(false) later if needed
+  // ensure store.dispatch exists and is spy-able
   const dispatchSpy = spyOn(component['store'], 'dispatch').and.stub();
 
   // Act
   component.onAcceptButtonClick(ActionType.update);
-  tick(); // flush async
+  tick();
 
-  // Assert: feeApiservice.putRequest was invoked with the expected URL and revShareDivId appended
+  // Assert - putRequest called with correct URL (id appended)
   expect(component.feeApiservice.putRequest).toHaveBeenCalledWith(
     (component as any).appConfigService.updateRevShareDivMappingUrl + component.revShrdivmap.revShareDivId,
     jasmine.any(Object)
   );
 
-  // On error the component code does Object.assign(this.revShrdivmap, this.selectedRevShrDivMap)
-  // so revShrdivmap.revShareTypeId should now equal selectedRevShrDivMap.revShareTypeId (11)
+  // After error handler runs the code does Object.assign(this.revShrdivmap, this.selectedRevShrDivMap)
   expect(component.revShrdivmap.revShareTypeId).toBe(11);
   expect(component.revShrdivmap.divId).toBe(21);
 
-  // displayServiceErrors should be called with the statusMessage
+  // displayServiceErrors called with server status message
   expect(displaySpy).toHaveBeenCalledWith('update failed');
 
-  // cleanup: clearSelection() and action modal hide should still happen
+  // cleanup: clear selection and hide modal
   expect(clearSpy).toHaveBeenCalled();
   expect((component as any)._actionModal.hide).toHaveBeenCalled();
 
-  // and the store should have been told loading = false at the end of error handling path
+  // store LOADINGACTION(false) should have been dispatched
   expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
 }));
