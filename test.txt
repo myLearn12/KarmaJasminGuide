@@ -1,32 +1,88 @@
-it('onClearButtonClick: should reset error message, clear search combos and regenerate table rows (robust)', () => {
-  // Arrange: set an initial error and ensure both combo obj refs exist
-  component.errorBlockMessage = 'some error';
+it('LoadDatatoExport: sets mappingDatatoExport = [] for empty input', () => {
+  // Arrange
+  const regdivmaps: any[] = []; // empty input
 
-  // The component sometimes uses searchRevenueShareComboBox and sometimes the underscored version.
-  // Create both and make sure they have a .value property so assignments won't crash.
-  (component as any).searchRevenueShareComboBox = (component as any).searchRevenueShareComboBox || { value: '10' };
-  (component as any)._searchRevenueShareComboBox = (component as any)._searchRevenueShareComboBox || (component as any).searchRevenueShareComboBox;
-  (component as any)._searchDivisionComboBox = (component as any)._searchDivisionComboBox || { value: '20' };
-  (component as any).searchDivisionComboBox = (component as any).searchDivisionComboBox || (component as any)._searchDivisionComboBox;
+  // ensure utils exists and won't be called in this branch
+  (component as any).utils = (component as any).utils || {
+    getFormatedString: (v: any) => String(v),
+    getDisplayDate: (d: any) => String(d)
+  };
 
-  // Sanity check - if any of these are still missing, throw a clear error so you can see what's undefined
-  if (!((component as any).searchRevenueShareComboBox) || !((component as any)._searchDivisionComboBox)) {
-    // show exact diagnostics instead of the cryptic TS runtime error
-    const missing = [
-      (component as any).searchRevenueShareComboBox ? null : 'searchRevenueShareComboBox',
-      (component as any)._searchDivisionComboBox ? null : '_searchDivisionComboBox'
-    ].filter(Boolean);
-    throw new Error('Test setup failed — missing combo object(s): ' + missing.join(', '));
-  }
-
-  const genSpy = spyOn(component as any, 'GenerateTableRows').and.stub();
+  component.costCentersList = []; // no cost centers
+  component.divisions = []; // no divisions
 
   // Act
-  component.onClearButtonClick();
+  (component as any).LoadDatatoExport(regdivmaps);
 
   // Assert
-  expect(component.errorBlockMessage).toBeNull('errorBlockMessage should be cleared');
-  expect((component as any).searchRevenueShareComboBox.value).toBeNull('searchRevenueShareComboBox.value should be cleared');
-  expect((component as any)._searchDivisionComboBox.value).toBeNull('_searchDivisionComboBox.value should be cleared');
-  expect(genSpy).toHaveBeenCalled();
+  expect((component as any).mappingDatatoExport).toBeDefined();
+  expect((component as any).mappingDatatoExport.length).toBe(0);
+});
+
+it('LoadDatatoExport: maps regdivmaps to mappingDatatoExport entries using utils and lookups', () => {
+  // Arrange - one input item with values
+  const regdivmaps = [
+    {
+      revShareTypeCd: 'R1',
+      revShareDesc: 'Revenue Desc',
+      divisionCd: 'D1',
+      divisionDesc: 'Division Desc',
+      divisionId: 100,
+      createdBy: 'creator1',
+      createdDt: '2025-08-01T00:00:00Z',
+      updatedBy: 'updater1',
+      updatedDt: '2025-08-02T00:00:00Z'
+    }
+  ] as any[];
+
+  // divisions list contains the division matching divisionId with costCenterId and other props
+  component.divisions = [
+    { divisionId: 100, costCenterId: 555, costCenterDesc: 'CC Desc', abaNbr: 'ABA123' }
+  ] as any[];
+
+  // costCentersList contains the cost center referenced via division.costCenterId
+  component.costCentersList = [
+    { costCenterId: 555, costCenterNbr: 9999, costCenterDesc: 'Cost Center Desc' }
+  ] as any[];
+
+  // Mock utils methods used in mapping
+  const utils = (component as any).utils = {
+    getFormatedString: jasmine.createSpy('getFormatedString').and.callFake((v: any) => v == null ? '' : String(v)),
+    getDisplayDate: jasmine.createSpy('getDisplayDate').and.callFake((d: any) => d ? 'DISPLAY:' + d : '')
+  };
+
+  // Act
+  (component as any).LoadDatatoExport(regdivmaps);
+
+  // Assert
+  expect((component as any).mappingDatatoExport).toBeDefined();
+  expect((component as any).mappingDatatoExport.length).toBe(1);
+
+  const mapped = (component as any).mappingDatatoExport[0];
+
+  // Key fields from regdivmaps are mapped verbatim or via utils
+  expect(mapped['RevenueShare cd']).toBe('R1');
+  expect(mapped['RevenueShare Desc']).toBe('Revenue Desc'); // utils.getFormatedString used, returns same string
+  expect(mapped['Division Cd']).toBe('D1');
+  expect(mapped['Division Desc']).toBe('Division Desc');
+
+  // Cost center lookup: division -> costCenterId -> find cost center -> costCenterNbr
+  expect(mapped['Cost Center Number']).toBe(9999); // numeric as provided in costCentersList
+
+  // Cost Center Desc comes from divisions.find(...).costCenterDesc (we populated division.costCenterDesc)
+  // The code used utils.getFormatedString(...) around cost center desc; our spy returns the string
+  expect(mapped['Cost Center Desc']).toBe('CC Desc');
+
+  // ABA Number from division
+  expect(mapped['ABA Number']).toBe('ABA123');
+
+  // Created/Modified values: createdBy/updatedBy direct, dates via utils.getDisplayDate
+  expect(mapped['Created By']).toBe('creator1');
+  expect(mapped['Modified By']).toBe('updater1');
+  expect(mapped['Created Date']).toBe('DISPLAY:2025-08-01T00:00:00Z');
+  expect(mapped['Modified Date']).toBe('DISPLAY:2025-08-02T00:00:00Z');
+
+  // Also assert the utils spies were invoked for fields that use them
+  expect(utils.getFormatedString).toHaveBeenCalled();
+  expect(utils.getDisplayDate).toHaveBeenCalled();
 });
