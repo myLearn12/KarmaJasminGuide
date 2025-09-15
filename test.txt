@@ -1,19 +1,9 @@
-it('onClearButtonClick: should reset error message, clear search combos and regenerate table rows', () => {
-  // Arrange - make sure the combo objects exist so .value assignment won't crash
-  component.errorBlockMessage = 'some error';
-
-  // both names to be safe: the method sets searchRevenueShareComboBox.value and _searchDivisionComboBox.value
-  (component as any).searchRevenueShareComboBox = { value: '10' };
-  (component as any)._searchDivisionComboBox = { value: '20' };
-
-  const genSpy = spyOn(component as any, 'GenerateTableRows').and.stub();
-
-  // Act
+it('onClearButtonClick: ...', () => {
+  component.errorBlockMessage = 'err';
+  spyOn(component as any, 'GenerateTableRows').and.stub();
   component.onClearButtonClick();
-
-  // Assert
   expect(component.errorBlockMessage).toBeNull();
   expect((component as any).searchRevenueShareComboBox.value).toBeNull();
   expect((component as any)._searchDivisionComboBox.value).toBeNull();
-  expect(genSpy).toHaveBeenCalled();
+  expect((component as any).GenerateTableRows).toHaveBeenCalled();
 });
