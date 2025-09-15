@@ -1,79 +1,52 @@
-it('ngOnInit else/complete: sets divisionComboBoxData, deep-clones viewchild.options, clears loading and dispatches LOADINGACTION(false)', fakeAsync(() => {
+it('ngOnInit complete: else/complete sets divisionComboBoxData and viewchild.options without null length errors', fakeAsync(() => {
   // Arrange
   spyOn(component['authService'], 'canHideFinanceAdminControls').and.returnValue(false);
 
-  // API-returned raw model objects (match your RevShareTypeCd and Division shapes)
+  // Realistic API payloads matching your models
+  const costcenters = [{ id: 1 }];
+  const revShareDivMaps: any[] = []; 
   const revenueShares = [
     {
       selected: false,
       revShareTypeId: 10,
       revShareTypeCd: 'R1',
       revShareTypeDesc: 'Revenue A',
-      activeIndic: true,
-      createdBy: 'u',
-      createdDt: '2025-01-01',
-      updatedBy: 'u',
-      updatedDt: '2025-01-02'
+      activeIndic: true
     }
   ];
-
   const divisions = [
     {
       selected: false,
       divisionId: 20,
       divisionCd: 'D1',
       divisionDesc: 'Division A',
-      regDesc: '',
-      revShareDivId: 0,
-      revShareTypeId: 10,
-      revShareTypeCd: 'R1',
-      revShareDesc: '',
-      divisionShortNm: 'DivA',
-      costCenterId: 0,
-      costCenterNbr: 0,
-      costCenterDesc: '',
-      abaNbr: '',
-      typeCd: '',
-      activeIndic: true,
-      createdBy: 'u',
-      createdDt: '2025-01-01',
-      updatedBy: 'u',
-      updatedDt: '2025-01-02'
+      activeIndic: true
     }
   ];
 
-  // other forkJoin item(s) — not asserted here
-  const costcenters = [{ id: 1 }];
-  const revShareDivMaps: any[] = [];
-
-  // Capture called URLs for debugging
+  // Track actual URLs called
   const calledUrls: string[] = [];
   spyOn(component.feeApiservice, 'getRequest').and.callFake((url: string) => {
-    calledUrls.push(String(url).toLowerCase());
-    if (String(url).toLowerCase().includes('cost') || String(url).toLowerCase().includes('costcenter')) {
-      return of(costcenters);
-    }
-    if (String(url).toLowerCase().includes('revsharediv') || String(url).toLowerCase().includes('revshared')) {
-      return of(revShareDivMaps);
-    }
-    if (String(url).toLowerCase().includes('revsharetype') || String(url).toLowerCase().includes('revsharetypecd')) {
-      return of(revenueShares);
-    }
-    if (String(url).toLowerCase().includes('division')) {
-      return of(divisions);
-    }
-    return of(null);
+    const u = String(url || '').toLowerCase();
+    calledUrls.push(u);
+    if (u.includes('cost') || u.includes('costcenter')) return of(costcenters);
+    if (u.includes('revsharediv') || u.includes('revshared')) return of(revShareDivMaps);
+    if (u.includes('revsharetype') || u.includes('revsharetypecd')) return of(revenueShares);
+    if (u.includes('division')) return of(divisions);
+    // fallback safe array so no null length
+    return of([]);
   });
 
-  // utils.LoadComboBoxData should return label/value option arrays (what the component stores in *ComboBoxData)
+  // Make sure LoadComboBoxData returns an array (not null)
+  const mappedRevenue = [{ label: 'Revenue A', value: '10' }];
   const mappedDivisions = [{ label: 'Division A', value: '20' }];
   spyOn(component['utils'], 'LoadComboBoxData').and.callFake((arr: any[], label: string, _code: string, id: string) => {
+    if (label === 'revShareTypeDesc') return mappedRevenue;
     if (label === 'divisionDesc') return mappedDivisions;
-    if (label === 'revShareTypeDesc') return [{ label: 'Revenue A', value: '10' }];
     return [];
   });
 
-  // Provide ViewChild mocks so assignments succeed (these are the targets of JSON.parse(JSON.stringify(...)))
+  // Ensure ViewChild mocks exist (component code expects these to be objects, not null)
   (component as any)._revenueShareComboBox = { options: null };
   (component as any)._divisionComboBox = { options: null };
 
@@ -81,27 +54,30 @@ it('ngOnInit else/complete: sets divisionComboBoxData, deep-clones viewchild.opt
 
   // Act
   component.ngOnInit();
-  tick(); // flush forkJoin subscribe next + complete
+  tick();
 
-  // Quick sanity: make sure the test actually triggered the revenue & division API calls
-  const sawRevenueUrl = calledUrls.some(u => /revsharetype|revsharetypecd/i.test(u));
-  const sawDivisionUrl = calledUrls.some(u => /division/i.test(u));
-  if (!sawRevenueUrl || !sawDivisionUrl) {
-    fail('ngOnInit complete branch not reached; actual called URLs: ' + JSON.stringify(calledUrls, null, 2));
+  // Diagnostic checks to help find root cause if something is null
+  if (!component.divisionComboBoxData) {
+    fail('divisionComboBoxData is null — calledUrls: ' + JSON.stringify(calledUrls));
+    return;
+  }
+  if (!component.revenueShareComboBoxData) {
+    fail('revenueShareComboBoxData is null — calledUrls: ' + JSON.stringify(calledUrls));
+    return;
+  }
+  if ((component as any)._revenueShareComboBox == null) {
+    fail('_revenueShareComboBox is null — calledUrls: ' + JSON.stringify(calledUrls));
+    return;
+  }
+  if ((component as any)._divisionComboBox == null) {
+    fail('_divisionComboBox is null — calledUrls: ' + JSON.stringify(calledUrls));
     return;
   }
 
-  // ASSERTIONS for the exact lines you provided (else/complete branch)
-  // 1) divisionComboBoxData uses utils.LoadComboBoxData output
+  // Assertions (what you intended)
   expect(component.divisionComboBoxData).toEqual([{ options: mappedDivisions }]);
-
-  // 2) viewchild.options deep-cloned from API arrays
   expect((component as any)._revenueShareComboBox.options).toEqual(JSON.parse(JSON.stringify(revenueShares)));
   expect((component as any)._divisionComboBox.options).toEqual(JSON.parse(JSON.stringify(divisions)));
-
-  // 3) loading turned off
   expect(component.loading).toBeFalse();
-
-  // 4) LOADINGACTION(false) dispatched
   expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
 }));
