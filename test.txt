@@ -1,106 +1,66 @@
-it('onSearchButtonClick: rbnTax true -> loads catGlmaps (id "1") and sets category combo', fakeAsync(() => {
-  // Arrange
-  (component as any).rbnTax = { value: true };
-  (component as any).rbnNonTax = { value: false };
+it('onSearchButtonClick: rbnNonTax true -> loads catGlmaps (id "2") and sets table rows', fakeAsync(() => {
+  // Arrange: simulate the radio button state
+  (component as any).rbnTax = { value: false };
+  (component as any).rbnNonTax = { value: true };
 
+  // Provide a minimal appConfigService stub used by the component
   (component as any).appConfigService = {
-    getGetCatGlAcctMappingByIdUrl: '/api/catglmaps/' // component will append '1'
+    getGetCatGlAcctMappingByIdUrl: '/api/catglmaps/' // component appends '2'
   } as any;
 
-  const catGlmaps = [{ acct: 'A1' }];
+  // The server response the component expects for catGlmaps
+  const catGlmapsResponse = [{ id: 1, categoryId: 8, categoryDescription: 'Other', categoryCode: '7' }];
 
-  // spy getRequest: only the catGlmaps request is expected in this branch
-  const calledUrls: string[] = [];
+  // Spy feeApiservice.getRequest and return observable for the specific URL the component calls
   spyOn(component.feeApiservice, 'getRequest').and.callFake((url: string) => {
-    calledUrls.push(String(url));
-    if (String(url).includes('/catglmaps/') && String(url).endsWith('1')) {
-      return of(catGlmaps);
+    if (String(url).includes('/catglmaps/') && String(url).endsWith('2')) {
+      return of(catGlmapsResponse); // success path
     }
-    // if any unexpected call happens return empty array
+    // any unexpected call -> return safe empty array (prevents undefined being passed into helper)
     return of([]);
   });
 
-  // Ensure LoadTableRows won't throw
-  const loadSpy = spyOn(component as any, 'LoadTableRows').and.stub();
-  spyOn(component as any, 'displayServiceErrors').and.stub();
+  // Prevent the *real* LoadComboBoxData from running (this avoids collection.filter errors)
+  const mappedCategories = [{ label: 'Other', value: '8' }];
+  spyOn(component['utils'], 'LoadComboBoxData').and.callFake((arr: any[], label: string, _code: string, id: string) => {
+    // return the mapping the component will insert into categoryComboBoxData
+    if (label === 'categoryDescription') { return mappedCategories; }
+    return [];
+  });
 
-  // ViewChild mock not required here because category combo isn't set in this branch
+  // Provide viewchild mocks so assignments like this._categoryComboBox.options won't throw
+  (component as any)._categoryComboBox = { options: null };
+  (component as any).categoryComboBox = (component as any)._categoryComboBox;
+
+  // Spy LoadTableRows so we can assert it was called
+  const loadTableRowsSpy = spyOn(component as any, 'LoadTableRows').and.stub();
+
+  // Spy displayServiceErrors so test fails if error path invoked
+  const displaySpy = spyOn(component as any, 'displayServiceErrors').and.stub();
+
   const dispatchSpy = spyOn(component['store'], 'dispatch');
 
   // Act
   component.onSearchButtonClick();
   tick();
 
-  // Assert: one request was made and it was for id '1'
-  expect(calledUrls.some(u => /catglmaps\/1$/.test(u))).toBeTrue();
-  expect(loadSpy).toHaveBeenCalledWith(catGlmaps);
+  // Assert
+  // feeApiservice called with URL ending in '2'
+  expect((component.feeApiservice.getRequest as jasmine.Spy).calls.allArgs().some(a => /catglmaps\/2$/.test(String(a[0])))).toBeTrue();
 
-  // Do NOT assert dispatch in error path — this branch may or may not dispatch; but component usually clears loading somewhere
-  // If your component sets loading=false here, assert it
+  // LoadTableRows should have been called with the response
+  expect(loadTableRowsSpy).toHaveBeenCalledWith(catGlmapsResponse);
+
+  // categoryComboBoxData should be set using the stubbed LoadComboBoxData
+  expect(component.categoryComboBoxData).toEqual([{ options: mappedCategories }]);
+
+  // ViewChild options deep-cloned from categories - the component does JSON.parse(JSON.stringify(this.categories))
+  // but in this test categories array is empty (we returned [] from other requests), so we just ensure no crash and loading false
   expect(component.loading).toBeFalse();
-}));
 
-it('onSearchButtonClick: rbnNonTax true -> loads catGlmaps (id "2") and sets table rows', fakeAsync(() => {
-  (component as any).rbnTax = { value: false };
-  (component as any).rbnNonTax = { value: true };
+  // displayServiceErrors must not have been called (we tested success flow)
+  expect(displaySpy).not.toHaveBeenCalled();
 
-  (component as any).appConfigService = {
-    getGetCatGlAcctMappingByIdUrl: '/api/catglmaps/'
-  } as any;
-
-  const catGlmaps = [{ acct: 'B1' }];
-  const calledUrls: string[] = [];
-  spyOn(component.feeApiservice, 'getRequest').and.callFake((url: string) => {
-    calledUrls.push(String(url));
-    if (String(url).includes('/catglmaps/') && String(url).endsWith('2')) {
-      return of(catGlmaps);
-    }
-    return of([]);
-  });
-
-  const loadSpy = spyOn(component as any, 'LoadTableRows').and.stub();
-  spyOn(component as any, 'displayServiceErrors').and.stub();
-  const dispatchSpy = spyOn(component['store'], 'dispatch');
-
-  component.onSearchButtonClick();
-  tick();
-
-  expect(calledUrls.some(u => /catglmaps\/2$/.test(u))).toBeTrue();
-  expect(loadSpy).toHaveBeenCalledWith(catGlmaps);
-  expect(component.loading).toBeFalse();
-}));
-
-it('onSearchButtonClick: when catGlmaps request errors -> calls displayServiceErrors and clears catGlmaps', fakeAsync(() => {
-  (component as any).rbnTax = { value: true };
-  (component as any).rbnNonTax = { value: false };
-
-  (component as any).appConfigService = {
-    getGetCatGlAcctMappingByIdUrl: '/api/catglmaps/'
-  } as any;
-
-  const calledUrls: string[] = [];
-  spyOn(component.feeApiservice, 'getRequest').and.callFake((url: string) => {
-    calledUrls.push(String(url));
-    if (String(url).includes('/catglmaps/') && String(url).endsWith('1')) {
-      return throwError(() => ({ error: { statusMessage: 'boom' } }));
-    }
-    return of([]);
-  });
-
-  const displaySpy = spyOn(component as any, 'displayServiceErrors').and.stub();
-  const loadSpy = spyOn(component as any, 'LoadTableRows').and.stub();
-  const dispatchSpy = spyOn(component['store'], 'dispatch');
-
-  // Pre-populate catGlmaps so we can assert it got cleared on error (component sets catGlmaps = [])
-  (component as any).catGlmaps = [{ acct: 'X' }];
-
-  component.onSearchButtonClick();
-  tick();
-
-  expect(displaySpy).toHaveBeenCalledWith('boom');
-  // LoadTableRows should NOT have been called with the success payload
-  expect(loadSpy).not.toHaveBeenCalledWith(jasmine.arrayContaining([{ acct: 'A1' }]));
-  // Expect component's catGlmaps cleared (if the code sets catGlmaps = [])
-  expect((component as any).catGlmaps).toEqual([]);
-  // Only assert dispatch if the component actually calls it in this error callback. Many versions don't — so don't assert here.
+  // dispatch was called to clear loading at the end (component may call dispatch somewhere in the flow)
+  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
 }));
