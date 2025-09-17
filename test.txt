@@ -1,27 +1,27 @@
-it('onSearchButtonClick: when rbnTax.value true -> calls fetch for id "1", loads rows and sets category combo', fakeAsync(() => {
+it('onSearchButtonClick: when rbnTax.value true -> fetch id "1", loads rows and sets category combo', fakeAsync(() => {
   // Arrange
   (component as any).rbnTax = { value: true };
   (component as any).rbnNonTax = { value: false };
 
-  // stub appConfigService URL used by component
+  // Ensure component knows the config URLs used in forkJoin
   (component as any).appConfigService = {
-    getGetCatGlAcctMappingByIdUrl: '/api/catglmaps/'
+    getGetCatGlAcctMappingByIdUrl: '/api/catglmaps/',
+    getAllCategoryUrl: '/api/categories'
   } as any;
 
+  // what the two forkJoin calls should return
   const catGlmaps = [{ acct: 'A1' }];
   const categories = [{ categoryId: 7, categoryDescription: 'Estate', categoryCode: '4' }];
 
-  // stub feeApiservice.getRequest to return the right observables
+  // Spy feeApiservice.getRequest to return based on the URL
   spyOn(component.feeApiservice, 'getRequest').and.callFake((url: string) => {
-    // expect URL includes + '1'
     if (url === (component as any).appConfigService.getGetCatGlAcctMappingByIdUrl + '1') {
       return of(catGlmaps);
     }
-    // any other category fetch: return categories
     if (url === (component as any).appConfigService.getAllCategoryUrl) {
       return of(categories);
     }
-    return of([]);
+    return of(null);
   });
 
   // Provide utils.LoadComboBoxData predictable mapping
@@ -31,7 +31,7 @@ it('onSearchButtonClick: when rbnTax.value true -> calls fetch for id "1", loads
     return [];
   });
 
-  // Provide viewchild mock so assignment does not throw
+  // ViewChild mock so assignment does not throw
   (component as any)._categoryComboBox = { options: null };
   (component as any).categoryComboBox = (component as any)._categoryComboBox;
 
@@ -42,7 +42,7 @@ it('onSearchButtonClick: when rbnTax.value true -> calls fetch for id "1", loads
 
   // Act
   component.onSearchButtonClick();
-  tick(); // flush forkJoin
+  tick(); // flush forkJoin + subscribe
 
   // Assert
   expect(component.feeApiservice.getRequest).toHaveBeenCalledWith(
@@ -56,14 +56,14 @@ it('onSearchButtonClick: when rbnTax.value true -> calls fetch for id "1", loads
 }));
 
 
-it('onSearchButtonClick: when rbnNonTax.value true -> calls fetch for id "2", loads rows and sets category combo', fakeAsync(() => {
+it('onSearchButtonClick: when rbnNonTax.value true -> fetch id "2", loads rows and sets category combo', fakeAsync(() => {
   // Arrange
   (component as any).rbnTax = { value: false };
   (component as any).rbnNonTax = { value: true };
 
-  // stub appConfigService URL used by component
   (component as any).appConfigService = {
-    getGetCatGlAcctMappingByIdUrl: '/api/catglmaps/'
+    getGetCatGlAcctMappingByIdUrl: '/api/catglmaps/',
+    getAllCategoryUrl: '/api/categories'
   } as any;
 
   const catGlmaps = [{ acct: 'B1' }];
@@ -76,7 +76,7 @@ it('onSearchButtonClick: when rbnNonTax.value true -> calls fetch for id "2", lo
     if (url === (component as any).appConfigService.getAllCategoryUrl) {
       return of(categories);
     }
-    return of([]);
+    return of(null);
   });
 
   const mappedCategories = [{ label: 'Other', value: '8' }];
@@ -85,13 +85,10 @@ it('onSearchButtonClick: when rbnNonTax.value true -> calls fetch for id "2", lo
     return [];
   });
 
-  // viewchild mock
   (component as any)._categoryComboBox = { options: null };
   (component as any).categoryComboBox = (component as any)._categoryComboBox;
 
-  // Prevent heavy side effects
   spyOn(component as any, 'LoadTableRows').and.stub();
-
   const dispatchSpy = spyOn(component['store'], 'dispatch');
 
   // Act
