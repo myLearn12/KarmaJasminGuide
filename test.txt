@@ -1,80 +1,61 @@
-it('ngOnInit complete: sets category/division combo data, viewchild.options, clears loading and dispatches LOADINGACTION(false)', fakeAsync(() => {
-  // Arrange
-  // Realistic results that forkJoin must return
-  const catGlmaps = [{ id: 1, foo: 'bar' }]; // used by LoadTableRows (we stub that)
-  const categories = [
-    { categoryId: 7, categoryDescription: 'Estate', categoryCode: '4' }
-  ];
-  const divisions = [
-    { divisionId: 20, divisionDesc: 'Division A', divisionCd: 'D1' }
-  ];
+it('ngOnInit complete: sets combo data, viewchild options, clears loading and dispatches LOADINGACTION(false)', fakeAsync(() => {
+  // arrange
+  spyOn(component['authService'], 'canHideFinanceAdminControls').and.returnValue(false);
 
-  // Make sure we can reference the appConfigService properties (private is ok via bracket)
-  const cfg: any = component['appConfigService'];
-  if (!cfg) {
-    fail('Test setup: component.appConfigService is not available');
-    return;
-  }
+  // set (private) appConfigService on component for exact URL matching in test
+  (component as any).appConfigService = {
+    getAllCostCenterUrl: '/api/costcenters',
+    getAllRevShareDivMappingUrl: '/api/revsharedivmaps',
+    getAllRevShareTypeCdUrl: '/api/revsharetypes',
+    getAllDivisionUrl: '/api/divisions'
+  } as any;
 
-  // Capture URLs called and return the correct observable based on the actual config URLs
-  const called: string[] = [];
+  // realistic responses
+  const costcenters = [{ id: 1 }];
+  const revShareDivMaps: any[] = [];
+  const revenueShares = [{ revShareTypeId: 10, revShareTypeDesc: 'Revenue A', revShareTypeCd: 'R1' }];
+  const divisions = [{ divisionId: 20, divisionDesc: 'Division A', divisionCd: 'D1' }];
+
+  // stub feeApiservice.getRequest to return correct observables for the exact URLs
   spyOn(component.feeApiservice, 'getRequest').and.callFake((url: string) => {
-    called.push(String(url));
-    // match exactly against the config values used by the component
-    if (String(url) === cfg.getGetCatGlAcctMappingByIdUrl + '1') {
-      return of(catGlmaps);
-    }
-    if (String(url) === cfg.getAllCategoryUrl) {
-      return of(categories);
-    }
-    if (String(url) === cfg.getAllDivisionUrl) {
-      return of(divisions);
-    }
-    // If component calls a different URL, return something and keep a note — test will fail with diagnostics
-    return of([{ _unexpectedUrl: url }]);
+    if (url === (component as any).appConfigService.getAllCostCenterUrl) return of(costcenters);
+    if (url === (component as any).appConfigService.getAllRevShareDivMappingUrl) return of(revShareDivMaps);
+    if (url === (component as any).appConfigService.getAllRevShareTypeCdUrl) return of(revenueShares);
+    if (url === (component as any).appConfigService.getAllDivisionUrl) return of(divisions);
+    return of(null);
   });
 
-  // Spy LoadTableRows to avoid real rendering logic
-  spyOn(component as any, 'LoadTableRows').and.stub();
-
-  // Provide the ViewChild mocks so .options assignment won't crash
-  (component as any)._categoryComboBox = { options: null };
-  (component as any).divisionComboBox = { options: null };
-
-  // utils.LoadComboBoxData returns the mapped options arrays used in combo data
-  const mappedCategories = [{ label: 'Estate', value: '7' }];
-  const mappedDivisions  = [{ label: 'Division A', value: '20' }];
-  spyOn(component['utils'], 'LoadComboBoxData').and.callFake((arr: any[], label: string, _code?: string, id?: string) => {
-    if (label === 'categoryDescription') return mappedCategories;
-    if (label === 'divisionDesc')    return mappedDivisions;
+  // make LoadComboBoxData produce deterministic mapped arrays
+  const mappedRevenue = [{ label: 'Revenue A', value: '10' }];
+  const mappedDivisions = [{ label: 'Division A', value: '20' }];
+  spyOn(component['utils'], 'LoadComboBoxData').and.callFake((arr: any[], label: string) => {
+    if (label === 'revShareTypeDesc') return mappedRevenue;
+    if (label === 'divisionDesc') return mappedDivisions;
     return [];
   });
 
+  // provide ViewChild mocks so .options assignments don't throw
+  (component as any)._revenueShareComboBox = { options: null };
+  (component as any).revenueShareComboBox = (component as any)._revenueShareComboBox;
+  (component as any)._divisionComboBox = { options: null };
+  (component as any).divisionComboBox = (component as any)._divisionComboBox;
+
+  // stub heavy UI methods that ngOnInit might call
+  spyOn(component as any, 'LoadTableRows').and.stub();
+
   const dispatchSpy = spyOn(component['store'], 'dispatch');
 
-  // Act
+  // act
   component.ngOnInit();
-  tick(); // let forkJoin next+complete run
+  tick(); // flush forkJoin subscribe next+complete
 
-  // Debug helper: ensure the component actually called the config URLs we expected
-  const expectedUrls = [
-    cfg.getGetCatGlAcctMappingByIdUrl + '1',
-    cfg.getAllCategoryUrl,
-    cfg.getAllDivisionUrl
-  ];
-  const missed = expectedUrls.filter(u => !called.includes(u));
-  if (missed.length) {
-    fail('ngOnInit did not call expected URLs. Called: ' + JSON.stringify(called) + '; Missing: ' + JSON.stringify(missed));
-    return;
-  }
-
-  // Assert: combo data arrays built using utils.LoadComboBoxData
-  expect(component.categoryComboBoxData).toEqual([{ options: mappedCategories }]);
+  // assert combo data built with mapped options
+  expect(component.revenueShareComboBoxData).toEqual([{ options: mappedRevenue }]);
   expect(component.divisionComboBoxData).toEqual([{ options: mappedDivisions }]);
 
-  // Assert: ViewChild options set to deep-cloned arrays (original categories/divisions preserved shape)
-  expect((component as any)._categoryComboBox.options).toEqual(JSON.parse(JSON.stringify(categories)));
-  expect((component as any).divisionComboBox.options).toEqual(JSON.parse(JSON.stringify(divisions)));
+  // assert viewchild .options deep-cloned from the raw arrays returned
+  expect((component as any)._revenueShareComboBox.options).toEqual(JSON.parse(JSON.stringify(revenueShares)));
+  expect((component as any)._divisionComboBox.options).toEqual(JSON.parse(JSON.stringify(divisions)));
 
   // loading turned off and LOADINGACTION(false) dispatched
   expect(component.loading).toBeFalse();
