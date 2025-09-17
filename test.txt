@@ -1,68 +1,29 @@
-it('ngOnInit complete: sets category/division combo data, viewchild.options, clears loading and dispatches LOADINGACTION(false)', fakeAsync(() => {
-  // Arrange -----------------------------------------------------------------
-  // make rbnTax available and setValue callable
-  (component as any).rbnTax = { setValue: jasmine.createSpy('setValue') };
+it('TaxAccountChange: when rbnTax.value is true should set action=1, Tax=true, NonTax=false', () => {
+  // Arrange
+  component.rbnTax = { value: true, setValue: jasmine.createSpy('setValue') };
+  component.rbnNonTax = { setValue: jasmine.createSpy('setValue') };
+  component._actionRadioButton = { value: null };
 
-  // provide appConfigService keys used by ngOnInit
-  (component as any).appConfigService = {
-    getGetCatGlAcctMappingByIdUrl: '/api/catglmaps/',
-    getAllCategoryUrl: '/api/categories',
-    getAllDivisionUrl: '/api/divisions'
-  } as any;
+  // Act
+  component.TaxAccountChange();
 
-  // Minimal data returned by forkJoin
-  const catGlmaps: any[] = []; // we don't assert on LoadTableRows here
-  const categories = [
-    { categoryId: 7, categoryDescription: 'Estate', categoryCode: '4' }
-  ];
-  const divisions = [
-    { divisionId: 20, divisionDesc: 'Division A', divisionCd: 'D1' }
-  ];
+  // Assert
+  expect(component._actionRadioButton.value).toBe("1");
+  expect(component.rbnTax.setValue).toHaveBeenCalledWith(true);
+  expect(component.rbnNonTax.setValue).toHaveBeenCalledWith(false);
+});
 
-  // Spy feeApiservice.getRequest to return the right observables for each URL
-  spyOn(component.feeApiservice, 'getRequest').and.callFake((url: string) => {
-    if (url === (component as any).appConfigService.getGetCatGlAcctMappingByIdUrl + '1') return of(catGlmaps);
-    if (url === (component as any).appConfigService.getAllCategoryUrl) return of(categories);
-    if (url === (component as any).appConfigService.getAllDivisionUrl) return of(divisions);
-    return of([]);
-  });
+it('TaxAccountChange: when rbnTax.value is false should set action=2, NonTax=true, Tax=false', () => {
+  // Arrange
+  component.rbnTax = { value: false, setValue: jasmine.createSpy('setValue') };
+  component.rbnNonTax = { setValue: jasmine.createSpy('setValue') };
+  component._actionRadioButton = { value: null };
 
-  // Provide simple deterministic mapping for utils.LoadComboBoxData
-  const mappedCategories = [{ label: 'Estate', value: '7' }];
-  const mappedDivisions = [{ label: 'Division A', value: '20' }];
-  spyOn(component['utils'], 'LoadComboBoxData').and.callFake((arr: any[], label: string) => {
-    if (label === 'categoryDescription') return mappedCategories;
-    if (label === 'divisionDesc') return mappedDivisions;
-    return [];
-  });
+  // Act
+  component.TaxAccountChange();
 
-  // Ensure viewchild mocks exist so .options assignment won't throw
-  (component as any)._categoryComboBox = { options: null };
-  (component as any).categoryComboBox = (component as any)._categoryComboBox;
-  (component as any)._divisionComboBox = { options: null };
-  (component as any).divisionComboBox = (component as any)._divisionComboBox;
-
-  // Prevent side-effects in LoadTableRows if called
-  if ((component as any).LoadTableRows) {
-    spyOn(component as any, 'LoadTableRows').and.stub();
-  }
-
-  const dispatchSpy = spyOn(component['store'], 'dispatch');
-
-  // Act ---------------------------------------------------------------------
-  component.ngOnInit();
-  tick(); // flush forkJoin subscribe next + complete
-
-  // Assert ------------------------------------------------------------------
-  // combo data populated using utils.LoadComboBoxData
-  expect(component.categoryComboBoxData).toEqual([{ options: mappedCategories }]);
-  expect(component.divisionComboBoxData).toEqual([{ options: mappedDivisions }]);
-
-  // viewchild .options deep-cloned from returned arrays
-  expect((component as any)._categoryComboBox.options).toEqual(JSON.parse(JSON.stringify(categories)));
-  expect((component as any)._divisionComboBox.options).toEqual(JSON.parse(JSON.stringify(divisions)));
-
-  // loading cleared and LOADINGACTION(false) dispatched
-  expect(component.loading).toBeFalse();
-  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
-}));
+  // Assert
+  expect(component._actionRadioButton.value).toBe("2");
+  expect(component.rbnNonTax.setValue).toHaveBeenCalledWith(true);
+  expect(component.rbnTax.setValue).toHaveBeenCalledWith(false);
+});
