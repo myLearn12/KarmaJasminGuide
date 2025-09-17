@@ -1,7 +1,7 @@
-it('ngOnInit complete: builds combo data, sets viewchild.options, clears loading and dispatches LOADINGACTION(false)', fakeAsync(() => {
+it('ngOnInit complete: sets category/division combo data, viewchild.options, clears loading and dispatches LOADINGACTION(false)', fakeAsync(() => {
   // Arrange
-  // sample data returned by the three requests
-  const catGlmaps = [{ id: 1, foo: 'bar' }]; // used by LoadTableRows (we don't assert that here)
+  // Realistic results that forkJoin must return
+  const catGlmaps = [{ id: 1, foo: 'bar' }]; // used by LoadTableRows (we stub that)
   const categories = [
     { categoryId: 7, categoryDescription: 'Estate', categoryCode: '4' }
   ];
@@ -9,42 +9,64 @@ it('ngOnInit complete: builds combo data, sets viewchild.options, clears loading
     { divisionId: 20, divisionDesc: 'Division A', divisionCd: 'D1' }
   ];
 
-  // Spy feeApiservice.getRequest so forkJoin receives observables
+  // Make sure we can reference the appConfigService properties (private is ok via bracket)
+  const cfg: any = component['appConfigService'];
+  if (!cfg) {
+    fail('Test setup: component.appConfigService is not available');
+    return;
+  }
+
+  // Capture URLs called and return the correct observable based on the actual config URLs
+  const called: string[] = [];
   spyOn(component.feeApiservice, 'getRequest').and.callFake((url: string) => {
-    if (String(url).includes(component.appConfigService.getGetCatGlAcctMappingByIdUrl)) {
+    called.push(String(url));
+    // match exactly against the config values used by the component
+    if (String(url) === cfg.getGetCatGlAcctMappingByIdUrl + '1') {
       return of(catGlmaps);
     }
-    if (String(url).includes(component.appConfigService.getAllCategoryUrl)) {
+    if (String(url) === cfg.getAllCategoryUrl) {
       return of(categories);
     }
-    if (String(url).includes(component.appConfigService.getAllDivisionUrl)) {
+    if (String(url) === cfg.getAllDivisionUrl) {
       return of(divisions);
     }
-    return of(null);
+    // If component calls a different URL, return something and keep a note — test will fail with diagnostics
+    return of([{ _unexpectedUrl: url }]);
   });
 
-  // Provide viewchild mocks so assignments in complete() do not throw
+  // Spy LoadTableRows to avoid real rendering logic
+  spyOn(component as any, 'LoadTableRows').and.stub();
+
+  // Provide the ViewChild mocks so .options assignment won't crash
   (component as any)._categoryComboBox = { options: null };
   (component as any).divisionComboBox = { options: null };
 
-  // Make utils.LoadComboBoxData return the mapped arrays used for combo box data
+  // utils.LoadComboBoxData returns the mapped options arrays used in combo data
   const mappedCategories = [{ label: 'Estate', value: '7' }];
   const mappedDivisions  = [{ label: 'Division A', value: '20' }];
-  spyOn(component['utils'], 'LoadComboBoxData').and.callFake((arr: any[], label: string) => {
+  spyOn(component['utils'], 'LoadComboBoxData').and.callFake((arr: any[], label: string, _code?: string, id?: string) => {
     if (label === 'categoryDescription') return mappedCategories;
     if (label === 'divisionDesc')    return mappedDivisions;
     return [];
   });
 
-  // Spy store.dispatch
   const dispatchSpy = spyOn(component['store'], 'dispatch');
-
-  // Also spy LoadTableRows to avoid side-effects (ngOnInit calls it in next)
-  spyOn(component as any, 'LoadTableRows').and.stub();
 
   // Act
   component.ngOnInit();
-  tick(); // flush forkJoin, next + complete handlers
+  tick(); // let forkJoin next+complete run
+
+  // Debug helper: ensure the component actually called the config URLs we expected
+  const expectedUrls = [
+    cfg.getGetCatGlAcctMappingByIdUrl + '1',
+    cfg.getAllCategoryUrl,
+    cfg.getAllDivisionUrl
+  ];
+  const missed = expectedUrls.filter(u => !called.includes(u));
+  if (missed.length) {
+    fail('ngOnInit did not call expected URLs. Called: ' + JSON.stringify(called) + '; Missing: ' + JSON.stringify(missed));
+    return;
+  }
 
   // Assert: combo data arrays built using utils.LoadComboBoxData
   expect(component.categoryComboBoxData).toEqual([{ options: mappedCategories }]);
