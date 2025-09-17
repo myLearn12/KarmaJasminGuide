@@ -1,29 +1,110 @@
-it('TaxAccountChange: when rbnTax.value is true should set action=1, Tax=true, NonTax=false', () => {
+it('onSearchButtonClick: when rbnTax.value true -> calls fetch for id "1", loads rows and sets category combo', fakeAsync(() => {
   // Arrange
-  component.rbnTax = { value: true, setValue: jasmine.createSpy('setValue') };
-  component.rbnNonTax = { setValue: jasmine.createSpy('setValue') };
-  component._actionRadioButton = { value: null };
+  (component as any).rbnTax = { value: true };
+  (component as any).rbnNonTax = { value: false };
+
+  // stub appConfigService URL used by component
+  (component as any).appConfigService = {
+    getGetCatGlAcctMappingByIdUrl: '/api/catglmaps/'
+  } as any;
+
+  const catGlmaps = [{ acct: 'A1' }];
+  const categories = [{ categoryId: 7, categoryDescription: 'Estate', categoryCode: '4' }];
+
+  // stub feeApiservice.getRequest to return the right observables
+  spyOn(component.feeApiservice, 'getRequest').and.callFake((url: string) => {
+    // expect URL includes + '1'
+    if (url === (component as any).appConfigService.getGetCatGlAcctMappingByIdUrl + '1') {
+      return of(catGlmaps);
+    }
+    // any other category fetch: return categories
+    if (url === (component as any).appConfigService.getAllCategoryUrl) {
+      return of(categories);
+    }
+    return of([]);
+  });
+
+  // Provide utils.LoadComboBoxData predictable mapping
+  const mappedCategories = [{ label: 'Estate', value: '7' }];
+  spyOn(component['utils'], 'LoadComboBoxData').and.callFake((arr: any[], label: string) => {
+    if (label === 'categoryDescription') return mappedCategories;
+    return [];
+  });
+
+  // Provide viewchild mock so assignment does not throw
+  (component as any)._categoryComboBox = { options: null };
+  (component as any).categoryComboBox = (component as any)._categoryComboBox;
+
+  // Prevent heavy side effects
+  spyOn(component as any, 'LoadTableRows').and.stub();
+
+  const dispatchSpy = spyOn(component['store'], 'dispatch');
 
   // Act
-  component.TaxAccountChange();
+  component.onSearchButtonClick();
+  tick(); // flush forkJoin
 
   // Assert
-  expect(component._actionRadioButton.value).toBe("1");
-  expect(component.rbnTax.setValue).toHaveBeenCalledWith(true);
-  expect(component.rbnNonTax.setValue).toHaveBeenCalledWith(false);
-});
+  expect(component.feeApiservice.getRequest).toHaveBeenCalledWith(
+    (component as any).appConfigService.getGetCatGlAcctMappingByIdUrl + '1'
+  );
+  expect((component as any).LoadTableRows).toHaveBeenCalledWith(catGlmaps);
+  expect(component.loading).toBeFalse();
+  expect(component.categoryComboBoxData).toEqual([{ options: mappedCategories }]);
+  expect((component as any)._categoryComboBox.options).toEqual(JSON.parse(JSON.stringify(categories)));
+  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
+}));
 
-it('TaxAccountChange: when rbnTax.value is false should set action=2, NonTax=true, Tax=false', () => {
+
+it('onSearchButtonClick: when rbnNonTax.value true -> calls fetch for id "2", loads rows and sets category combo', fakeAsync(() => {
   // Arrange
-  component.rbnTax = { value: false, setValue: jasmine.createSpy('setValue') };
-  component.rbnNonTax = { setValue: jasmine.createSpy('setValue') };
-  component._actionRadioButton = { value: null };
+  (component as any).rbnTax = { value: false };
+  (component as any).rbnNonTax = { value: true };
+
+  // stub appConfigService URL used by component
+  (component as any).appConfigService = {
+    getGetCatGlAcctMappingByIdUrl: '/api/catglmaps/'
+  } as any;
+
+  const catGlmaps = [{ acct: 'B1' }];
+  const categories = [{ categoryId: 8, categoryDescription: 'Other', categoryCode: '7' }];
+
+  spyOn(component.feeApiservice, 'getRequest').and.callFake((url: string) => {
+    if (url === (component as any).appConfigService.getGetCatGlAcctMappingByIdUrl + '2') {
+      return of(catGlmaps);
+    }
+    if (url === (component as any).appConfigService.getAllCategoryUrl) {
+      return of(categories);
+    }
+    return of([]);
+  });
+
+  const mappedCategories = [{ label: 'Other', value: '8' }];
+  spyOn(component['utils'], 'LoadComboBoxData').and.callFake((arr: any[], label: string) => {
+    if (label === 'categoryDescription') return mappedCategories;
+    return [];
+  });
+
+  // viewchild mock
+  (component as any)._categoryComboBox = { options: null };
+  (component as any).categoryComboBox = (component as any)._categoryComboBox;
+
+  // Prevent heavy side effects
+  spyOn(component as any, 'LoadTableRows').and.stub();
+
+  const dispatchSpy = spyOn(component['store'], 'dispatch');
 
   // Act
-  component.TaxAccountChange();
+  component.onSearchButtonClick();
+  tick();
 
   // Assert
-  expect(component._actionRadioButton.value).toBe("2");
-  expect(component.rbnNonTax.setValue).toHaveBeenCalledWith(true);
-  expect(component.rbnTax.setValue).toHaveBeenCalledWith(false);
-});
+  expect(component.feeApiservice.getRequest).toHaveBeenCalledWith(
+    (component as any).appConfigService.getGetCatGlAcctMappingByIdUrl + '2'
+  );
+  expect((component as any).LoadTableRows).toHaveBeenCalledWith(catGlmaps);
+  expect(component.loading).toBeFalse();
+  expect(component.categoryComboBoxData).toEqual([{ options: mappedCategories }]);
+  expect((component as any)._categoryComboBox.options).toEqual(JSON.parse(JSON.stringify(categories)));
+  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
+}));
