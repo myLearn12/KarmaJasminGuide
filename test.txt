@@ -1,63 +1,68 @@
-it('ngOnInit complete: sets combo data, viewchild options, clears loading and dispatches LOADINGACTION(false)', fakeAsync(() => {
-  // arrange
-  spyOn(component['authService'], 'canHideFinanceAdminControls').and.returnValue(false);
+it('ngOnInit complete: sets category/division combo data, viewchild.options, clears loading and dispatches LOADINGACTION(false)', fakeAsync(() => {
+  // Arrange -----------------------------------------------------------------
+  // make rbnTax available and setValue callable
+  (component as any).rbnTax = { setValue: jasmine.createSpy('setValue') };
 
-  // set (private) appConfigService on component for exact URL matching in test
+  // provide appConfigService keys used by ngOnInit
   (component as any).appConfigService = {
-    getAllCostCenterUrl: '/api/costcenters',
-    getAllRevShareDivMappingUrl: '/api/revsharedivmaps',
-    getAllRevShareTypeCdUrl: '/api/revsharetypes',
+    getGetCatGlAcctMappingByIdUrl: '/api/catglmaps/',
+    getAllCategoryUrl: '/api/categories',
     getAllDivisionUrl: '/api/divisions'
   } as any;
 
-  // realistic responses
-  const costcenters = [{ id: 1 }];
-  const revShareDivMaps: any[] = [];
-  const revenueShares = [{ revShareTypeId: 10, revShareTypeDesc: 'Revenue A', revShareTypeCd: 'R1' }];
-  const divisions = [{ divisionId: 20, divisionDesc: 'Division A', divisionCd: 'D1' }];
+  // Minimal data returned by forkJoin
+  const catGlmaps: any[] = []; // we don't assert on LoadTableRows here
+  const categories = [
+    { categoryId: 7, categoryDescription: 'Estate', categoryCode: '4' }
+  ];
+  const divisions = [
+    { divisionId: 20, divisionDesc: 'Division A', divisionCd: 'D1' }
+  ];
 
-  // stub feeApiservice.getRequest to return correct observables for the exact URLs
+  // Spy feeApiservice.getRequest to return the right observables for each URL
   spyOn(component.feeApiservice, 'getRequest').and.callFake((url: string) => {
-    if (url === (component as any).appConfigService.getAllCostCenterUrl) return of(costcenters);
-    if (url === (component as any).appConfigService.getAllRevShareDivMappingUrl) return of(revShareDivMaps);
-    if (url === (component as any).appConfigService.getAllRevShareTypeCdUrl) return of(revenueShares);
+    if (url === (component as any).appConfigService.getGetCatGlAcctMappingByIdUrl + '1') return of(catGlmaps);
+    if (url === (component as any).appConfigService.getAllCategoryUrl) return of(categories);
     if (url === (component as any).appConfigService.getAllDivisionUrl) return of(divisions);
-    return of(null);
+    return of([]);
   });
 
-  // make LoadComboBoxData produce deterministic mapped arrays
-  const mappedRevenue = [{ label: 'Revenue A', value: '10' }];
+  // Provide simple deterministic mapping for utils.LoadComboBoxData
+  const mappedCategories = [{ label: 'Estate', value: '7' }];
   const mappedDivisions = [{ label: 'Division A', value: '20' }];
   spyOn(component['utils'], 'LoadComboBoxData').and.callFake((arr: any[], label: string) => {
-    if (label === 'revShareTypeDesc') return mappedRevenue;
+    if (label === 'categoryDescription') return mappedCategories;
     if (label === 'divisionDesc') return mappedDivisions;
     return [];
   });
 
-  // provide ViewChild mocks so .options assignments don't throw
-  (component as any)._revenueShareComboBox = { options: null };
-  (component as any).revenueShareComboBox = (component as any)._revenueShareComboBox;
+  // Ensure viewchild mocks exist so .options assignment won't throw
+  (component as any)._categoryComboBox = { options: null };
+  (component as any).categoryComboBox = (component as any)._categoryComboBox;
   (component as any)._divisionComboBox = { options: null };
   (component as any).divisionComboBox = (component as any)._divisionComboBox;
 
-  // stub heavy UI methods that ngOnInit might call
-  spyOn(component as any, 'LoadTableRows').and.stub();
+  // Prevent side-effects in LoadTableRows if called
+  if ((component as any).LoadTableRows) {
+    spyOn(component as any, 'LoadTableRows').and.stub();
+  }
 
   const dispatchSpy = spyOn(component['store'], 'dispatch');
 
-  // act
+  // Act ---------------------------------------------------------------------
   component.ngOnInit();
-  tick(); // flush forkJoin subscribe next+complete
+  tick(); // flush forkJoin subscribe next + complete
 
-  // assert combo data built with mapped options
-  expect(component.revenueShareComboBoxData).toEqual([{ options: mappedRevenue }]);
+  // Assert ------------------------------------------------------------------
+  // combo data populated using utils.LoadComboBoxData
+  expect(component.categoryComboBoxData).toEqual([{ options: mappedCategories }]);
   expect(component.divisionComboBoxData).toEqual([{ options: mappedDivisions }]);
 
-  // assert viewchild .options deep-cloned from the raw arrays returned
-  expect((component as any)._revenueShareComboBox.options).toEqual(JSON.parse(JSON.stringify(revenueShares)));
+  // viewchild .options deep-cloned from returned arrays
+  expect((component as any)._categoryComboBox.options).toEqual(JSON.parse(JSON.stringify(categories)));
   expect((component as any)._divisionComboBox.options).toEqual(JSON.parse(JSON.stringify(divisions)));
 
-  // loading turned off and LOADINGACTION(false) dispatched
+  // loading cleared and LOADINGACTION(false) dispatched
   expect(component.loading).toBeFalse();
   expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
 }));
