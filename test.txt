@@ -1,34 +1,49 @@
-it('onSearchButtonClick: when rbnNonTax.value true and request errors -> should call displayServiceErrors, clear catGlmaps, stop loading and dispatch LOADINGACTION(false)', fakeAsync(() => {
-  // Arrange: simulate NonTax radio selected
-  (component as any).rbnNonTax = { value: true };
-  (component as any).rbnTax = { value: false };
-
-  // Mock appConfigService for URL construction
+it('LoadDefaultComboBox: on complete should set combo data and deep-clone viewchild.options', fakeAsync(() => {
+  // Arrange
   (component as any).appConfigService = {
-    getGetCatGlAcctMappingByIdUrl: '/api/catglmaps/'
+    getAllCategoryUrl: '/api/categories',
+    getAllDivisionUrl: '/api/divisions'
   } as any;
 
-  // Spy feeApiservice.getRequest to return an error
+  const categories = [
+    { categoryId: 7, categoryDescription: 'Estate', categoryCode: '4' }
+  ];
+  const divisions = [
+    { divisionId: 20, divisionDesc: 'Division A', divisionCd: 'D1' }
+  ];
+
+  // Stub getRequest -> return values for categories and divisions
   spyOn(component.feeApiservice, 'getRequest').and.callFake((url: string) => {
-    if (url.endsWith('2')) {
-      return throwError({ error: { statusMessage: 'Some error occurred' } });
+    if (url === (component as any).appConfigService.getAllCategoryUrl) {
+      return of(categories);
+    }
+    if (url === (component as any).appConfigService.getAllDivisionUrl) {
+      return of(divisions);
     }
     return of([]);
   });
 
-  // Spy displayServiceErrors to confirm it gets called with the message
-  const displaySpy = spyOn(component as any, 'displayServiceErrors').and.stub();
+  // Stub LoadComboBoxData
+  const mappedCategories = [{ label: 'Estate', value: '7' }];
+  const mappedDivisions = [{ label: 'Division A', value: '20' }];
+  spyOn(component['utils'], 'LoadComboBoxData').and.callFake((arr: any[], label: string) => {
+    if (label === 'categoryDescription') return mappedCategories;
+    if (label === 'divisionDesc') return mappedDivisions;
+    return [];
+  });
 
-  // Spy store.dispatch
-  const dispatchSpy = spyOn(component['store'], 'dispatch');
+  // Mock viewchilds so .options assignment works
+  (component as any)._categoryComboBox = { options: null };
+  (component as any)._divisionComboBox = { options: null };
 
   // Act
-  component.onSearchButtonClick();
-  tick(); // flush the subscription
+  component['LoadDefaultComboBox']();
+  tick(); // flush forkJoin
 
   // Assert
-  expect(displaySpy).toHaveBeenCalledWith('Some error occurred');
-  expect(component.catGlmaps).toEqual([]); // cleared
-  expect(component.loading).toBeFalse();
-  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
+  expect(component.categoryComboBoxData).toEqual([{ options: mappedCategories }]);
+  expect(component.divisionComboBoxData).toEqual([{ options: mappedDivisions }]);
+
+  expect((component as any)._categoryComboBox.options).toEqual(JSON.parse(JSON.stringify(categories)));
+  expect((component as any)._divisionComboBox.options).toEqual(JSON.parse(JSON.stringify(divisions)));
 }));
