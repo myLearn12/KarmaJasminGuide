@@ -1,66 +1,76 @@
-it('onSearchButtonClick: rbnNonTax true -> loads catGlmaps (id "2") and sets table rows', fakeAsync(() => {
-  // Arrange: simulate the radio button state
-  (component as any).rbnTax = { value: false };
-  (component as any).rbnNonTax = { value: true };
+it('onSearchButtonClick: when rbnTax.value true -> forkJoin next + complete: loads catGlmaps, sets categoryComboBoxData and viewchild.options, clears loading and dispatches', fakeAsync(() => {
+  // Arrange: make sure tax radio is selected
+  (component as any).rbnTax = { value: true };
+  (component as any).rbnNonTax = { value: false };
 
-  // Provide a minimal appConfigService stub used by the component
+  // Provide a minimal appConfigService URL used by the component
   (component as any).appConfigService = {
-    getGetCatGlAcctMappingByIdUrl: '/api/catglmaps/' // component appends '2'
+    getGetCatGlAcctMappingByIdUrl: '/api/catglmaps/' // component appends '1'
   } as any;
 
   // The server response the component expects for catGlmaps
-  const catGlmapsResponse = [{ id: 1, categoryId: 8, categoryDescription: 'Other', categoryCode: '7' }];
+  const catGlmapsResponse = [
+    { id: 1, categoryId: 7, categoryDescription: 'Estate', categoryCode: '4' }
+  ];
+
+  // The categories array that will be used when building combo data in complete()
+  component.categories = [
+    { categoryId: 7, categoryDescription: 'Estate', categoryCode: '4' }
+  ] as any;
 
   // Spy feeApiservice.getRequest and return observable for the specific URL the component calls
   spyOn(component.feeApiservice, 'getRequest').and.callFake((url: string) => {
-    if (String(url).includes('/catglmaps/') && String(url).endsWith('2')) {
-      return of(catGlmapsResponse); // success path
+    // ensure component calls the expected URL ending with '1'
+    if (String(url).indexOf((component as any).appConfigService.getGetCatGlAcctMappingByIdUrl) !== -1 &&
+        String(url).endsWith('1')) {
+      return of(catGlmapsResponse);
     }
-    // any unexpected call -> return safe empty array (prevents undefined being passed into helper)
+    // safe default for other calls
     return of([]);
   });
 
-  // Prevent the *real* LoadComboBoxData from running (this avoids collection.filter errors)
-  const mappedCategories = [{ label: 'Other', value: '8' }];
+  // Prevent the real LoadComboBoxData from running; return predictable mapped array
+  const mappedCategories = [{ label: 'Estate', value: '7' }];
   spyOn(component['utils'], 'LoadComboBoxData').and.callFake((arr: any[], label: string, _code: string, id: string) => {
-    // return the mapping the component will insert into categoryComboBoxData
     if (label === 'categoryDescription') { return mappedCategories; }
     return [];
   });
 
-  // Provide viewchild mocks so assignments like this._categoryComboBox.options won't throw
+  // Provide ViewChild mock so assignment to .options won't throw
   (component as any)._categoryComboBox = { options: null };
   (component as any).categoryComboBox = (component as any)._categoryComboBox;
 
-  // Spy LoadTableRows so we can assert it was called
+  // Spy LoadTableRows to verify it was called with the response
   const loadTableRowsSpy = spyOn(component as any, 'LoadTableRows').and.stub();
 
-  // Spy displayServiceErrors so test fails if error path invoked
+  // Spy displayServiceErrors so we can ensure error path isn't hit
   const displaySpy = spyOn(component as any, 'displayServiceErrors').and.stub();
 
+  // Spy dispatch to verify LOADINGACTION(false) is dispatched
   const dispatchSpy = spyOn(component['store'], 'dispatch');
 
   // Act
   component.onSearchButtonClick();
-  tick();
+  tick(); // flush the forkJoin subscribe (next + complete)
 
-  // Assert
-  // feeApiservice called with URL ending in '2'
-  expect((component.feeApiservice.getRequest as jasmine.Spy).calls.allArgs().some(a => /catglmaps\/2$/.test(String(a[0])))).toBeTrue();
+  // Assert: feeApiservice called with URL ending with '1'
+  expect((component.feeApiservice.getRequest as jasmine.Spy).calls.any()).toBeTrue();
+  expect((component.feeApiservice.getRequest as jasmine.Spy).calls.allArgs()
+    .some(args => /catglmaps\/1$/.test(String(args[0])))).toBeTrue();
 
-  // LoadTableRows should have been called with the response
+  // next() branch: LoadTableRows must be called with the data
   expect(loadTableRowsSpy).toHaveBeenCalledWith(catGlmapsResponse);
 
-  // categoryComboBoxData should be set using the stubbed LoadComboBoxData
+  // complete() branch: categoryComboBoxData set using stubbed LoadComboBoxData
   expect(component.categoryComboBoxData).toEqual([{ options: mappedCategories }]);
 
-  // ViewChild options deep-cloned from categories - the component does JSON.parse(JSON.stringify(this.categories))
-  // but in this test categories array is empty (we returned [] from other requests), so we just ensure no crash and loading false
+  // complete() branch: viewchild.options deep-cloned from categories
+  expect((component as any)._categoryComboBox.options).toEqual(JSON.parse(JSON.stringify(component.categories)));
+
+  // loading cleared and LOADINGACTION(false) dispatched
   expect(component.loading).toBeFalse();
-
-  // displayServiceErrors must not have been called (we tested success flow)
-  expect(displaySpy).not.toHaveBeenCalled();
-
-  // dispatch was called to clear loading at the end (component may call dispatch somewhere in the flow)
   expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
+
+  // success path - displayServiceErrors should not have been called
+  expect(displaySpy).not.toHaveBeenCalled();
 }));
