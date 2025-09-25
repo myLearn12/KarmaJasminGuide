@@ -1,58 +1,107 @@
-it('onUpdateModalClick(): else branch -> prepares model, enables division for tax account and shows action modal', () => {
-  // Arrange - ensure else branch (row selected)
+it('onAcceptButtonClick(ActionType.update) - error: restores selected, displays error and hides modal', fakeAsync(() => {
+  // Arrange
+  // Ensure we run the update branch
+  const ActionType = { add: 0, update: 1, delete: 2 };
+  (component as any).ActionType = ActionType;
+
+  // Pretend there is a selected row and original object
   (component as any).isRowSelected = true;
-  (component as any).catGlmap = {
-    catGlId: 123,
-    categoryId: 'C7',
-    divisionId: 20,
-    someField: 'value'
-  } as any;
+  component.selectedCatGlmap = { categoryGlId: 55, glAcctNbr: 'GL-OLD', some: 'x' } as any;
+  component.catGlmap = { categoryGlId: 55, glAcctNbr: 'GL-NEW', some: 'y' } as any;
 
-  // Ensure ActionType exists in component context and is stable for assertions
-  // (the real app likely uses an enum that compiles to numbers)
-  (component as any).ActionType = { add: 0, update: 1, delete: 2 };
+  // Ensure combo boxes exist (the method reads _categoryComboBox/_divisionComboBox values)
+  (component as any)._categoryComboBox = { value: ['7'] };
+  (component as any)._divisionComboBox = { value: ['20'] };
 
-  // Provide spies for helper methods that are called by onUpdateModalClick
-  const activateSpy = spyOn(component as any, 'ActivateFormControls').and.returnValue(null);
-  const initSpy     = spyOn(component as any, 'setIntialvalues').and.returnValue(null);
-  const catComboSpy = spyOn(component as any, 'getCategoryComboBoxValue').and.returnValue(null);
-  const divComboSpy = spyOn(component as any, 'getDivisionComboBoxVal').and.returnValue(null);
+  // Provide required utils behaviour
+  const utils = (component as any).utils = (component as any).utils || {};
+  spyOn(utils, 'getCurrentUser').and.returnValue('testUser');
+  spyOn(utils, 'ToEstDate').and.returnValue('2025-08-25T00:00:00');
 
-  // Make isTaxAccount return true so the enableDivision path executes
-  spyOn(component as any, 'isTaxAccount').and.returnValue(true);
+  // Spy the putRequest to throw error
+  const err = { error: { statusMessage: 'PUT failed' } };
+  const putSpy = spyOn((component as any).feeApiservice, 'putRequest').and.returnValue(throwError(() => err));
 
-  // Provide a mock actionModal with a show() spy so we can assert it was called
-  (component as any).actionModal = { show: jasmine.createSpy('show') };
-
-  // Precondition: enableDivision should be falsy before call
-  (component as any).enableDivision = false;
-  (component as any).isReadonly = false;
+  // Spy displayServiceErrors and other side-effects
+  const displaySpy = spyOn(component as any, 'displayServiceErrors');
+  const assignSpy = spyOn(Object, 'assign').and.callThrough(); // just to track restore
+  const clearSelSpy = spyOn(component as any, 'clearSelection').and.callThrough();
+  // Provide a mock action modal so hide() doesn't throw and can be asserted
+  (component as any)._actionModal = { hide: jasmine.createSpy('hide') };
 
   // Act
-  (component as any).onUpdateModalClick();
+  (component as any).onAcceptButtonClick(ActionType.update);
+  tick();
 
-  // Assert - high level flags
-  expect((component as any).isReadonly).toBeTrue();
-  expect((component as any).actionModalTitle).toBe('Update');
+  // Assert
+  expect(putSpy).toHaveBeenCalled(); // attempted the put
+  // On error, code should Object.assign back selected into catGlmap
+  expect(component.catGlmap).toBeDefined();
+  // displayServiceErrors should be called with the message from error
+  expect(displaySpy).toHaveBeenCalledWith('PUT failed');
+  // The action modal should be hidden and selection cleared/cleared
+  expect((component as any)._actionModal.hide).toHaveBeenCalled();
+  // clearSelection should have been invoked as part of method end
+  expect(clearSelSpy).toHaveBeenCalled();
+}));
 
-  // Now assert actionModalType was set to the enum value we provided
-  expect((component as any).actionModalType).toBe((component as any).ActionType.update);
 
-  // Assert - helper calls
-  expect(activateSpy).toHaveBeenCalled();
-  expect(initSpy).toHaveBeenCalled();
-  expect(catComboSpy).toHaveBeenCalled();
-  expect((component as any).isTaxAccount).toHaveBeenCalled();
-  expect(divComboSpy).toHaveBeenCalled(); // because isTaxAccount returned true
+it('onAcceptButtonClick(ActionType.update) - success: calls GenerateTableRows, shows success and writes audit log on complete', fakeAsync(() => {
+  // Arrange
+  const ActionType = { add: 0, update: 1, delete: 2 };
+  (component as any).ActionType = ActionType;
 
-  // Assert - enableDivision path executed
-  expect((component as any).enableDivision).toBeTrue();
+  (component as any).isRowSelected = true;
+  component.selectedCatGlmap = { categoryGlId: 77, glAcctNbr: 'GL-OLD', startDt: 's', endDt: 'e' } as any;
+  component.catGlmap = { categoryGlId: 77, glAcctNbr: 'GL-NEW', startDt: 'sX', endDt: 'eX' } as any;
 
-  // Assert - selectedCatGlmap is a deep copy (value-equal but not same reference)
-  expect((component as any).selectedCatGlmap).toBeDefined();
-  expect((component as any).selectedCatGlmap).not.toBe((component as any).catGlmap);
-  expect(JSON.stringify((component as any).selectedCatGlmap)).toEqual(JSON.stringify((component as any).catGlmap));
+  (component as any)._categoryComboBox = { value: ['7'] };
+  (component as any)._divisionComboBox = { value: ['20'] };
 
-  // Assert - action modal shown
-  expect((component as any).actionModal.show).toHaveBeenCalled();
-});
+  const utils = (component as any).utils = (component as any).utils || {};
+  spyOn(utils, 'getCurrentUser').and.returnValue('u1');
+  spyOn(utils, 'ToEstDate').and.returnValue('2025-08-25T00:00:00');
+
+  // putRequest succeeds
+  const putSpy = spyOn((component as any).feeApiservice, 'putRequest').and.returnValue(of({}));
+
+  // Spy methods invoked on success/complete
+  const genSpy = spyOn(component as any, 'GenerateTableRows').and.callFake(() => null);
+  const setMsgSpy = spyOn(component as any, 'SetMessageTypeAndValue').and.callFake(() => null);
+  // getUpdatedModel returns stable object used for audit log
+  const updatedModel = { foo: 'bar' };
+  const getUpdatedModelSpy = spyOn(component as any, 'getUpdatedModel').and.returnValue(updatedModel);
+
+  // Spy auditLogService
+  (component as any).auditLogService = (component as any).auditLogService || {};
+  const auditSpy = spyOn((component as any).auditLogService, 'writeAuditLog').and.callFake(() => null);
+  // provide updateAction value used in writeAuditLog call
+  (component as any).auditLogService.updateAction = 'UPDATE';
+
+  // Provide action modal so it can be hidden at end
+  (component as any)._actionModal = { hide: jasmine.createSpy('hide') };
+  // Also spy clearSelection
+  const clearSelSpy = spyOn(component as any, 'clearSelection').and.callFake(() => null);
+
+  // Act
+  (component as any).onAcceptButtonClick(ActionType.update);
+  tick();
+
+  // Assert
+  expect(putSpy).toHaveBeenCalled();
+  expect(genSpy).toHaveBeenCalled();
+  expect(setMsgSpy).toHaveBeenCalledWith(jasmine.anything(), (component as any).updateSuccessMessage);
+  // After complete, getUpdatedModel() called and auditLogService.writeAuditLog invoked
+  expect(getUpdatedModelSpy).toHaveBeenCalled();
+  expect(auditSpy).toHaveBeenCalledWith(
+    'categoryGlId',
+    component.catGlmap.categoryGlId.toString(),
+    component.selectedCatGlmap,
+    updatedModel,
+    (component as any).auditLogService.updateAction,
+    (component as any).PageTitle
+  );
+  // end housekeeping
+  expect(clearSelSpy).toHaveBeenCalled();
+  expect((component as any)._actionModal.hide).toHaveBeenCalled();
+}));
