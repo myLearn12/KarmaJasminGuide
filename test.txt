@@ -1,64 +1,44 @@
-it('getUpdatedModel(): when isTaxAccount true -> sets divisionId, divisionCode, divisionDesc from divisions', () => {
-  component.catGlmap = {
-    categoryGlId: 1,
-    glAcctNbr: 'GL1',
-    createdBy: 'u1',
-    createdDt: '2025-01-01',
-    updatedBy: 'u2',
-    updatedDt: '2025-02-01'
-  } as any;
+it('onCatComboBoxChangeEvent(): sets showCatRequiredError true when control has required error', () => {
+  // arrange
+  // fake the form control with hasError('required') => true
+  (component as any).fcn_CategoryDesc = {
+    hasError: (err: string) => err === 'required'
+  };
 
-  // mocks
-  (component as any).divisionComboBox = { value: '20' };
-  component.divisions = [
-    { divisionId: 20, divisionCd: 'D1', divisionDesc: 'Division A' }
-  ] as any[];
-
-  // stub category combo so code before these lines doesn’t crash
-  (component as any)._categoryComboBox = { value: '7' };
-  (component as any).categoryComboBox = { value: '7' };
-  component.categories = [
-    { categoryId: 7, categoryDescription: 'Estate', categoryCode: '4' }
-  ] as any[];
-
+  // set some initial value so enableDivision change (if any) is detectable
+  component.enableDivision = false;
+  // make isTaxAccount return true to ensure it would change enableDivision if invoked
   spyOn(component as any, 'isTaxAccount').and.returnValue(true);
 
-  const model = (component as any).getUpdatedModel();
+  // act
+  (component as any).onCatComboBoxChangeEvent();
 
-  expect(model.divisionId).toBe(20);
-  expect(model.divisionCode).toBe('D1');
-  expect(model.divisionDesc).toBe('Division A');
+  // assert
+  expect(component.showCatRequiredError).toBeTrue();
+  // when control has error, enableDivision should NOT be changed by isTaxAccount()
+  // (the implementation only assigns enableDivision when !showCatRequiredError)
+  expect(component.enableDivision).toBeFalse();
+  // ensure isTaxAccount was not called
+  expect((component as any).isTaxAccount).not.toHaveBeenCalled();
 });
 
-it('getUpdatedModel(): when isTaxAccount false -> leaves divisionId, divisionCode, divisionDesc unchanged', () => {
-  component.catGlmap = {
-    categoryGlId: 2,
-    glAcctNbr: 'GL2',
-    createdBy: 'u1',
-    createdDt: '2025-03-01',
-    updatedBy: 'u2',
-    updatedDt: '2025-04-01'
-  } as any;
+it('onCatComboBoxChangeEvent(): clears showCatRequiredError and sets enableDivision from isTaxAccount when no required error', () => {
+  // arrange
+  // fake the form control with hasError('required') => false
+  (component as any).fcn_CategoryDesc = {
+    hasError: (_err: string) => false
+  };
 
-  // even though divisions exist, they should NOT be used
-  (component as any).divisionComboBox = { value: '20' };
-  component.divisions = [
-    { divisionId: 20, divisionCd: 'D1', divisionDesc: 'Division A' }
-  ] as any[];
+  component.showCatRequiredError = true; // start true so we can see it cleared
+  // control what isTaxAccount returns
+  spyOn(component as any, 'isTaxAccount').and.returnValue(true);
 
-  // category combo to satisfy earlier parts
-  (component as any)._categoryComboBox = { value: '8' };
-  (component as any).categoryComboBox = { value: '8' };
-  component.categories = [
-    { categoryId: 8, categoryDescription: 'Other', categoryCode: '7' }
-  ] as any[];
+  // act
+  (component as any).onCatComboBoxChangeEvent();
 
-  spyOn(component as any, 'isTaxAccount').and.returnValue(false);
-
-  const model = (component as any).getUpdatedModel();
-
-  // depending on defaults in CategoryGLAcctMapping, check for falsy/undefined
-  expect(model.divisionId).toBeFalsy();
-  expect(model.divisionCode).toBeFalsy();
-  expect(model.divisionDesc).toBeFalsy();
+  // assert
+  expect(component.showCatRequiredError).toBeFalse();
+  // enableDivision should follow isTaxAccount()
+  expect(component.enableDivision).toBeTrue();
+  expect((component as any).isTaxAccount).toHaveBeenCalled();
 });
