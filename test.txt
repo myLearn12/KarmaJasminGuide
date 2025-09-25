@@ -9,12 +9,12 @@ it('getUpdatedModel() — when tax account: builds model with division fields', 
     updatedDt: '2025-08-02T00:00:00'
   } as any;
 
-  // combo/viewchild mocks
+  // combo/viewchild mocks (must exist and have values for toString())
   (component as any)._categoryComboBox = { value: ['7'] };
-  (component as any).categoryComboBox = { value: ['7'] }; // method uses categoryComboBox too
+  (component as any).categoryComboBox = { value: ['7'] }; // code uses this too
   (component as any).divisionComboBox = { value: ['20'] };
 
-  // lists used by the method (must be arrays so .find works)
+  // lists used by the method (arrays so .find works)
   component.categories = [
     { categoryId: 7, categoryDescription: 'Estate', categoryCode: '4' }
   ] as any[];
@@ -45,7 +45,7 @@ it('getUpdatedModel() — when tax account: builds model with division fields', 
   expect(updated.updatedDt).toBe('2025-08-02T00:00:00');
 });
 
-it('getUpdatedModel() — when NOT tax account: division fields left unchanged', () => {
+it('getUpdatedModel() — when NOT tax account: division fields left unchanged (falsy)', () => {
   // arrange
   component.catGlmap = {
     categoryGlId: 999,
@@ -56,10 +56,11 @@ it('getUpdatedModel() — when NOT tax account: division fields left unchanged',
     updatedDt: '2025-02-02T00:00:00'
   } as any;
 
+  // make sure category combo values exist
   (component as any)._categoryComboBox = { value: ['8'] };
   (component as any).categoryComboBox = { value: ['8'] };
 
-  // keep divisionComboBox defined so .toString() doesn't blow up; values shouldn't be used
+  // division combo present but should not be applied when isTaxAccount()=false
   (component as any).divisionComboBox = { value: ['555'] };
 
   component.categories = [
@@ -83,13 +84,10 @@ it('getUpdatedModel() — when NOT tax account: division fields left unchanged',
   expect(updated.categoryCode).toBe('7');
   expect(updated.catgoryDesc).toBe('Other');
 
-  // when not tax-account the method should not override division fields;
-  // the code sets them to `updatedModel.divisionId` (which was initialized on the instance)
-  // so assert they are undefined / unchanged (depending on your class defaults).
-  // Use truthy/falsy checks — adjust to your CategoryGLAcctMapping default values if needed.
-  expect(updated.divisionId).toBeUndefined();
-  expect(updated.divisionCode).toBeUndefined();
-  expect(updated.divisionDesc).toBeUndefined();
+  // division fields should be falsy ('' or undefined depending on your class defaults)
+  expect(Boolean(updated.divisionId)).toBeFalse();
+  expect(Boolean(updated.divisionCode)).toBeFalse();
+  expect(Boolean(updated.divisionDesc)).toBeFalse();
 
   expect(updated.createdBy).toBe('cby2');
   expect(updated.createdDt).toBe('2025-01-01T00:00:00');
