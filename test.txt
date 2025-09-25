@@ -1,35 +1,38 @@
 it('LoadDefaultComboBox (robust): on complete should set combo data and deep-clone viewchild.options', fakeAsync(() => {
-  // Arrange: provide appConfigService keys (safe even if private)
+  // Arrange: ensure component.appConfigService URLs exist (private is okay to override in test)
   (component as any).appConfigService = {
     getAllCategoryUrl: '/api/categories',
     getAllDivisionUrl: '/api/divisions'
   } as any;
 
+  // The data that the real API would return
   const categories = [{ categoryId: 7, categoryDescription: 'Estate', categoryCode: '4' }];
   const divisions  = [{ divisionId: 20, divisionDesc: 'Division A', divisionCd: 'D1' }];
 
-  // Capture called urls
+  // Spy getRequest and return appropriate observables based on substring matching
   const calledUrls: string[] = [];
   spyOn(component.feeApiservice, 'getRequest').and.callFake((url: any) => {
-    calledUrls.push(String(url));
-    const s = String(url || '').toLowerCase();
-    if (s.includes('category')) return of(categories);
-    if (s.includes('division')) return of(divisions);
+    const s = String(url || '');
+    calledUrls.push(s);
+    if (s.toLowerCase().includes('category')) return of(categories);
+    if (s.toLowerCase().includes('division')) return of(divisions);
     return of([]);
   });
 
+  // Spy LoadComboBoxData to return mapped combo option objects
   const mappedCategories = [{ label: 'Estate', value: '7' }];
   const mappedDivisions  = [{ label: 'Division A', value: '20' }];
-  spyOn(component['utils'], 'LoadComboBoxData').and.callFake((arr: any[], label: string) => {
-    const lbl = (label || '').toLowerCase();
-    if (lbl.includes('category')) return mappedCategories;
-    if (lbl.includes('division')) return mappedDivisions;
+  spyOn(component['utils'], 'LoadComboBoxData').and.callFake((arr: any[], label: string, _c: string, _id: string) => {
+    if ((label || '').toLowerCase().includes('category')) return mappedCategories;
+    if ((label || '').toLowerCase().includes('division')) return mappedDivisions;
     return [];
   });
 
-  // Provide the ViewChild mocks so assignments succeed
+  // Provide BOTH possible viewchild property names to be safe:
+  // some components use _categoryComboBox, others use categoryComboBox — make both available
   (component as any)._categoryComboBox = { options: null };
   (component as any).categoryComboBox  = (component as any)._categoryComboBox;
+
   (component as any)._divisionComboBox = { options: null };
   (component as any).divisionComboBox  = (component as any)._divisionComboBox;
 
@@ -37,15 +40,14 @@ it('LoadDefaultComboBox (robust): on complete should set combo data and deep-clo
   (component as any).LoadDefaultComboBox();
   tick(); // flush forkJoin subscribe next + complete
 
-  // Assert with helpful debug info if something went wrong
-  try {
-    expect(component.categoryComboBoxData).toEqual([{ options: mappedCategories }]);
-    expect(component.divisionComboBoxData).toEqual([{ options: mappedDivisions }]);
+  // Assert: combo data arrays built using utils.LoadComboBoxData
+  expect(component.categoryComboBoxData).toEqual([{ options: mappedCategories }]);
+  expect(component.divisionComboBoxData).toEqual([{ options: mappedDivisions }]);
 
-    expect((component as any)._categoryComboBox.options).toEqual(JSON.parse(JSON.stringify(categories)));
-    expect((component as any)._divisionComboBox.options).toEqual(JSON.parse(JSON.stringify(divisions)));
-  } catch (err) {
-    // attach the actual called URLs to the failure to help debugging
-    fail('LoadDefaultComboBox assertions failed. calledUrls: ' + JSON.stringify(calledUrls, null, 2) + '\n' + err);
-  }
+  // Assert: ViewChild options set to deep-cloned arrays
+  expect((component as any)._categoryComboBox.options).toEqual(JSON.parse(JSON.stringify(categories)));
+  expect((component as any)._divisionComboBox.options).toEqual(JSON.parse(JSON.stringify(divisions)));
+
+  // Extra sanity: ensure the spy was called and returned something sensible
+  expect(calledUrls.length).toBeGreaterThanOrEqual(2);
 }));
