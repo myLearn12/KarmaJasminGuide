@@ -1,85 +1,98 @@
-import { fakeAsync, tick } from '@angular/core/testing';
-import { of, throwError } from 'rxjs';
+it('getUpdatedModel() — when tax account: builds model with division fields', () => {
+  // arrange
+  component.catGlmap = {
+    categoryGlId: 123,
+    glAcctNbr: 'GL-999',
+    createdBy: 'cby',
+    createdDt: '2025-08-01T00:00:00',
+    updatedBy: 'uby',
+    updatedDt: '2025-08-02T00:00:00'
+  } as any;
 
-it('onAcceptButtonClick(ActionType.add) - success: posts, regenerates table, shows success and writes audit log', fakeAsync(() => {
-  // Arrange
-  const ActionType = { add: 0, update: 1, delete: 2 };
-
-  // avoid early return
-  spyOn(component as any, 'ValidateFormControls').and.returnValue(false);
-
-  // make sure arrays exist so .find/.map/.filter used inside component work
-  component.categories = [{ categoryId: 7, categoryDescription: 'Cat', categoryCode: '4' }] as any[];
-  component.divisions  = [{ divisionId: 20, divisionDesc: 'Div A', divisionCd: 'D1' }] as any[];
-
-  // viewchild combo mocks (component uses .value and .toString())
+  // combo/viewchild mocks
   (component as any)._categoryComboBox = { value: ['7'] };
-  (component as any)._divisionComboBox = { value: ['20'] };
+  (component as any).categoryComboBox = { value: ['7'] }; // method uses categoryComboBox too
+  (component as any).divisionComboBox = { value: ['20'] };
 
-  // provide appConfigService URL (if private on component use (component as any).appConfigService)
-  (component as any).appConfigService = (component as any).appConfigService || {};
-  (component as any).appConfigService.addCatGlAcctMappingUrl = '/api/addCat';
+  // lists used by the method (must be arrays so .find works)
+  component.categories = [
+    { categoryId: 7, categoryDescription: 'Estate', categoryCode: '4' }
+  ] as any[];
 
-  // catGlmap minimal model required by payload
-  component.catGlmap = { glAcctNbr: 'GL-100' } as any;
+  component.divisions = [
+    { divisionId: 20, divisionDesc: 'Division A', divisionCd: 'D1' }
+  ] as any[];
 
-  // stub utils used inside method (if they exist)
-  const utils = (component as any).utils = (component as any).utils || {};
-  spyOn(utils, 'getCurrentUser').and.returnValue('u1');
-  spyOn(utils, 'ToEstDate').and.returnValue('2025-08-25T00:00:00');
+  // ensure isTaxAccount() returns true
+  spyOn(component as any, 'isTaxAccount').and.returnValue(true);
 
-  // spies for side-effects
-  const postSpy = spyOn((component as any).feeApiservice, 'postRequest').and.returnValue(of({}));
-  const genSpy  = spyOn(component as any, 'GenerateTableRows').and.callFake(() => null);
-  const setMsgSpy = spyOn(component as any, 'SetMessageTypeAndValue').and.callFake(() => null);
+  // act
+  const updated = (component as any).getUpdatedModel();
 
-  // audit log stub + getUpdatedModel
-  (component as any).auditLogService = (component as any).auditLogService || {};
-  (component as any).auditLogService.addAction = 'ADD';
-  const auditSpy = spyOn((component as any).auditLogService, 'writeAuditLog').and.callFake(() => null);
-  spyOn(component as any, 'getUpdatedModel').and.returnValue({ some: 'model' });
+  // assert
+  expect(updated).toBeDefined();
+  expect(updated.categoryGlId).toBe(123);
+  expect(updated.glAcctNbr).toBe('GL-999');
+  expect(updated.categoryId).toBe(7); // parseInt('7')
+  expect(updated.categoryCode).toBe('4'); // from categories.find(...)
+  expect(updated.catgoryDesc).toBe('Estate');
+  expect(updated.divisionId).toBe(20);
+  expect(updated.divisionCode).toBe('D1');
+  expect(updated.divisionDesc).toBe('Division A');
+  expect(updated.createdBy).toBe('cby');
+  expect(updated.createdDt).toBe('2025-08-01T00:00:00');
+  expect(updated.updatedBy).toBe('uby');
+  expect(updated.updatedDt).toBe('2025-08-02T00:00:00');
+});
 
-  // Act
-  (component as any).onAcceptButtonClick(ActionType.add);
-  tick();
+it('getUpdatedModel() — when NOT tax account: division fields left unchanged', () => {
+  // arrange
+  component.catGlmap = {
+    categoryGlId: 999,
+    glAcctNbr: 'GL-1000',
+    createdBy: 'cby2',
+    createdDt: '2025-01-01T00:00:00',
+    updatedBy: 'uby2',
+    updatedDt: '2025-02-02T00:00:00'
+  } as any;
 
-  // Assert
-  expect(postSpy).toHaveBeenCalledWith((component as any).appConfigService.addCatGlAcctMappingUrl, jasmine.any(Object));
-  expect(genSpy).toHaveBeenCalled();
-  expect(setMsgSpy).toHaveBeenCalledWith(jasmine.anything(), (component as any).addSuccessMessage);
-  expect(auditSpy).toHaveBeenCalledWith(
-    'NA', 'NA', jasmine.anything(), (component as any).getUpdatedModel(), (component as any).auditLogService.addAction, (component as any).PageTitle
-  );
-}));
+  (component as any)._categoryComboBox = { value: ['8'] };
+  (component as any).categoryComboBox = { value: ['8'] };
 
+  // keep divisionComboBox defined so .toString() doesn't blow up; values shouldn't be used
+  (component as any).divisionComboBox = { value: ['555'] };
 
-it('onAcceptButtonClick(ActionType.add) - error: postRequest error -> displayServiceErrors called and GenerateTableRows not called', fakeAsync(() => {
-  // Arrange
-  const ActionType = { add: 0, update: 1, delete: 2 };
+  component.categories = [
+    { categoryId: 8, categoryDescription: 'Other', categoryCode: '7' }
+  ] as any[];
 
-  spyOn(component as any, 'ValidateFormControls').and.returnValue(false);
+  component.divisions = [
+    { divisionId: 20, divisionDesc: 'Division A', divisionCd: 'D1' }
+  ] as any[];
 
-  (component as any)._categoryComboBox = { value: ['7'] };
-  (component as any)._divisionComboBox = { value: ['20'] };
+  spyOn(component as any, 'isTaxAccount').and.returnValue(false);
 
-  // ensure arrays exist so any category/division lookups don't crash
-  component.categories = [{ categoryId: 7, categoryDescription: 'Cat', categoryCode: '4' }] as any[];
-  component.divisions  = [{ divisionId: 20, divisionDesc: 'Div A', divisionCd: 'D1' }] as any[];
+  // act
+  const updated = (component as any).getUpdatedModel();
 
-  (component as any).appConfigService = (component as any).appConfigService || {};
-  (component as any).appConfigService.addCatGlAcctMappingUrl = '/api/addCat';
+  // assert basic mapped fields
+  expect(updated).toBeDefined();
+  expect(updated.categoryGlId).toBe(999);
+  expect(updated.glAcctNbr).toBe('GL-1000');
+  expect(updated.categoryId).toBe(8);
+  expect(updated.categoryCode).toBe('7');
+  expect(updated.catgoryDesc).toBe('Other');
 
-  const err = { error: { statusMessage: 'Add failed' } };
-  spyOn((component as any).feeApiservice, 'postRequest').and.returnValue(throwError(() => err));
+  // when not tax-account the method should not override division fields;
+  // the code sets them to `updatedModel.divisionId` (which was initialized on the instance)
+  // so assert they are undefined / unchanged (depending on your class defaults).
+  // Use truthy/falsy checks — adjust to your CategoryGLAcctMapping default values if needed.
+  expect(updated.divisionId).toBeUndefined();
+  expect(updated.divisionCode).toBeUndefined();
+  expect(updated.divisionDesc).toBeUndefined();
 
-  const displaySpy = spyOn(component as any, 'displayServiceErrors').and.callFake(() => null);
-  const genSpy = spyOn(component as any, 'GenerateTableRows').and.callFake(() => null);
-
-  // Act
-  (component as any).onAcceptButtonClick(ActionType.add);
-  tick();
-
-  // Assert
-  expect(displaySpy).toHaveBeenCalledWith('Add failed');
-  expect(genSpy).not.toHaveBeenCalled();
-}));
+  expect(updated.createdBy).toBe('cby2');
+  expect(updated.createdDt).toBe('2025-01-01T00:00:00');
+  expect(updated.updatedBy).toBe('uby2');
+  expect(updated.updatedDt).toBe('2025-02-02T00:00:00');
+});
