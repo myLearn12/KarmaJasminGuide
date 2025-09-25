@@ -1,30 +1,23 @@
 it('LoadDefaultComboBox (robust): on complete should set combo data and deep-clone viewchild.options', fakeAsync(() => {
-  // Arrange --------------------------------------------------------------
-  // Provide many possible appConfig keys so the component reading
-  // private appConfigService won't crash if property name differs.
+  // Arrange: provide appConfigService keys (safe even if private)
   (component as any).appConfigService = {
     getAllCategoryUrl: '/api/categories',
-    getAllCategoriesUrl: '/api/categories',            // alternate name
-    getAllDivisionUrl: '/api/divisions',
-    getAllDivisionsUrl: '/api/divisions'               // alternate name
+    getAllDivisionUrl: '/api/divisions'
   } as any;
 
-  // Realistic backend responses
   const categories = [{ categoryId: 7, categoryDescription: 'Estate', categoryCode: '4' }];
   const divisions  = [{ divisionId: 20, divisionDesc: 'Division A', divisionCd: 'D1' }];
 
-  // Spy getRequest - be tolerant: match by substring (case-insensitive)
+  // Capture called urls
   const calledUrls: string[] = [];
   spyOn(component.feeApiservice, 'getRequest').and.callFake((url: any) => {
-    const s = String(url || '').toLowerCase();
     calledUrls.push(String(url));
-    if (s.includes('category'))      return of(categories);
-    if (s.includes('division'))      return of(divisions);
-    // fallback: return harmless empty
+    const s = String(url || '').toLowerCase();
+    if (s.includes('category')) return of(categories);
+    if (s.includes('division')) return of(divisions);
     return of([]);
   });
 
-  // Make LoadComboBoxData tolerant too: return mapping for any label variant
   const mappedCategories = [{ label: 'Estate', value: '7' }];
   const mappedDivisions  = [{ label: 'Division A', value: '20' }];
   spyOn(component['utils'], 'LoadComboBoxData').and.callFake((arr: any[], label: string) => {
@@ -34,34 +27,25 @@ it('LoadDefaultComboBox (robust): on complete should set combo data and deep-clo
     return [];
   });
 
-  // Provide mocks for all possible ViewChild names the component might use
+  // Provide the ViewChild mocks so assignments succeed
   (component as any)._categoryComboBox = { options: null };
   (component as any).categoryComboBox  = (component as any)._categoryComboBox;
   (component as any)._divisionComboBox = { options: null };
   (component as any).divisionComboBox  = (component as any)._divisionComboBox;
 
-  // Pre-check: ensure things are not already set (helps debugging failures)
-  expect(component.categoryComboBoxData).not.toEqual([{ options: mappedCategories }]);
-  expect((component as any)._divisionComboBox.options).toBeNull();
-
-  // Act ------------------------------------------------------------------
-  // call method under test (it uses forkJoin(...).subscribe({... complete: ...}))
+  // Act
   (component as any).LoadDefaultComboBox();
-  tick(); // flush forkJoin / subscribe next + complete
+  tick(); // flush forkJoin subscribe next + complete
 
-  // Debugging aid: if the test still fails, we want to see what URLs were actually called
-  if (!calledUrls.some(u => String(u).toLowerCase().includes('category'))
-      || !calledUrls.some(u => String(u).toLowerCase().includes('division'))) {
-    fail('LoadDefaultComboBox test URL mismatch — calledUrls: ' + JSON.stringify(calledUrls, null, 2));
-    return;
+  // Assert with helpful debug info if something went wrong
+  try {
+    expect(component.categoryComboBoxData).toEqual([{ options: mappedCategories }]);
+    expect(component.divisionComboBoxData).toEqual([{ options: mappedDivisions }]);
+
+    expect((component as any)._categoryComboBox.options).toEqual(JSON.parse(JSON.stringify(categories)));
+    expect((component as any)._divisionComboBox.options).toEqual(JSON.parse(JSON.stringify(divisions)));
+  } catch (err) {
+    // attach the actual called URLs to the failure to help debugging
+    fail('LoadDefaultComboBox assertions failed. calledUrls: ' + JSON.stringify(calledUrls, null, 2) + '\n' + err);
   }
-
-  // Assert ---------------------------------------------------------------
-  // Combo data arrays should contain the mapped options we returned from utils.LoadComboBoxData
-  expect(component.categoryComboBoxData).toEqual([{ options: mappedCategories }]);
-  expect(component.divisionComboBoxData).toEqual([{ options: mappedDivisions }]);
-
-  // ViewChild .options should be deep clones of the raw response arrays
-  expect((component as any)._categoryComboBox.options).toEqual(JSON.parse(JSON.stringify(categories)));
-  expect((component as any)._divisionComboBox.options).toEqual(JSON.parse(JSON.stringify(divisions)));
 }));
