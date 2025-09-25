@@ -1,44 +1,29 @@
-it('onCatComboBoxChangeEvent(): sets showCatRequiredError true when control has required error', () => {
-  // arrange
-  // fake the form control with hasError('required') => true
-  (component as any).fcn_CategoryDesc = {
+it('onDivComboBoxChangeEvent(): sets showDivRequiredError true when division control has required error', () => {
+  // arrange: stub the control so hasError('required') returns true
+  (component as any).fcn_divisionDesc = {
     hasError: (err: string) => err === 'required'
   };
 
-  // set some initial value so enableDivision change (if any) is detectable
-  component.enableDivision = false;
-  // make isTaxAccount return true to ensure it would change enableDivision if invoked
-  spyOn(component as any, 'isTaxAccount').and.returnValue(true);
+  component.showDivRequiredError = false; // initial
 
   // act
-  (component as any).onCatComboBoxChangeEvent();
+  (component as any).onDivComboBoxChangeEvent();
 
   // assert
-  expect(component.showCatRequiredError).toBeTrue();
-  // when control has error, enableDivision should NOT be changed by isTaxAccount()
-  // (the implementation only assigns enableDivision when !showCatRequiredError)
-  expect(component.enableDivision).toBeFalse();
-  // ensure isTaxAccount was not called
-  expect((component as any).isTaxAccount).not.toHaveBeenCalled();
+  expect(component.showDivRequiredError).toBeTrue();
 });
 
-it('onCatComboBoxChangeEvent(): clears showCatRequiredError and sets enableDivision from isTaxAccount when no required error', () => {
-  // arrange
-  // fake the form control with hasError('required') => false
-  (component as any).fcn_CategoryDesc = {
-    hasError: (_err: string) => false
+it('onDivComboBoxChangeEvent(): sets showDivRequiredError false when division control has no required error', () => {
+  // arrange: stub the control so hasError('required') returns false
+  (component as any).fcn_divisionDesc = {
+    hasError: (_: string) => false
   };
 
-  component.showCatRequiredError = true; // start true so we can see it cleared
-  // control what isTaxAccount returns
-  spyOn(component as any, 'isTaxAccount').and.returnValue(true);
+  component.showDivRequiredError = true; // initial
 
   // act
-  (component as any).onCatComboBoxChangeEvent();
+  (component as any).onDivComboBoxChangeEvent();
 
   // assert
-  expect(component.showCatRequiredError).toBeFalse();
-  // enableDivision should follow isTaxAccount()
-  expect(component.enableDivision).toBeTrue();
-  expect((component as any).isTaxAccount).toHaveBeenCalled();
+  expect(component.showDivRequiredError).toBeFalse();
 });
