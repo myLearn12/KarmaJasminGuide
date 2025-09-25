@@ -1,90 +1,61 @@
-it('LoadDefaultComboBox (robust): complete sets combo data and deep-clones viewchild.options (defensive)', fakeAsync(() => {
-  // ensure appConfigService URL props exist (component may keep appConfigService private)
+it('LoadDefaultComboBox: on complete should set category/division combo data and deep-clone viewchild.options', fakeAsync(() => {
+  // --- Arrange ------------------------------------------------------------
+  // ensure appConfigService URLs (component may keep this private)
   (component as any).appConfigService = (component as any).appConfigService || {};
-  (component as any).appConfigService.getAllCategoryUrl = (component as any).appConfigService.getAllCategoryUrl || '/api/categories';
-  (component as any).appConfigService.getAllDivisionUrl = (component as any).appConfigService.getAllDivisionUrl || '/api/divisions';
+  (component as any).appConfigService.getAllCategoryUrl = '/api/categories';
+  (component as any).appConfigService.getAllDivisionUrl = '/api/divisions';
 
-  // Ensure feeApiservice exists on the component
-  (component as any).feeApiservice = (component as any).feeApiservice || { getRequest: (_: any) => of([]) };
+  // realistic backend payloads
+  const categories = [
+    { categoryId: 7, categoryDescription: 'Estate', categoryCode: '4' }
+  ];
+  const divisions = [
+    { divisionId: 20, divisionDesc: 'Division A', divisionCd: 'D1', costCenterId: 99, costCenterDesc: 'CC' }
+  ];
 
-  // Realistic returned data
-  const categories = [{ categoryId: 7, categoryDescription: 'Estate', categoryCode: '4' }];
-  const divisions  = [{ divisionId: 20, divisionDesc: 'Division A', divisionCd: 'D1' }];
-
-  // Capture called URLs
-  const calledUrls: string[] = [];
-
-  // Replace feeApiservice.getRequest with a robust spy that records calls and responds based on substring matching
-  spyOn((component as any).feeApiservice, 'getRequest').and.callFake((url: any) => {
-    const su = String(url || '');
-    calledUrls.push(su);
-    const s = su.toLowerCase();
-    if (s.includes('category') || s.includes('getallcategory') || s.includes('allcategory')) {
+  // spy feeApiservice.getRequest to return the expected observables
+  spyOn((component as any).feeApiservice, 'getRequest').and.callFake((url: string) => {
+    if (String(url).toLowerCase().includes('category')) {
       return of(categories);
     }
-    if (s.includes('division') || s.includes('getalldivision') || s.includes('alldivision')) {
+    if (String(url).toLowerCase().includes('division')) {
       return of(divisions);
     }
-    // fallback: return empty array to keep forkJoin alive
     return of([]);
   });
 
-  // Stub utils.LoadComboBoxData to return mapped options used by combo data
+  // Make utils.LoadComboBoxData return the mapped options used in combo data
   const mappedCategories = [{ label: 'Estate', value: '7' }];
   const mappedDivisions  = [{ label: 'Division A', value: '20' }];
-  const utilsSpy = spyOn(component['utils'], 'LoadComboBoxData').and.callFake((arr: any[], label: string) => {
-    const lbl = String(label || '').toLowerCase();
-    if (lbl.includes('category')) return mappedCategories;
-    if (lbl.includes('division')) return mappedDivisions;
+  spyOn(component['utils'], 'LoadComboBoxData').and.callFake((arr: any[], label: string /*, code, id */) => {
+    if (label === 'categoryDescription') return mappedCategories;
+    if (label === 'divisionDesc') return mappedDivisions;
     return [];
   });
 
-  // Ensure safety: create both possible viewchild properties the component might use
-  (component as any)._categoryComboBox = (component as any)._categoryComboBox || { options: null };
-  (component as any).categoryComboBox  = (component as any).categoryComboBox  || (component as any)._categoryComboBox;
-  (component as any)._divisionComboBox = (component as any)._divisionComboBox || { options: null };
-  (component as any).divisionComboBox  = (component as any).divisionComboBox  || (component as any)._divisionComboBox;
+  // Provide the ViewChild mocks so .options assignment & any iteration succeed
+  (component as any)._categoryComboBox = { options: [] }; // must be iterable
+  (component as any)._divisionComboBox = { options: [] };
+  // in some components the "public" property uses different name, ensure both exist:
+  (component as any).categoryComboBox = (component as any).categoryComboBox || (component as any)._categoryComboBox;
+  (component as any).divisionComboBox = (component as any).divisionComboBox || (component as any)._divisionComboBox;
 
-  // Act: call the method under test
+  const dispatchSpy = spyOn(component['store'], 'dispatch');
+
+  // --- Act ---------------------------------------------------------------
   (component as any).LoadDefaultComboBox();
-  tick(); // flush observables
+  tick(); // flush forkJoin and subscribe handlers
 
-  // If no relevant URLs were called, fail with helpful debug info
-  const sawCategoryUrl = calledUrls.some(u => /category/i.test(u));
-  const sawDivisionUrl = calledUrls.some(u => /division/i.test(u));
-  if (!sawCategoryUrl || !sawDivisionUrl) {
-    fail('LoadDefaultComboBox URL mismatch. Called URLs: ' + JSON.stringify(calledUrls, null, 2));
-    return;
-  }
+  // --- Assert ------------------------------------------------------------
+  // combo data built using utils.LoadComboBoxData
+  expect(component.categoryComboBoxData).toEqual([{ options: mappedCategories }]);
+  expect(component.divisionComboBoxData).toEqual([{ options: mappedDivisions }]);
 
-  // Flexible assertions: where the component stores the combo data can vary across codebases.
-  // Check the explicit expected shape: combo data built from utils.LoadComboBoxData
-  // 1) category combo ("categoryComboBoxData") often holds [{ options: [...] }]
-  const catCombo = (component as any).categoryComboBoxData || (component as any).categoryComboBox?.options && [{ options: (component as any).categoryComboBox.options }];
-  expect(catCombo).toBeDefined('category combo data was not set');
-
-  // If it's the expected wrapper array, the first element should hold our mapped categories
-  if (Array.isArray(catCombo) && catCombo[0] && (catCombo[0] as any).options) {
-    expect((catCombo[0] as any).options).toEqual(mappedCategories);
-  }
-
-  // 2) division combo
-  const divCombo = (component as any).divisionComboBoxData || (component as any).divisionComboBox?.options && [{ options: (component as any).divisionComboBox.options }];
-  expect(divCombo).toBeDefined('division combo data was not set');
-
-  if (Array.isArray(divCombo) && divCombo[0] && (divCombo[0] as any).options) {
-    expect((divCombo[0] as any).options).toEqual(mappedDivisions);
-  }
-
-  // Deep-clone assertions: ensure the component copied the raw arrays into the viewchild options
+  // viewchild.options set to deep-cloned arrays (original categories/divisions preserved shape)
   expect((component as any)._categoryComboBox.options).toEqual(JSON.parse(JSON.stringify(categories)));
   expect((component as any)._divisionComboBox.options).toEqual(JSON.parse(JSON.stringify(divisions)));
 
-  // loading usually cleared by complete handler
-  if ('loading' in component) {
-    expect(component.loading).toBeFalse();
-  }
-
-  // utils spy sanity
-  expect(utilsSpy).toHaveBeenCalled();
+  // loading cleared and LOADINGACTION(false) dispatched
+  expect(component.loading).toBeFalse();
+  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
 }));
