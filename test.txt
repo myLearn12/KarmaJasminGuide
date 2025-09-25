@@ -1,102 +1,85 @@
-import { of, throwError } from 'rxjs';
 import { fakeAsync, tick } from '@angular/core/testing';
+import { of, throwError } from 'rxjs';
 
 it('onAcceptButtonClick(ActionType.add) - success: posts, regenerates table, shows success and writes audit log', fakeAsync(() => {
   // Arrange
   const ActionType = { add: 0, update: 1, delete: 2 };
 
-  // Prevent ValidateFormControls from short-circuiting the method
+  // avoid early return
   spyOn(component as any, 'ValidateFormControls').and.returnValue(false);
 
-  // Minimal model so code can read .toString() etc.
-  component.catGlmap = { glAcctNbr: 'GL-1' } as any;
+  // make sure arrays exist so .find/.map/.filter used inside component work
+  component.categories = [{ categoryId: 7, categoryDescription: 'Cat', categoryCode: '4' }] as any[];
+  component.divisions  = [{ divisionId: 20, divisionDesc: 'Div A', divisionCd: 'D1' }] as any[];
+
+  // viewchild combo mocks (component uses .value and .toString())
   (component as any)._categoryComboBox = { value: ['7'] };
   (component as any)._divisionComboBox = { value: ['20'] };
 
-  // utils & audit stubs
+  // provide appConfigService URL (if private on component use (component as any).appConfigService)
+  (component as any).appConfigService = (component as any).appConfigService || {};
+  (component as any).appConfigService.addCatGlAcctMappingUrl = '/api/addCat';
+
+  // catGlmap minimal model required by payload
+  component.catGlmap = { glAcctNbr: 'GL-100' } as any;
+
+  // stub utils used inside method (if they exist)
   const utils = (component as any).utils = (component as any).utils || {};
   spyOn(utils, 'getCurrentUser').and.returnValue('u1');
   spyOn(utils, 'ToEstDate').and.returnValue('2025-08-25T00:00:00');
 
-  // feeApiservice.postRequest resolves (next + complete)
+  // spies for side-effects
   const postSpy = spyOn((component as any).feeApiservice, 'postRequest').and.returnValue(of({}));
-
-  // Spies for side-effects we expect
-  const genSpy = spyOn(component as any, 'GenerateTableRows').and.callFake(() => null);
+  const genSpy  = spyOn(component as any, 'GenerateTableRows').and.callFake(() => null);
   const setMsgSpy = spyOn(component as any, 'SetMessageTypeAndValue').and.callFake(() => null);
 
-  // audit log: ensure writeAuditLog exists and spy it
+  // audit log stub + getUpdatedModel
   (component as any).auditLogService = (component as any).auditLogService || {};
   (component as any).auditLogService.addAction = 'ADD';
   const auditSpy = spyOn((component as any).auditLogService, 'writeAuditLog').and.callFake(() => null);
+  spyOn(component as any, 'getUpdatedModel').and.returnValue({ some: 'model' });
 
-  // getUpdatedModel must exist
-  spyOn(component as any, 'getUpdatedModel').and.returnValue({ foo: 'bar' });
-
-  // Act: call the add action branch (you may need to call wrapper that triggers it;
-  // many components call onAcceptButtonClick(ActionType.add))
+  // Act
   (component as any).onAcceptButtonClick(ActionType.add);
-  tick(); // flush observable
+  tick();
 
   // Assert
   expect(postSpy).toHaveBeenCalledWith((component as any).appConfigService.addCatGlAcctMappingUrl, jasmine.any(Object));
   expect(genSpy).toHaveBeenCalled();
   expect(setMsgSpy).toHaveBeenCalledWith(jasmine.anything(), (component as any).addSuccessMessage);
-  // audit called on complete with expected args
   expect(auditSpy).toHaveBeenCalledWith(
     'NA', 'NA', jasmine.anything(), (component as any).getUpdatedModel(), (component as any).auditLogService.addAction, (component as any).PageTitle
   );
 }));
 
 
-it('onAcceptButtonClick(ActionType.add) - error: postRequest error -> displayServiceErrors called', fakeAsync(() => {
+it('onAcceptButtonClick(ActionType.add) - error: postRequest error -> displayServiceErrors called and GenerateTableRows not called', fakeAsync(() => {
   // Arrange
   const ActionType = { add: 0, update: 1, delete: 2 };
+
   spyOn(component as any, 'ValidateFormControls').and.returnValue(false);
 
   (component as any)._categoryComboBox = { value: ['7'] };
   (component as any)._divisionComboBox = { value: ['20'] };
 
+  // ensure arrays exist so any category/division lookups don't crash
+  component.categories = [{ categoryId: 7, categoryDescription: 'Cat', categoryCode: '4' }] as any[];
+  component.divisions  = [{ divisionId: 20, divisionDesc: 'Div A', divisionCd: 'D1' }] as any[];
+
+  (component as any).appConfigService = (component as any).appConfigService || {};
+  (component as any).appConfigService.addCatGlAcctMappingUrl = '/api/addCat';
+
   const err = { error: { statusMessage: 'Add failed' } };
-  const postSpy = spyOn((component as any).feeApiservice, 'postRequest').and.returnValue(throwError(() => err));
+  spyOn((component as any).feeApiservice, 'postRequest').and.returnValue(throwError(() => err));
 
   const displaySpy = spyOn(component as any, 'displayServiceErrors').and.callFake(() => null);
-  const genSpy = spyOn(component as any, 'GenerateTableRows'); // should NOT be called
+  const genSpy = spyOn(component as any, 'GenerateTableRows').and.callFake(() => null);
 
   // Act
   (component as any).onAcceptButtonClick(ActionType.add);
   tick();
 
   // Assert
-  expect(postSpy).toHaveBeenCalled();
   expect(displaySpy).toHaveBeenCalledWith('Add failed');
   expect(genSpy).not.toHaveBeenCalled();
-}));
-
-
-it('onAcceptButtonClick(ActionType.add) - complete handler: auditLogService.writeAuditLog invoked after complete', fakeAsync(() => {
-  // This is similar to the success test but focuses on the complete() audit call.
-  const ActionType = { add: 0, update: 1, delete: 2 };
-  spyOn(component as any, 'ValidateFormControls').and.returnValue(false);
-
-  (component as any)._categoryComboBox = { value: ['7'] };
-  (component as any)._divisionComboBox = { value: ['20'] };
-
-  // make postRequest an Observable that emits and completes
-  spyOn((component as any).feeApiservice, 'postRequest').and.returnValue(of({}));
-
-  (component as any).auditLogService = (component as any).auditLogService || {};
-  (component as any).auditLogService.addAction = 'ADD';
-  const auditSpy = spyOn((component as any).auditLogService, 'writeAuditLog').and.callFake(() => null);
-
-  spyOn(component as any, 'getUpdatedModel').and.returnValue({ whatever: 'x' });
-
-  // Act
-  (component as any).onAcceptButtonClick(ActionType.add);
-  tick();
-
-  // Assert: complete called -> audit invoked
-  expect(auditSpy).toHaveBeenCalledWith(
-    'NA', 'NA', jasmine.anything(), (component as any).getUpdatedModel(), (component as any).auditLogService.addAction, (component as any).PageTitle
-  );
 }));
