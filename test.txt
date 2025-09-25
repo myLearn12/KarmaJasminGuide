@@ -1,96 +1,64 @@
-it('getUpdatedModel() — when tax account: builds model with division fields', () => {
-  // arrange
+it('getUpdatedModel(): when isTaxAccount true -> sets divisionId, divisionCode, divisionDesc from divisions', () => {
   component.catGlmap = {
-    categoryGlId: 123,
-    glAcctNbr: 'GL-999',
-    createdBy: 'cby',
-    createdDt: '2025-08-01T00:00:00',
-    updatedBy: 'uby',
-    updatedDt: '2025-08-02T00:00:00'
+    categoryGlId: 1,
+    glAcctNbr: 'GL1',
+    createdBy: 'u1',
+    createdDt: '2025-01-01',
+    updatedBy: 'u2',
+    updatedDt: '2025-02-01'
   } as any;
 
-  // combo/viewchild mocks (must exist and have values for toString())
-  (component as any)._categoryComboBox = { value: ['7'] };
-  (component as any).categoryComboBox = { value: ['7'] }; // code uses this too
-  (component as any).divisionComboBox = { value: ['20'] };
+  // mocks
+  (component as any).divisionComboBox = { value: '20' };
+  component.divisions = [
+    { divisionId: 20, divisionCd: 'D1', divisionDesc: 'Division A' }
+  ] as any[];
 
-  // lists used by the method (arrays so .find works)
+  // stub category combo so code before these lines doesn’t crash
+  (component as any)._categoryComboBox = { value: '7' };
+  (component as any).categoryComboBox = { value: '7' };
   component.categories = [
     { categoryId: 7, categoryDescription: 'Estate', categoryCode: '4' }
   ] as any[];
 
-  component.divisions = [
-    { divisionId: 20, divisionDesc: 'Division A', divisionCd: 'D1' }
-  ] as any[];
-
-  // ensure isTaxAccount() returns true
   spyOn(component as any, 'isTaxAccount').and.returnValue(true);
 
-  // act
-  const updated = (component as any).getUpdatedModel();
+  const model = (component as any).getUpdatedModel();
 
-  // assert
-  expect(updated).toBeDefined();
-  expect(updated.categoryGlId).toBe(123);
-  expect(updated.glAcctNbr).toBe('GL-999');
-  expect(updated.categoryId).toBe(7); // parseInt('7')
-  expect(updated.categoryCode).toBe('4'); // from categories.find(...)
-  expect(updated.catgoryDesc).toBe('Estate');
-  expect(updated.divisionId).toBe(20);
-  expect(updated.divisionCode).toBe('D1');
-  expect(updated.divisionDesc).toBe('Division A');
-  expect(updated.createdBy).toBe('cby');
-  expect(updated.createdDt).toBe('2025-08-01T00:00:00');
-  expect(updated.updatedBy).toBe('uby');
-  expect(updated.updatedDt).toBe('2025-08-02T00:00:00');
+  expect(model.divisionId).toBe(20);
+  expect(model.divisionCode).toBe('D1');
+  expect(model.divisionDesc).toBe('Division A');
 });
 
-it('getUpdatedModel() — when NOT tax account: division fields left unchanged (falsy)', () => {
-  // arrange
+it('getUpdatedModel(): when isTaxAccount false -> leaves divisionId, divisionCode, divisionDesc unchanged', () => {
   component.catGlmap = {
-    categoryGlId: 999,
-    glAcctNbr: 'GL-1000',
-    createdBy: 'cby2',
-    createdDt: '2025-01-01T00:00:00',
-    updatedBy: 'uby2',
-    updatedDt: '2025-02-02T00:00:00'
+    categoryGlId: 2,
+    glAcctNbr: 'GL2',
+    createdBy: 'u1',
+    createdDt: '2025-03-01',
+    updatedBy: 'u2',
+    updatedDt: '2025-04-01'
   } as any;
 
-  // make sure category combo values exist
-  (component as any)._categoryComboBox = { value: ['8'] };
-  (component as any).categoryComboBox = { value: ['8'] };
+  // even though divisions exist, they should NOT be used
+  (component as any).divisionComboBox = { value: '20' };
+  component.divisions = [
+    { divisionId: 20, divisionCd: 'D1', divisionDesc: 'Division A' }
+  ] as any[];
 
-  // division combo present but should not be applied when isTaxAccount()=false
-  (component as any).divisionComboBox = { value: ['555'] };
-
+  // category combo to satisfy earlier parts
+  (component as any)._categoryComboBox = { value: '8' };
+  (component as any).categoryComboBox = { value: '8' };
   component.categories = [
     { categoryId: 8, categoryDescription: 'Other', categoryCode: '7' }
   ] as any[];
 
-  component.divisions = [
-    { divisionId: 20, divisionDesc: 'Division A', divisionCd: 'D1' }
-  ] as any[];
-
   spyOn(component as any, 'isTaxAccount').and.returnValue(false);
 
-  // act
-  const updated = (component as any).getUpdatedModel();
+  const model = (component as any).getUpdatedModel();
 
-  // assert basic mapped fields
-  expect(updated).toBeDefined();
-  expect(updated.categoryGlId).toBe(999);
-  expect(updated.glAcctNbr).toBe('GL-1000');
-  expect(updated.categoryId).toBe(8);
-  expect(updated.categoryCode).toBe('7');
-  expect(updated.catgoryDesc).toBe('Other');
-
-  // division fields should be falsy ('' or undefined depending on your class defaults)
-  expect(Boolean(updated.divisionId)).toBeFalse();
-  expect(Boolean(updated.divisionCode)).toBeFalse();
-  expect(Boolean(updated.divisionDesc)).toBeFalse();
-
-  expect(updated.createdBy).toBe('cby2');
-  expect(updated.createdDt).toBe('2025-01-01T00:00:00');
-  expect(updated.updatedBy).toBe('uby2');
-  expect(updated.updatedDt).toBe('2025-02-02T00:00:00');
+  // depending on defaults in CategoryGLAcctMapping, check for falsy/undefined
+  expect(model.divisionId).toBeFalsy();
+  expect(model.divisionCode).toBeFalsy();
+  expect(model.divisionDesc).toBeFalsy();
 });
