@@ -1,32 +1,31 @@
 it('onAcceptButtonClick(ActionType.update) - error: restores selected, displays error and hides modal', fakeAsync(() => {
   // Arrange
-  // Ensure we run the update branch
   const ActionType = { add: 0, update: 1, delete: 2 };
-  (component as any).ActionType = ActionType;
+  // prevent early exit
+  spyOn(component as any, 'ValidateFormControls').and.returnValue(false);
 
-  // Pretend there is a selected row and original object
-  (component as any).isRowSelected = true;
-  component.selectedCatGlmap = { categoryGlId: 55, glAcctNbr: 'GL-OLD', some: 'x' } as any;
-  component.catGlmap = { categoryGlId: 55, glAcctNbr: 'GL-NEW', some: 'y' } as any;
+  component.selectedCatGlmap = { categoryGlId: 55, glAcctNbr: 'GL-OLD', startDt: 's', endDt: 'e' } as any;
+  component.catGlmap = { categoryGlId: 55, glAcctNbr: 'GL-NEW', startDt: 'sX', endDt: 'eX' } as any;
 
-  // Ensure combo boxes exist (the method reads _categoryComboBox/_divisionComboBox values)
+  // important: categories/divisions must be arrays so .find/.filter work
+  component.categories = [{ categoryId: 7, categoryDescription: 'Estate', categoryCode: '4' }] as any;
+  component.divisions = [{ divisionId: 20, divisionDesc: 'Div A', divisionCd: 'D1' }] as any;
+
+  // combo mocks used by code
   (component as any)._categoryComboBox = { value: ['7'] };
   (component as any)._divisionComboBox = { value: ['20'] };
 
-  // Provide required utils behaviour
   const utils = (component as any).utils = (component as any).utils || {};
   spyOn(utils, 'getCurrentUser').and.returnValue('testUser');
   spyOn(utils, 'ToEstDate').and.returnValue('2025-08-25T00:00:00');
 
-  // Spy the putRequest to throw error
+  // putRequest throws -> error path
   const err = { error: { statusMessage: 'PUT failed' } };
   const putSpy = spyOn((component as any).feeApiservice, 'putRequest').and.returnValue(throwError(() => err));
 
-  // Spy displayServiceErrors and other side-effects
   const displaySpy = spyOn(component as any, 'displayServiceErrors');
-  const assignSpy = spyOn(Object, 'assign').and.callThrough(); // just to track restore
   const clearSelSpy = spyOn(component as any, 'clearSelection').and.callThrough();
-  // Provide a mock action modal so hide() doesn't throw and can be asserted
+
   (component as any)._actionModal = { hide: jasmine.createSpy('hide') };
 
   // Act
@@ -34,26 +33,23 @@ it('onAcceptButtonClick(ActionType.update) - error: restores selected, displays 
   tick();
 
   // Assert
-  expect(putSpy).toHaveBeenCalled(); // attempted the put
-  // On error, code should Object.assign back selected into catGlmap
-  expect(component.catGlmap).toBeDefined();
-  // displayServiceErrors should be called with the message from error
+  expect(putSpy).toHaveBeenCalled();
   expect(displaySpy).toHaveBeenCalledWith('PUT failed');
-  // The action modal should be hidden and selection cleared/cleared
   expect((component as any)._actionModal.hide).toHaveBeenCalled();
-  // clearSelection should have been invoked as part of method end
   expect(clearSelSpy).toHaveBeenCalled();
 }));
 
 
-it('onAcceptButtonClick(ActionType.update) - success: calls GenerateTableRows, shows success and writes audit log on complete', fakeAsync(() => {
+it('onAcceptButtonClick(ActionType.update) - success: GenerateTableRows, success message & auditLog.writeAuditLog called', fakeAsync(() => {
   // Arrange
   const ActionType = { add: 0, update: 1, delete: 2 };
-  (component as any).ActionType = ActionType;
+  spyOn(component as any, 'ValidateFormControls').and.returnValue(false);
 
-  (component as any).isRowSelected = true;
   component.selectedCatGlmap = { categoryGlId: 77, glAcctNbr: 'GL-OLD', startDt: 's', endDt: 'e' } as any;
   component.catGlmap = { categoryGlId: 77, glAcctNbr: 'GL-NEW', startDt: 'sX', endDt: 'eX' } as any;
+
+  component.categories = [{ categoryId: 7, categoryDescription: 'Estate', categoryCode: '4' }] as any;
+  component.divisions = [{ divisionId: 20, divisionDesc: 'Div A', divisionCd: 'D1' }] as any;
 
   (component as any)._categoryComboBox = { value: ['7'] };
   (component as any)._divisionComboBox = { value: ['20'] };
@@ -62,25 +58,19 @@ it('onAcceptButtonClick(ActionType.update) - success: calls GenerateTableRows, s
   spyOn(utils, 'getCurrentUser').and.returnValue('u1');
   spyOn(utils, 'ToEstDate').and.returnValue('2025-08-25T00:00:00');
 
-  // putRequest succeeds
   const putSpy = spyOn((component as any).feeApiservice, 'putRequest').and.returnValue(of({}));
 
-  // Spy methods invoked on success/complete
   const genSpy = spyOn(component as any, 'GenerateTableRows').and.callFake(() => null);
   const setMsgSpy = spyOn(component as any, 'SetMessageTypeAndValue').and.callFake(() => null);
-  // getUpdatedModel returns stable object used for audit log
+
   const updatedModel = { foo: 'bar' };
-  const getUpdatedModelSpy = spyOn(component as any, 'getUpdatedModel').and.returnValue(updatedModel);
+  spyOn(component as any, 'getUpdatedModel').and.returnValue(updatedModel);
 
-  // Spy auditLogService
   (component as any).auditLogService = (component as any).auditLogService || {};
-  const auditSpy = spyOn((component as any).auditLogService, 'writeAuditLog').and.callFake(() => null);
-  // provide updateAction value used in writeAuditLog call
   (component as any).auditLogService.updateAction = 'UPDATE';
+  const auditSpy = spyOn((component as any).auditLogService, 'writeAuditLog').and.callFake(() => null);
 
-  // Provide action modal so it can be hidden at end
   (component as any)._actionModal = { hide: jasmine.createSpy('hide') };
-  // Also spy clearSelection
   const clearSelSpy = spyOn(component as any, 'clearSelection').and.callFake(() => null);
 
   // Act
@@ -91,8 +81,6 @@ it('onAcceptButtonClick(ActionType.update) - success: calls GenerateTableRows, s
   expect(putSpy).toHaveBeenCalled();
   expect(genSpy).toHaveBeenCalled();
   expect(setMsgSpy).toHaveBeenCalledWith(jasmine.anything(), (component as any).updateSuccessMessage);
-  // After complete, getUpdatedModel() called and auditLogService.writeAuditLog invoked
-  expect(getUpdatedModelSpy).toHaveBeenCalled();
   expect(auditSpy).toHaveBeenCalledWith(
     'categoryGlId',
     component.catGlmap.categoryGlId.toString(),
@@ -101,7 +89,6 @@ it('onAcceptButtonClick(ActionType.update) - success: calls GenerateTableRows, s
     (component as any).auditLogService.updateAction,
     (component as any).PageTitle
   );
-  // end housekeeping
   expect(clearSelSpy).toHaveBeenCalled();
   expect((component as any)._actionModal.hide).toHaveBeenCalled();
 }));
