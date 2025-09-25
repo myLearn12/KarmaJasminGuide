@@ -1,56 +1,18 @@
-it('getCategoryComboBoxValue(): sets _categoryComboBox.value from categories', () => {
+it('GenerateTableRows(): when getRequest errors should call displayServiceErrors, clear loading and dispatch LOADINGACTION(false)', fakeAsync(() => {
   // Arrange
-  component.categories = [
-    { categoryId: 7, categoryDescription: 'Estate', categoryCode: '4' },
-    { categoryId: 8, categoryDescription: 'Other',  categoryCode: '7' }
-  ] as any;
+  component.rbnTax = { value: true } as any; // so value = '1'
+  const errorObj = { error: { statusMessage: 'Test error' } };
 
-  component.catGlmap = { categoryId: 8 } as any;
-
-  // ensure viewchild mock exists
-  (component as any)._categoryComboBox = { value: null };
+  spyOn(component.feeApiservice, 'getRequest').and.returnValue(throwError(() => errorObj));
+  const displaySpy = spyOn(component as any, 'displayServiceErrors');
+  const dispatchSpy = spyOn(component['store'], 'dispatch');
 
   // Act
-  (component as any).getCategoryComboBoxValue();
-
-  // Assert - it should map to string array of matching id(s)
-  expect((component as any)._categoryComboBox.value).toEqual(['8']);
-});
-
-it('getDivisionComboBoxVal(): sets _divisionComboBox.value when divisionId present, and null when absent', () => {
-  // Arrange - divisions and catGlmap with divisionId
-  component.divisions = [
-    { divisionId: 20, divisionDesc: 'Division A', divisionCd: 'D1' },
-    { divisionId: 30, divisionDesc: 'Division B', divisionCd: 'D2' }
-  ] as any;
-
-  (component as any)._divisionComboBox = { value: null };
-
-  // Case A: valid divisionId -> should set to ['30']
-  component.catGlmap = { divisionId: 30 } as any;
-  (component as any).getDivisionComboBoxVal();
-  expect((component as any)._divisionComboBox.value).toEqual(['30']);
-
-  // Case B: divisionId is null -> should set to null
-  component.catGlmap = { divisionId: null } as any;
-  (component as any).getDivisionComboBoxVal();
-  expect((component as any)._divisionComboBox.value).toBeNull();
-
-  // Case C: divisionId is undefined -> should set to null
-  component.catGlmap = { } as any; // no divisionId
-  (component as any).getDivisionComboBoxVal();
-  expect((component as any)._divisionComboBox.value).toBeNull();
-});
-
-it('onClearButtonClick(): clears errorBlockMessage and calls GenerateTableRows()', () => {
-  // Arrange: set a non-null errorBlockMessage and spy GenerateTableRows
-  component.errorBlockMessage = 'SOME ERROR';
-  const genSpy = spyOn(component, 'GenerateTableRows').and.callFake(() => {});
-
-  // Act
-  (component as any).onClearButtonClick();
+  component.GenerateTableRows();
+  tick(); // flush observable
 
   // Assert
-  expect(component.errorBlockMessage).toBeNull();
-  expect(genSpy).toHaveBeenCalled();
-});
+  expect(displaySpy).toHaveBeenCalledWith('Test error');
+  expect(component.loading).toBeFalse();
+  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
+}));
