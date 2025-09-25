@@ -1,61 +1,27 @@
-it('LoadDefaultComboBox: on complete should set category/division combo data and deep-clone viewchild.options', fakeAsync(() => {
-  // --- Arrange ------------------------------------------------------------
-  // ensure appConfigService URLs (component may keep this private)
-  (component as any).appConfigService = (component as any).appConfigService || {};
-  (component as any).appConfigService.getAllCategoryUrl = '/api/categories';
-  (component as any).appConfigService.getAllDivisionUrl = '/api/divisions';
+it('LoadDefaultComboBox: on error should call displayServiceErrors', fakeAsync(() => {
+  // Arrange
+  (component as any).appConfigService = {
+    getAllCategoryUrl: '/api/categories',
+    getAllDivisionUrl: '/api/divisions'
+  };
 
-  // realistic backend payloads
-  const categories = [
-    { categoryId: 7, categoryDescription: 'Estate', categoryCode: '4' }
-  ];
-  const divisions = [
-    { divisionId: 20, divisionDesc: 'Division A', divisionCd: 'D1', costCenterId: 99, costCenterDesc: 'CC' }
-  ];
+  const errorResponse = {
+    error: { statusMessage: 'Something went wrong' }
+  };
 
-  // spy feeApiservice.getRequest to return the expected observables
   spyOn((component as any).feeApiservice, 'getRequest').and.callFake((url: string) => {
-    if (String(url).toLowerCase().includes('category')) {
-      return of(categories);
-    }
-    if (String(url).toLowerCase().includes('division')) {
-      return of(divisions);
+    if (url === '/api/categories' || url === '/api/divisions') {
+      return throwError(() => errorResponse);
     }
     return of([]);
   });
 
-  // Make utils.LoadComboBoxData return the mapped options used in combo data
-  const mappedCategories = [{ label: 'Estate', value: '7' }];
-  const mappedDivisions  = [{ label: 'Division A', value: '20' }];
-  spyOn(component['utils'], 'LoadComboBoxData').and.callFake((arr: any[], label: string /*, code, id */) => {
-    if (label === 'categoryDescription') return mappedCategories;
-    if (label === 'divisionDesc') return mappedDivisions;
-    return [];
-  });
+  const displayErrorSpy = spyOn(component as any, 'displayServiceErrors');
 
-  // Provide the ViewChild mocks so .options assignment & any iteration succeed
-  (component as any)._categoryComboBox = { options: [] }; // must be iterable
-  (component as any)._divisionComboBox = { options: [] };
-  // in some components the "public" property uses different name, ensure both exist:
-  (component as any).categoryComboBox = (component as any).categoryComboBox || (component as any)._categoryComboBox;
-  (component as any).divisionComboBox = (component as any).divisionComboBox || (component as any)._divisionComboBox;
-
-  const dispatchSpy = spyOn(component['store'], 'dispatch');
-
-  // --- Act ---------------------------------------------------------------
+  // Act
   (component as any).LoadDefaultComboBox();
-  tick(); // flush forkJoin and subscribe handlers
+  tick();
 
-  // --- Assert ------------------------------------------------------------
-  // combo data built using utils.LoadComboBoxData
-  expect(component.categoryComboBoxData).toEqual([{ options: mappedCategories }]);
-  expect(component.divisionComboBoxData).toEqual([{ options: mappedDivisions }]);
-
-  // viewchild.options set to deep-cloned arrays (original categories/divisions preserved shape)
-  expect((component as any)._categoryComboBox.options).toEqual(JSON.parse(JSON.stringify(categories)));
-  expect((component as any)._divisionComboBox.options).toEqual(JSON.parse(JSON.stringify(divisions)));
-
-  // loading cleared and LOADINGACTION(false) dispatched
-  expect(component.loading).toBeFalse();
-  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
+  // Assert
+  expect(displayErrorSpy).toHaveBeenCalledWith('Something went wrong');
 }));
