@@ -1,48 +1,58 @@
 it('onUpdateModalClick(): else branch -> prepares model, enables division for tax account and shows action modal', () => {
-  // Arrange - ensure else branch
+  // Arrange - ensure else branch (row selected)
   (component as any).isRowSelected = true;
   (component as any).catGlmap = {
-    id: 123,
+    catGlId: 123,
     categoryId: 'C7',
     divisionId: 20,
     someField: 'value'
-  };
+  } as any;
 
-  // Provide spies for helpers that the method calls
-  const activateSpy = spyOn(component as any, 'ActivateFormControls');
-  const initSpy = spyOn(component as any, 'setIntialvalues');
-  const catComboSpy = spyOn(component as any, 'getCategoryComboBoxValue');
-  const divComboSpy = spyOn(component as any, 'getDivisionComboBoxVal');
+  // Ensure ActionType exists in component context and is stable for assertions
+  // (the real app likely uses an enum that compiles to numbers)
+  (component as any).ActionType = { add: 0, update: 1, delete: 2 };
 
-  // Make isTaxAccount return true so enableDivision path executes
+  // Provide spies for helper methods that are called by onUpdateModalClick
+  const activateSpy = spyOn(component as any, 'ActivateFormControls').and.returnValue(null);
+  const initSpy     = spyOn(component as any, 'setIntialvalues').and.returnValue(null);
+  const catComboSpy = spyOn(component as any, 'getCategoryComboBoxValue').and.returnValue(null);
+  const divComboSpy = spyOn(component as any, 'getDivisionComboBoxVal').and.returnValue(null);
+
+  // Make isTaxAccount return true so the enableDivision path executes
   spyOn(component as any, 'isTaxAccount').and.returnValue(true);
 
-  // Provide a mock actionModal with show method
+  // Provide a mock actionModal with a show() spy so we can assert it was called
   (component as any).actionModal = { show: jasmine.createSpy('show') };
+
+  // Precondition: enableDivision should be falsy before call
+  (component as any).enableDivision = false;
+  (component as any).isReadonly = false;
 
   // Act
   (component as any).onUpdateModalClick();
 
-  // Assert - flags and title/type
+  // Assert - high level flags
   expect((component as any).isReadonly).toBeTrue();
   expect((component as any).actionModalTitle).toBe('Update');
-  expect((component as any).actionModalType).toBe((component as any).ActionType?.update ?? (component as any).ActionType); // tolerant check if enum wired differently
+
+  // Now assert actionModalType was set to the enum value we provided
+  expect((component as any).actionModalType).toBe((component as any).ActionType.update);
 
   // Assert - helper calls
   expect(activateSpy).toHaveBeenCalled();
   expect(initSpy).toHaveBeenCalled();
   expect(catComboSpy).toHaveBeenCalled();
   expect((component as any).isTaxAccount).toHaveBeenCalled();
-  expect(divComboSpy).toHaveBeenCalled();
+  expect(divComboSpy).toHaveBeenCalled(); // because isTaxAccount returned true
 
-  // Assert - enableDivision path executed because isTaxAccount returned true
+  // Assert - enableDivision path executed
   expect((component as any).enableDivision).toBeTrue();
 
-  // Assert - selectedCatGlmap is a deep copy (not same reference but same content)
+  // Assert - selectedCatGlmap is a deep copy (value-equal but not same reference)
   expect((component as any).selectedCatGlmap).toBeDefined();
   expect((component as any).selectedCatGlmap).not.toBe((component as any).catGlmap);
   expect(JSON.stringify((component as any).selectedCatGlmap)).toEqual(JSON.stringify((component as any).catGlmap));
 
-  // Assert - modal shown
+  // Assert - action modal shown
   expect((component as any).actionModal.show).toHaveBeenCalled();
 });
