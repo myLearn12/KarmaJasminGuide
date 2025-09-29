@@ -1,39 +1,36 @@
-it('ngOnInit(): complete branch -> sets revenue & costcenter combo data, deep-clones viewchild.options, clears loading and dispatches LOADINGACTION(false)', fakeAsync(() => {
-  // Arrange ------------------------------------------------------------
-  // Ensure the component can build URLs (private appConfigService)
+it('LoadDefaultComboBox(): complete -> sets combo data and deep-clones viewchild.options, clears loading and dispatches LOADINGACTION(false)', fakeAsync(() => {
+  // Arrange: provide appConfigService URLs (component may read these privately)
   (component as any).appConfigService = {
-    getAllCostCenterUrl: '/api/costcenters',
-    getAllRevShareGlAcctMappingUrl: '/api/revshareglacctmaps',
-    getAllRevShareTypeCdUrl: '/api/revsharetypes'
+    getAllRevShareTypeCdUrl: '/api/revsharetypes',
+    getAllCostCenterUrl: '/api/costcenters'
   } as any;
 
-  // Return values that forkJoin should yield
-  const costCenters = [{ costCenterNbr: '100', costCenterDesc: 'Cost A', costCenterId: 1 }];
-  const revShareGlMaps: any[] = []; // used by LoadTableRows; not under test here
-  const revenueShares = [{ revShareTypeId: 10, revShareTypeDesc: 'Revenue A', revShareTypeCd: 'R1' }];
+  // Data returned by the two getRequest calls
+  const revenueShares = [
+    { revShareTypeId: 10, revShareTypeDesc: 'Revenue A', revShareTypeCd: 'R1' }
+  ];
+  const costCenters = [
+    { costCenterNbr: '100', costCenterDesc: 'Cost A', costCenterId: 1 }
+  ];
 
-  // Capture called URLs for debug if something goes wrong
+  // Capture called URLs (debugging if something mismatches)
   const calledUrls: string[] = [];
 
-  // Robust feeApiservice.getRequest stub (substring matching)
+  // Stub feeApiservice.getRequest robustly (substring matching)
   spyOn(component.feeApiservice, 'getRequest').and.callFake((url?: string) => {
     calledUrls.push(String(url));
     const u = String(url || '').toLowerCase();
-
+    if (u.includes('revshare') || u.includes('revsharetype')) {
+      return of(revenueShares);
+    }
     if (u.includes('cost') || u.includes('costcenter')) {
       return of(costCenters);
     }
-    if (u.includes('revsharegl') || u.includes('revshareglacct')) {
-      return of(revShareGlMaps);
-    }
-    if (u.includes('revsharetype') || u.includes('revsharetypecd')) {
-      return of(revenueShares);
-    }
-    // fallback so test doesn't blow up if URL differs
+    // fallback to empty array to avoid crashes
     return of([]);
   });
 
-  // utils.LoadComboBoxData -> predictable mappings used for combo data
+  // Stub utils.LoadComboBoxData to return the predictable mapped options used in combo data
   const mappedRevenue = [{ label: 'Revenue A', value: '10' }];
   const mappedCostcenters = [{ label: 'Cost A', value: '100' }];
   spyOn(component['utils'], 'LoadComboBoxData').and.callFake((arr: any[], label: string, _code: string, id: string) => {
@@ -42,39 +39,38 @@ it('ngOnInit(): complete branch -> sets revenue & costcenter combo data, deep-cl
     return [];
   });
 
-  // Provide ViewChild placeholders so component can assign .options
+  // Provide ViewChild placeholders so assignments to .options succeed
   (component as any)._revenueShareComboBox = { options: null };
   (component as any)._costCenterComboBox = { options: null };
 
-  // Avoid side effects from LoadTableRows (we only care about complete branch)
+  // Prevent side effects of LoadTableRows (not under test here)
   if ((component as any).LoadTableRows) {
     spyOn(component as any, 'LoadTableRows').and.callFake(() => {});
   }
 
   const dispatchSpy = spyOn(component['store'], 'dispatch');
 
-  // Act ----------------------------------------------------------------
-  component.ngOnInit();
-  tick(); // flush forkJoin next + complete
+  // Act: call the method and flush async work
+  (component as any).LoadDefaultComboBox();
+  tick(); // flush forkJoin and subscribe complete
 
-  // If our string matching missed the expected calls, show helpful error
+  // Sanity check: if URL matching failed, show helpful failure
+  const sawRev = calledUrls.some(u => /revshare|revsharetype/i.test(u));
   const sawCost = calledUrls.some(u => /cost|costcenter/i.test(u));
-  const sawRevenue = calledUrls.some(u => /revsharetype|revsharetypecd/i.test(u));
-  if (!sawCost || !sawRevenue) {
-    fail('ngOnInit test URL mismatch. Calls made: ' + JSON.stringify(calledUrls, null, 2));
+  if (!sawRev || !sawCost) {
+    fail('LoadDefaultComboBox URL mismatch - calls made: ' + JSON.stringify(calledUrls, null, 2));
     return;
   }
 
-  // Assert -------------------------------------------------------------
-  // combo data arrays should be built from utils.LoadComboBoxData results
+  // Assert: combo data arrays use utils.LoadComboBoxData results
   expect(component.revenueShareComboBoxData).toEqual([{ options: mappedRevenue }]);
   expect(component.costCenterComboBoxData).toEqual([{ options: mappedCostcenters }]);
 
-  // viewchild options should be deep-cloned copies of original arrays
+  // Assert: viewchild.options deep-cloned from original arrays
   expect((component as any)._revenueShareComboBox.options).toEqual(JSON.parse(JSON.stringify(revenueShares)));
   expect((component as any)._costCenterComboBox.options).toEqual(JSON.parse(JSON.stringify(costCenters)));
 
-  // loading cleared and LOADINGACTION(false) dispatched
+  // loading should be false and LOADINGACTION(false) dispatched at end (if your method dispatches)
   expect(component.loading).toBeFalse();
   expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
 }));
