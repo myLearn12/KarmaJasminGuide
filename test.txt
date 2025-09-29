@@ -2,56 +2,70 @@ it('ngOnInit(): on success should set combo data via utils.LoadComboBoxData, pop
   // Arrange
   spyOn(component['authService'], 'canHideFinanceAdminControls').and.returnValue(false);
 
-  // Data that the forkJoin should return
+  // realistic return values
   const costCenters = [{ costCenterNbr: '100', costCenterDesc: 'Cost A', costCenterId: 1 }];
-  const revShareGlAcctMaps: any[] = []; // used by LoadTableRows perhaps
+  const revShareGlAcctMaps: any[] = []; // used by LoadTableRows maybe
   const revenueShares = [{ revShareTypeId: 10, revShareTypeDesc: 'Revenue A', revShareTypeCd: 'R1' }];
 
-  // Spy feeApiservice.getRequest and return proper observables depending on URL content (robust)
+  // capture URLs called for debugging if we mismatch
+  const calledUrls: string[] = [];
+
   spyOn(component.feeApiservice, 'getRequest').and.callFake((url: string) => {
+    calledUrls.push(String(url));
     const u = String(url || '').toLowerCase();
+
+    // substring matching — robust to small URL differences
     if (u.includes('cost') || u.includes('costcenter')) {
       return of(costCenters);
     }
-    if (u.includes('revsharegl') || u.includes('revshareglacct') || u.includes('revshareglacctmapping')) {
+    if (u.includes('revsharegl') || u.includes('revshareglacct')) {
       return of(revShareGlAcctMaps);
     }
     if (u.includes('revsharetype') || u.includes('revsharetypecd')) {
       return of(revenueShares);
     }
-    // fallback so test doesn't crash; helps debug unexpected URL
+    // fallback so test doesn't crash; we'll fail explicitly below if nothing matched
     return of([]);
   });
 
   // Provide predictable mapped results from utils.LoadComboBoxData
   const mappedRevenue = [{ label: 'Revenue A', value: '10' }];
-  const mappedCostCenters = [{ label: 'Cost A', value: '100' }];
+  const mappedCostcenters = [{ label: 'Cost A', value: '100' }];
   spyOn(component['utils'], 'LoadComboBoxData').and.callFake((arr: any[], label: string, _code: string, id: string) => {
     if (label === 'revShareTypeDesc') return mappedRevenue;
-    if (label === 'costCenterDesc') return mappedCostCenters;
+    if (label === 'costCenterDesc') return mappedCostcenters;
+    // defensive default
     return [];
   });
 
-  // Provide ViewChild mocks so component can assign .options without throwing
+  // Ensure component's viewchild names exist and are mockable
   (component as any)._revenueShareComboBox = { options: null };
   (component as any)._costCenterComboBox = { options: null };
 
-  // Prevent side effects from LoadTableRows if it exists; keep test focused
+  // Prevent LoadTableRows side effects if present
   if ((component as any).LoadTableRows) {
-    spyOn(component as any, 'LoadTableRows');
+    spyOn(component as any, 'LoadTableRows').and.callFake(() => {});
   }
 
   const dispatchSpy = spyOn(component['store'], 'dispatch');
 
   // Act
   component.ngOnInit();
-  tick(); // flush forkJoin next + complete
+  tick(); // flush forkJoin subscribe next + complete
 
-  // Assert: combo data arrays built using utils.LoadComboBoxData
+  // If nothing matched above, provide helpful debug info
+  const sawCost = calledUrls.some(u => /cost|costcenter/i.test(u));
+  const sawRevenue = calledUrls.some(u => /revsharetype|revsharetypecd/i.test(u));
+  if (!sawCost || !sawRevenue) {
+    fail('ngOnInit test URL mismatch. Called urls: ' + JSON.stringify(calledUrls, null, 2));
+    return;
+  }
+
+  // Assert: combo data built using utils.LoadComboBoxData
   expect(component.revenueShareComboBoxData).toEqual([{ options: mappedRevenue }], 'revenueShareComboBoxData mismatch');
-  expect(component.costCenterComboBoxData).toEqual([{ options: mappedCostCenters }], 'costCenterComboBoxData mismatch');
+  expect(component.costCenterComboBoxData).toEqual([{ options: mappedCostcenters }], 'costCenterComboBoxData mismatch');
 
-  // Assert: ViewChild options set to deep-cloned arrays (component used JSON.parse(JSON.stringify(...)))
+  // Assert: ViewChild options set to deep-cloned arrays (component uses JSON.parse(JSON.stringify(...)))
   expect((component as any)._revenueShareComboBox.options).toEqual(JSON.parse(JSON.stringify(revenueShares)));
   expect((component as any)._costCenterComboBox.options).toEqual(JSON.parse(JSON.stringify(costCenters)));
 
