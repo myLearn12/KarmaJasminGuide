@@ -1,23 +1,36 @@
-it('onUpdateModalClick(): else branch should deep clone revShrGlAcctmap, call helpers and show modal', () => {
-  // Arrange
-  component.isRowSelected = true;
-  component.revShrGlAcctmap = { revShareGlAcctId: 1, revShareDesc: 'Test' } as any;
+it('onAcceptButtonClick(ActionType.add): posts payload, regenerates table, shows success and writes audit log (all setup inside test)', fakeAsync(() => {
+  // Arrange - component state & helpers (no beforeEach)
+  (component as any)._revenueShareComboBox = { value: '10' };
+  (component as any)._costCenterComboBox = { value: '100' };
+  component.revShrGlAcctmap = { glAccountNumber: 'GL-1', abaNbr: 'ABA', revShareGlAcctId: 99 } as any;
 
-  spyOn(component as any, 'setIntialvalues');
-  spyOn(component as any, 'getRevenueShareComboBoxValue');
-  spyOn(component as any, 'getCostCenterComboBoxValue');
-  (component as any)._actionModal = { show: jasmine.createSpy('show') };
+  // spies for helpers & services
+  const genSpy = spyOn(component as any, 'GenerateTableRows');
+  const msgSpy = spyOn(component as any, 'SetMessageTypeAndValue');
+  const auditSpy = spyOn(component['auditLogService'], 'writeAuditLog');
+  const clearSpy = spyOn(component as any, 'clearSelection');
+  const modalSpy = spyOn((component as any)._actionModal || {}, 'hide'); // hide called at end
+
+  // feeApiservice.postRequest should return success observable (next + complete)
+  const postSpy = spyOn(component.feeApiservice, 'postRequest').and.returnValue(of({}));
+
+  // ensure validateFormControls returns false so method proceeds
+  spyOn(component as any, 'validateFormControls').and.returnValue(false);
 
   // Act
-  component.onUpdateModalClick();
+  component.onAcceptButtonClick(ActionType.add);
+  tick();
 
-  // Assert deep clone
-  expect(component.selectedRevShrGlAcctMap).toEqual(component.revShrGlAcctmap);
-  expect(component.selectedRevShrGlAcctMap).not.toBe(component.revShrGlAcctmap);
-
-  // Assert helper calls + modal
-  expect((component as any).setIntialvalues).toHaveBeenCalled();
-  expect((component as any).getRevenueShareComboBoxValue).toHaveBeenCalled();
-  expect((component as any).getCostCenterComboBoxValue).toHaveBeenCalled();
-  expect((component as any)._actionModal.show).toHaveBeenCalled();
-});
+  // Assert
+  expect(postSpy).toHaveBeenCalled();                // HTTP call made
+  expect(genSpy).toHaveBeenCalled();                 // table regenerated
+  expect(msgSpy).toHaveBeenCalledWith(
+    jasmine.anything(),                              // block message type
+    jasmine.any(String)                              // success message text
+  );
+  // audit should be called on complete
+  expect(auditSpy).toHaveBeenCalled();
+  // method ends by clearing selection & hiding modal
+  expect(clearSpy).toHaveBeenCalled();
+  if (modalSpy) { expect(modalSpy).toHaveBeenCalled(); }
+}));
