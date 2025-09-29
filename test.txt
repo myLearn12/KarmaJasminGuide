@@ -1,36 +1,66 @@
+import { of, throwError } from 'rxjs';
+import { fakeAsync, tick } from '@angular/core/testing';
+
+// ... inside your describe for RevshrglacctmapComponent
+
 it('onAcceptButtonClick(ActionType.add): posts payload, regenerates table, shows success and writes audit log (all setup inside test)', fakeAsync(() => {
-  // Arrange - component state & helpers (no beforeEach)
+  // --- Arrange ---
+  // minimal viewchild mocks used by the method
   (component as any)._revenueShareComboBox = { value: '10' };
-  (component as any)._costCenterComboBox = { value: '100' };
-  component.revShrGlAcctmap = { glAccountNumber: 'GL-1', abaNbr: 'ABA', revShareGlAcctId: 99 } as any;
+  (component as any)._costCenterComboBox  = { value: '100' };
 
-  // spies for helpers & services
-  const genSpy = spyOn(component as any, 'GenerateTableRows');
-  const msgSpy = spyOn(component as any, 'SetMessageTypeAndValue');
+  // Ensure revenueShares and costCenters are arrays (FIX for ".find is not a function" error)
+  component.revenueShares = [
+    { revShareTypeId: 10, revShareTypeCd: 'R1', revShareTypeDesc: 'Revenue A', activeIndic: true }
+  ] as any[];
+  component.costCenters = [
+    { costCenterNbr: '100', costCenterDesc: 'Cost A', costCenterId: 1 }
+  ] as any[];
+
+  // Component model being added
+  component.revShrGlAcctmap = {
+    glAccountNumber: 'GL-1',
+    abaNbr: 'ABA-1'
+  } as any;
+
+  // Provide utils.LoadComboBoxData so any code that uses it won't fail
+  spyOn(component['utils'], 'LoadComboBoxData').and.callFake((arr: any[], label: string, _c: string, id: string) =>
+    arr.map((r: any) => ({ label: r[label], value: String(r[id]) }))
+  );
+
+  // Ensure auditLogService exists and spy it
+  if (!component['auditLogService']) {
+    component['auditLogService'] = { writeAuditLog: () => {} } as any;
+  }
   const auditSpy = spyOn(component['auditLogService'], 'writeAuditLog');
+
+  // Spy on helper methods that should be invoked
+  const genSpy = spyOn(component as any, 'GenerateTableRows');
+  const setMsgSpy = spyOn(component as any, 'SetMessageTypeAndValue');
   const clearSpy = spyOn(component as any, 'clearSelection');
-  const modalSpy = spyOn((component as any)._actionModal || {}, 'hide'); // hide called at end
+  // provide action modal hide to spy (component hides at end)
+  (component as any)._actionModal = { hide: () => {} };
+  const modalHideSpy = spyOn((component as any)._actionModal, 'hide');
 
-  // feeApiservice.postRequest should return success observable (next + complete)
-  const postSpy = spyOn(component.feeApiservice, 'postRequest').and.returnValue(of({}));
-
-  // ensure validateFormControls returns false so method proceeds
+  // Make sure validateFormControls lets the call through
   spyOn(component as any, 'validateFormControls').and.returnValue(false);
 
+  // feeApiservice.postRequest should return an observable that completes (simulate backend success)
+  const postSpy = spyOn(component.feeApiservice, 'postRequest').and.returnValue(of({}));
+
+  // If SetMessageTypeAndValue expects BlockMessageType argument, we don't care about exact type here.
   // Act
   component.onAcceptButtonClick(ActionType.add);
-  tick();
+  tick(); // flush any async/subscribe
 
-  // Assert
-  expect(postSpy).toHaveBeenCalled();                // HTTP call made
-  expect(genSpy).toHaveBeenCalled();                 // table regenerated
-  expect(msgSpy).toHaveBeenCalledWith(
-    jasmine.anything(),                              // block message type
-    jasmine.any(String)                              // success message text
+  // --- Assert ---
+  expect(postSpy).toHaveBeenCalled();                     // HTTP post called
+  expect(genSpy).toHaveBeenCalled();                      // GenerateTableRows called on next
+  expect(setMsgSpy).toHaveBeenCalledWith(
+    jasmine.anything(),                                   // BlockMessageType
+    jasmine.any(String)                                   // success text
   );
-  // audit should be called on complete
-  expect(auditSpy).toHaveBeenCalled();
-  // method ends by clearing selection & hiding modal
-  expect(clearSpy).toHaveBeenCalled();
-  if (modalSpy) { expect(modalSpy).toHaveBeenCalled(); }
+  expect(auditSpy).toHaveBeenCalled();                    // audit log written on complete
+  expect(clearSpy).toHaveBeenCalled();                    // selection cleared
+  expect(modalHideSpy).toHaveBeenCalled();                // modal hidden
 }));
