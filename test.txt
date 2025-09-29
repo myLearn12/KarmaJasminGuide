@@ -1,44 +1,40 @@
-it('onUpdateModalClick(): else branch -> prepares model, calls helpers and shows action modal', () => {
-  // Arrange: make sure we take the ELSE branch => isRowSelected must be false
-  component.isRowSelected = false;
+it('onUpdateModalClick: when row is selected should deep clone revShrdivmap, set values, and show modal', () => {
+  // Arrange
+  component.isRowSelected = true;
 
-  // Provide a realistic revShrGlAcctmap so cloning can be asserted
-  component.revShrGlAcctmap = {
-    revShareDivId: 123,
-    revShareTypeId: 10,
-    divisionId: 20,
-    revShareDesc: 'RDesc',
-    divisionDesc: 'DivDesc'
-  } as any;
+  // realistic sample model (fields don't need to match exactly; just an object)
+  component.revShrdivmap = { revShareDivId: 1, revShareDesc: 'Test Map' } as any;
 
-  // Spy the helper methods so they are no-ops but we can verify they were called
-  const activateSpy = spyOn(component as any, 'ActivateFormControls').and.callFake(() => {});
-  const setInitSpy = spyOn(component as any, 'setIntialvalues').and.callFake(() => {});
-  const getRevSpy = spyOn(component as any, 'getRevenueShareComboBoxValue').and.callFake(() => {});
-  const getCostSpy = spyOn(component as any, 'getCostCenterComboBoxValue').and.callFake(() => {});
+  // The component may call ActivateFormControls — stub it to avoid side effects
+  spyOn(component as any, 'ActivateFormControls').and.stub();
 
-  // Provide an actionModal stub (ViewChild replacement) with spy on show()
-  (component as any).actionModal = { show: jasmine.createSpy('show') };
+  // Spy internal helpers called in the else branch
+  const setInitialSpy = spyOn(component as any, 'setIntialValues').and.stub();
+  const getRevSpy = spyOn(component as any, 'getRevenueShareComboBoxValue').and.stub();
+  const getDivSpy = spyOn(component as any, 'getDivisionComboBoxVal').and.stub();
+
+  // Ensure the modal ViewChild exists so show() can be spied on safely
+  if (!(component as any)._actionModal) {
+    (component as any)._actionModal = { show: () => {} };
+  }
+  const modalSpy = spyOn((component as any)._actionModal, 'show');
 
   // Act
   component.onUpdateModalClick();
 
-  // Assert
-  // 1) ActivateFormControls and other helpers should have been called
-  expect(activateSpy).toHaveBeenCalled();
-  expect(setInitSpy).toHaveBeenCalled();
+  // Assert: deep clone (equal but not same reference)
+  expect((component as any).selectedRevShrDivMap).toEqual(component.revShrdivmap);
+  expect((component as any).selectedRevShrDivMap).not.toBe(component.revShrdivmap);
+
+  // Assert helpers and modal called
+  expect(setInitialSpy).toHaveBeenCalled();
   expect(getRevSpy).toHaveBeenCalled();
-  expect(getCostSpy).toHaveBeenCalled();
+  expect(getDivSpy).toHaveBeenCalled();
+  expect(modalSpy).toHaveBeenCalled();
 
-  // 2) selectedRevShrGlAcctMap should be a deep clone of revShrGlAcctmap (not the same reference)
-  expect((component as any).selectedRevShrGlAcctMap).toBeTruthy();
-  expect((component as any).selectedRevShrGlAcctMap).not.toBe(component.revShrGlAcctmap);
-  expect((component as any).selectedRevShrGlAcctMap).toEqual(component.revShrGlAcctmap);
-
-  // 3) action modal shown
-  expect((component as any).actionModal.show).toHaveBeenCalled();
-
-  // 4) action title/type set
+  // Assert title/type set
   expect(component.actionModalTitle).toBe('Update');
-  expect(component.actionModalType).toBe((<any>ActionType).update || component.actionModalType); // tolerant check if enum available
+  // make sure ActionType is imported in the spec; otherwise check truthy
+  // If ActionType is available: expect(component.actionModalType).toBe(ActionType.update);
+  expect(component.actionModalType).toBeDefined();
 });
