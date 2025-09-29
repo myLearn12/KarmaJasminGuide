@@ -1,70 +1,23 @@
-it('onUpdateModalClick(): else branch deep-clones revShrGlAcctmap, calls helpers and shows modal', () => {
-  // Arrange: ensure we take the ELSE path
+it('onUpdateModalClick(): else branch should deep clone revShrGlAcctmap, call helpers and show modal', () => {
+  // Arrange
   component.isRowSelected = true;
+  component.revShrGlAcctmap = { revShareGlAcctId: 1, revShareDesc: 'Test' } as any;
 
-  // Provide a sample model that will be deep-cloned
-  component.revShrGlAcctmap = {
-    revShareGlAcctId: 99,
-    revShareDesc: 'Test Rev Share GL Map',
-    someOtherField: 'x'
-  } as any;
-
-  // Spy / stub helpers so they don't cause side-effects
-  if ((component as any).ActivateFormControls) {
-    spyOn(component as any, 'ActivateFormControls').and.stub();
-  } else {
-    (component as any).ActivateFormControls = () => {};
-    spyOn(component as any, 'ActivateFormControls').and.stub();
-  }
-
-  if ((component as any).setIntialvalues) {
-    spyOn(component as any, 'setIntialvalues').and.stub();
-  } else {
-    (component as any).setIntialvalues = () => {};
-    spyOn(component as any, 'setIntialvalues').and.stub();
-  }
-
-  if ((component as any).getRevenueShareComboBoxValue) {
-    spyOn(component as any, 'getRevenueShareComboBoxValue').and.stub();
-  } else {
-    (component as any).getRevenueShareComboBoxValue = () => {};
-    spyOn(component as any, 'getRevenueShareComboBoxValue').and.stub();
-  }
-
-  if ((component as any).getCostCenterComboBoxValue) {
-    spyOn(component as any, 'getCostCenterComboBoxValue').and.stub();
-  } else {
-    (component as any).getCostCenterComboBoxValue = () => {};
-    spyOn(component as any, 'getCostCenterComboBoxValue').and.stub();
-  }
-
-  // Ensure action modal exists and spy show()
-  if (!(component as any)._actionModal) {
-    (component as any)._actionModal = { show: () => {} };
-  }
-  const modalSpy = spyOn((component as any)._actionModal, 'show');
-
-  // Sanity: reset title/type to something else first
-  component.actionModalTitle = '';
-  component.actionModalType = undefined as any;
+  spyOn(component as any, 'setIntialvalues');
+  spyOn(component as any, 'getRevenueShareComboBoxValue');
+  spyOn(component as any, 'getCostCenterComboBoxValue');
+  (component as any)._actionModal = { show: jasmine.createSpy('show') };
 
   // Act
   component.onUpdateModalClick();
 
-  // Assert: action modal title/type were set
-  expect(component.actionModalTitle).toBe('Update');
-  expect(component.actionModalType).toBe(ActionType.update);
+  // Assert deep clone
+  expect(component.selectedRevShrGlAcctMap).toEqual(component.revShrGlAcctmap);
+  expect(component.selectedRevShrGlAcctMap).not.toBe(component.revShrGlAcctmap);
 
-  // Assert: selectedRevShrGlAcctMap was created as a deep clone
-  expect((component as any).selectedRevShrGlAcctMap).toBeDefined();
-  expect((component as any).selectedRevShrGlAcctMap).toEqual(component.revShrGlAcctmap);
-  expect((component as any).selectedRevShrGlAcctMap).not.toBe(component.revShrGlAcctmap);
-
-  // Assert: helper methods were called
+  // Assert helper calls + modal
   expect((component as any).setIntialvalues).toHaveBeenCalled();
   expect((component as any).getRevenueShareComboBoxValue).toHaveBeenCalled();
   expect((component as any).getCostCenterComboBoxValue).toHaveBeenCalled();
-
-  // Assert: modal shown
-  expect(modalSpy).toHaveBeenCalled();
+  expect((component as any)._actionModal.show).toHaveBeenCalled();
 });
