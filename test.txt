@@ -1,63 +1,60 @@
-it('onUpdateModalClick: else branch - deep clones model, sets values, and shows modal (robust)', () => {
-  // Arrange: ensure we take ELSE branch
+it('onUpdateModalClick: else branch deep clones model, sets values, and shows modal', () => {
+  // Arrange - ensure ELSE branch executes
   component.isRowSelected = false;
 
-  // Try to set the component's source model under likely property names.
-  // The component code you pasted uses `revShrGlAcctmap` (camel G). Set both common variants.
-  const srcModel = { revShareGlAcctId: 99, revShareDesc: 'Test Rev Share GL Map', someOtherField: 'x' } as any;
-  (component as any).revShrGlAcctmap = srcModel;
-  (component as any).revShrglAcctmap = (component as any).revShrGlAcctmap; // alternate name just in case
+  // Source object on component (use the actual property name you saw: revShrGlAcctmap)
+  const src = { revShareGlAcctId: 99, revShareDesc: 'Test Rev Share GL Map', someOtherField: 'x' } as any;
+  (component as any).revShrGlAcctmap = src; // matches key in your component keys output
 
-  // Stub ActivateFormControls to avoid side-effects
-  if ((component as any).ActivateFormControls) {
-    spyOn(component as any, 'ActivateFormControls').and.stub();
+  // Prevent side effects from helpers (if present)
+  if ((component as any).ActivateFormControls) { spyOn(component as any, 'ActivateFormControls').and.stub(); }
+  if ((component as any).setIntialValues)      { spyOn(component as any, 'setIntialValues').and.stub(); }
+  if ((component as any).getRevenueShareComboBoxValue) {
+    spyOn(component as any, 'getRevenueShareComboBoxValue').and.stub();
+  }
+  if ((component as any).getCostCenterComboBoxValue) {
+    spyOn(component as any, 'getCostCenterComboBoxValue').and.stub();
   }
 
-  // Spy internal helpers (they may or may not exist depending on your component)
-  const setInitialSpy = (component as any).setIntialValues ? spyOn(component as any, 'setIntialValues').and.stub() : null;
-  const getRevSpy = (component as any).getRevenueShareComboBoxValue ? spyOn(component as any, 'getRevenueShareComboBoxValue').and.stub() : null;
-  const getCostSpy = (component as any).getCostCenterComboBoxValue ? spyOn(component as any, 'getCostCenterComboBoxValue').and.stub() : null;
-
-  // Ensure modal object exists and spy show(). Check both naming variants.
+  // Ensure modal exists and spy its show()
   if (!(component as any)._actionModal && !(component as any).actionModal) {
     (component as any)._actionModal = { show: () => {} };
   }
-  const modalObj = (component as any).actionModal || (component as any)._actionModal;
-  const modalSpy = spyOn(modalObj, 'show');
+  const modal = (component as any).actionModal || (component as any)._actionModal;
+  const modalSpy = spyOn(modal, 'show');
 
   // Act
   component.onUpdateModalClick();
 
-  // --- Determine where the component actually stored the clone ---
-  const candidateNames = [
+  // Determine which selected property the component set (try the likely names)
+  const candidates = [
     'selectedRevShrGlAcctMap',
     'selectedRevShrGlAcctmap',
     'selectedRevShrglAcctMap',
     'selectedRevShrglAcctmap'
   ];
-  const foundName = candidateNames.find(n => (component as any)[n] !== undefined);
+  const found = candidates.find(n => (component as any)[n] !== undefined);
 
-  // If none found, show helpful failure that shows current component keys
-  if (!foundName) {
-    // Helpful debug: list similar keys present on component
-    const keys = Object.keys(component as any).filter(k => /rev|selected|actionModal/i.test(k)).slice(0, 40);
-    fail('onUpdateModalClick did not set any expected selected* property. component keys (filtered): ' + JSON.stringify(keys));
-    return;
+  expect(found, 'expected method to set a selected* property; inspect component keys if this fails').toBeDefined();
+
+  // Verify deep clone semantics and behavior
+  const selected = (component as any)[found!];
+  expect(selected).toEqual(src);       // same content
+  expect(selected).not.toBe(src);      // different reference (deep clone)
+
+  // Helper calls (only assert if those helpers exist)
+  if ((component as any).setIntialValues) {
+    expect((component as any).setIntialValues).toHaveBeenCalled();
+  }
+  if ((component as any).getRevenueShareComboBoxValue) {
+    expect((component as any).getRevenueShareComboBoxValue).toHaveBeenCalled();
+  }
+  if ((component as any).getCostCenterComboBoxValue) {
+    expect((component as any).getCostCenterComboBoxValue).toHaveBeenCalled();
   }
 
-  // Assert: deep clone created (equal but different reference)
-  expect((component as any)[foundName]).toEqual(srcModel, `selected model mismatch at ${foundName}`);
-  expect((component as any)[foundName]).not.toBe(srcModel, `selected model must be a deep clone (different reference) at ${foundName}`);
-
-  // Assert helper calls happened if those helpers existed on the component
-  if (setInitialSpy) { expect(setInitialSpy).toHaveBeenCalled(); }
-  if (getRevSpy) { expect(getRevSpy).toHaveBeenCalled(); }
-  if (getCostSpy) { expect(getCostSpy).toHaveBeenCalled(); }
-
-  // Assert modal shown
+  // Modal should be shown and modal title/type set
   expect(modalSpy).toHaveBeenCalled();
-
-  // Title / action type
   expect(component.actionModalTitle).toBe('Update');
   expect(component.actionModalType).toBeDefined();
 });
