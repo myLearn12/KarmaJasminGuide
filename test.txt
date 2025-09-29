@@ -1,40 +1,46 @@
-it('onUpdateModalClick: when row is selected should deep clone revShrdivmap, set values, and show modal', () => {
-  // Arrange
-  component.isRowSelected = true;
+it('onUpdateModalClick: else branch - deep clones revShrGlAcctmap, sets values, and shows modal', () => {
+  // Arrange: ensure we go into the ELSE branch
+  component.isRowSelected = false;
 
-  // realistic sample model (fields don't need to match exactly; just an object)
-  component.revShrdivmap = { revShareDivId: 1, revShareDesc: 'Test Map' } as any;
+  // Provide a realistic-looking model object on the component
+  component.revShrGlAcctmap = {
+    revShareGlAcctId: 99,
+    revShareDesc: 'Test Rev Share GL Map',
+    someOtherField: 'x'
+  } as any;
 
-  // The component may call ActivateFormControls — stub it to avoid side effects
+  // Stub ActivateFormControls to avoid side-effects
   spyOn(component as any, 'ActivateFormControls').and.stub();
 
-  // Spy internal helpers called in the else branch
+  // Spy the internal helpers that should be called in the else branch
   const setInitialSpy = spyOn(component as any, 'setIntialValues').and.stub();
   const getRevSpy = spyOn(component as any, 'getRevenueShareComboBoxValue').and.stub();
-  const getDivSpy = spyOn(component as any, 'getDivisionComboBoxVal').and.stub();
+  const getCostSpy = spyOn(component as any, 'getCostCenterComboBoxValue').and.stub();
 
-  // Ensure the modal ViewChild exists so show() can be spied on safely
-  if (!(component as any)._actionModal) {
-    (component as any)._actionModal = { show: () => {} };
+  // Ensure modal exists (either actionModal or _actionModal depending on your component)
+  // Try both names so test works whichever one your component uses.
+  if (!(component as any).actionModal && !(component as any)._actionModal) {
+    (component as any).actionModal = { show: () => {} };
   }
-  const modalSpy = spyOn((component as any)._actionModal, 'show');
+  // pick the actual modal object to spy on
+  const modalObj = (component as any).actionModal || (component as any)._actionModal;
+  const modalSpy = spyOn(modalObj, 'show');
 
   // Act
   component.onUpdateModalClick();
 
-  // Assert: deep clone (equal but not same reference)
-  expect((component as any).selectedRevShrDivMap).toEqual(component.revShrdivmap);
-  expect((component as any).selectedRevShrDivMap).not.toBe(component.revShrdivmap);
+  // Assert: a deep clone should be created (equal but not same reference)
+  expect((component as any).selectedRevShrGlAcctMap).toEqual(component.revShrGlAcctmap);
+  expect((component as any).selectedRevShrGlAcctMap).not.toBe(component.revShrGlAcctmap);
 
-  // Assert helpers and modal called
+  // Assert helpers and modal are called
   expect(setInitialSpy).toHaveBeenCalled();
   expect(getRevSpy).toHaveBeenCalled();
-  expect(getDivSpy).toHaveBeenCalled();
+  expect(getCostSpy).toHaveBeenCalled();
   expect(modalSpy).toHaveBeenCalled();
 
-  // Assert title/type set
+  // Assert title & action type set
   expect(component.actionModalTitle).toBe('Update');
-  // make sure ActionType is imported in the spec; otherwise check truthy
-  // If ActionType is available: expect(component.actionModalType).toBe(ActionType.update);
+  // ActionType may need to be imported into spec; if not available, ensure it was set
   expect(component.actionModalType).toBeDefined();
 });
