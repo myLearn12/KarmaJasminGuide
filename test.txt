@@ -1,63 +1,43 @@
-import { of, throwError } from 'rxjs';
-import { fakeAsync, tick } from '@angular/core/testing';
-import { ActionType } from '...'; // import your ActionType enum
-
-it('onAcceptButtonClick(ActionType.update) - complete() should override dates and call auditLogService.writeAuditLog', fakeAsync(() => {
-  // Arrange - make validateFormControls allow the action
+it('onAcceptButtonClick(ActionType.update) -> next(): should regenerate table and show success message', fakeAsync(() => {
+  // Arrange: make validateFormControls allow the action
   spyOn((component as any), 'validateFormControls').and.returnValue(false);
 
-  // Ensure UI combo mocks exist (the method builds payload but we don't assert payload here)
+  // Provide minimal UI combo mocks so payload building doesn't crash
   (component as any)._revenueShareComboBox = { value: '10' };
   (component as any)._costCenterComboBox  = { value: '100' };
 
-  // Set up current model and selected snapshot
+  // Ensure a revShrGlAcctmap exists (used in payload and other code)
   component.revShrGlAcctmap = {
-    revShareGlAcctId: 123,
-    revShareDesc: 'CHANGED',
-    startDt: 'OLD-START',
-    endDt: 'OLD-END'
+    revShareGlAcctId: 321,
+    revShareDesc: 'SOME',
+    glAccountNumber: 'GL-1',
+    abaNbr: 'ABA1',
+    costCenterNbr: '100'
   } as any;
 
-  component.selectedRevShrGlAcctMap = {
-    revShareGlAcctId: 123,
-    revShareDesc: 'ORIGINAL',
-    startDt: 'SELECTED-START',
-    endDt: 'SELECTED-END'
-  } as any;
+  // Spy the two things we expect to be called in next()
+  const genSpy = spyOn(component as any, 'GenerateTableRows').and.stub();
+  const setMsgSpy = spyOn(component as any, 'SetMessageTypeAndValue').and.stub();
 
-  // Spy getUpdatedModel to return a mutable object we can inspect
-  const updatedModel: any = { startDt: null, endDt: null };
-  const getUpdatedModelSpy = spyOn(component as any, 'getUpdatedModel').and.returnValue(updatedModel);
-
-  // Spy auditLogService.writeAuditLog (auditLogService is private; access via any)
-  const auditLogSvc = (component as any).auditLogService || (component as any)['auditLogService'] = { writeAuditLog: () => {} };
-  const auditSpy = spyOn(auditLogSvc, 'writeAuditLog').and.callThrough();
-
-  // Make putRequest return an observable that emits and completes.
-  // Using of({}) will invoke next() then complete(); complete() executes afterwards.
+  // Make putRequest emit next() (and complete - that's OK). of({}) triggers next then complete.
   const putSpy = spyOn(component.feeApiservice, 'putRequest').and.returnValue(of({}));
+
+  // If complete() in your implementation calls getUpdatedModel or audit log,
+  // stub them to avoid side effects in this small test:
+  if ((component as any).getUpdatedModel) { spyOn(component as any, 'getUpdatedModel').and.returnValue({}); }
+  const auditSvc = (component as any).auditLogService;
+  if (auditSvc && auditSvc.writeAuditLog) { spyOn(auditSvc, 'writeAuditLog').and.stub(); }
+
+  // Also stub validateFormControls (done) and any UI hide/clear functions to avoid extra side effects
+  if ((component as any).clearSelection) { spyOn(component as any, 'clearSelection').and.stub(); }
+  if ((component as any)._actionModal && (component as any)._actionModal.hide) { spyOn((component as any)._actionModal, 'hide').and.stub(); }
 
   // Act
   component.onAcceptButtonClick(ActionType.update);
-  tick(); // flush the observable and handlers
+  tick(); // flush observable
 
-  // Assert: HTTP call happened
+  // Assert
   expect(putSpy).toHaveBeenCalled();
-
-  // getUpdatedModel should have been called in complete()
-  expect(getUpdatedModelSpy).toHaveBeenCalled();
-
-  // After complete(), component should copy selected snapshot dates into the update model
-  expect(updatedModel.startDt).toBe(component.selectedRevShrGlAcctMap.startDt);
-  expect(updatedModel.endDt).toBe(component.selectedRevShrGlAcctMap.endDt);
-
-  // auditLogService.writeAuditLog should have been called with the expected args
-  expect(auditSpy).toHaveBeenCalledWith(
-    'revShareGlAcctId',
-    component.revShrGlAcctmap.revShareGlAcctId.toString(),
-    component.selectedRevShrGlAcctMap,
-    updatedModel,
-    (component as any).auditLogService.updateAction, // if updateAction constant exists on service
-    component.PageTitle
-  );
+  expect(genSpy).toHaveBeenCalled();
+  expect(setMsgSpy).toHaveBeenCalledWith(BlockMessageType.success, component.updateSuccessMessage);
 }));
