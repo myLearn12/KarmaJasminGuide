@@ -1,66 +1,62 @@
-import { of, throwError } from 'rxjs';
 import { fakeAsync, tick } from '@angular/core/testing';
+import { throwError, of } from 'rxjs';
 
-// ... inside your describe for RevshrglacctmapComponent
-
-it('onAcceptButtonClick(ActionType.add): posts payload, regenerates table, shows success and writes audit log (all setup inside test)', fakeAsync(() => {
-  // --- Arrange ---
-  // minimal viewchild mocks used by the method
+it('onAcceptButtonClick(ActionType.update): on putRequest error should restore model, display error and still clear/hide', fakeAsync(() => {
+  // Arrange — everything local to this test
   (component as any)._revenueShareComboBox = { value: '10' };
   (component as any)._costCenterComboBox  = { value: '100' };
 
-  // Ensure revenueShares and costCenters are arrays (FIX for ".find is not a function" error)
-  component.revenueShares = [
-    { revShareTypeId: 10, revShareTypeCd: 'R1', revShareTypeDesc: 'Revenue A', activeIndic: true }
-  ] as any[];
-  component.costCenters = [
-    { costCenterNbr: '100', costCenterDesc: 'Cost A', costCenterId: 1 }
-  ] as any[];
-
-  // Component model being added
-  component.revShrGlAcctmap = {
-    glAccountNumber: 'GL-1',
-    abaNbr: 'ABA-1'
+  // selected snapshot (the ORIGINAL values to restore from on error)
+  component.selectedRevShrGlAcctMap = {
+    revShareGlAcctId: 1,
+    revShareDesc: 'ORIGINAL',
+    glAccountNumber: 'GL-ORIG',
+    abaNbr: 'ABA-ORIG',
+    costCenterNbr: '100'
   } as any;
 
-  // Provide utils.LoadComboBoxData so any code that uses it won't fail
-  spyOn(component['utils'], 'LoadComboBoxData').and.callFake((arr: any[], label: string, _c: string, id: string) =>
-    arr.map((r: any) => ({ label: r[label], value: String(r[id]) }))
-  );
+  // revShrGlAcctmap has been changed by UI (simulate mutated data)
+  component.revShrGlAcctmap = {
+    revShareGlAcctId: 1,
+    revShareDesc: 'CHANGED',
+    glAccountNumber: 'GL-NEW',
+    abaNbr: 'ABA-NEW',
+    costCenterNbr: '200'
+  } as any;
 
-  // Ensure auditLogService exists and spy it
-  if (!component['auditLogService']) {
-    component['auditLogService'] = { writeAuditLog: () => {} } as any;
-  }
-  const auditSpy = spyOn(component['auditLogService'], 'writeAuditLog');
-
-  // Spy on helper methods that should be invoked
-  const genSpy = spyOn(component as any, 'GenerateTableRows');
-  const setMsgSpy = spyOn(component as any, 'SetMessageTypeAndValue');
-  const clearSpy = spyOn(component as any, 'clearSelection');
-  // provide action modal hide to spy (component hides at end)
+  // Provide a minimal _actionModal so spyOn won't throw
   (component as any)._actionModal = { hide: () => {} };
+
+  // spies (set BEFORE calling the method)
+  const displaySpy = spyOn(component as any, 'displayServiceErrors');
+  const clearSpy = spyOn(component as any, 'clearSelection');
   const modalHideSpy = spyOn((component as any)._actionModal, 'hide');
 
-  // Make sure validateFormControls lets the call through
+  // make putRequest error (RxJS v7 style)
+  const errorResponse = { error: { statusMessage: 'some server error' } };
+  const putSpy = spyOn(component.feeApiservice, 'putRequest')
+    .and.returnValue(throwError(() => errorResponse));
+
+  // ensure validateFormControls allows execution
   spyOn(component as any, 'validateFormControls').and.returnValue(false);
 
-  // feeApiservice.postRequest should return an observable that completes (simulate backend success)
-  const postSpy = spyOn(component.feeApiservice, 'postRequest').and.returnValue(of({}));
-
-  // If SetMessageTypeAndValue expects BlockMessageType argument, we don't care about exact type here.
   // Act
-  component.onAcceptButtonClick(ActionType.add);
-  tick(); // flush any async/subscribe
+  component.onAcceptButtonClick(ActionType.update);
+  tick(); // flush async
 
-  // --- Assert ---
-  expect(postSpy).toHaveBeenCalled();                     // HTTP post called
-  expect(genSpy).toHaveBeenCalled();                      // GenerateTableRows called on next
-  expect(setMsgSpy).toHaveBeenCalledWith(
-    jasmine.anything(),                                   // BlockMessageType
-    jasmine.any(String)                                   // success text
-  );
-  expect(auditSpy).toHaveBeenCalled();                    // audit log written on complete
-  expect(clearSpy).toHaveBeenCalled();                    // selection cleared
-  expect(modalHideSpy).toHaveBeenCalled();                // modal hidden
+  // Assert - HTTP called
+  expect(putSpy).toHaveBeenCalled();
+
+  // revShrGlAcctmap should now have been restored (Object.assign copies selected into current object)
+  expect(component.revShrGlAcctmap.revShareDesc).toBe(component.selectedRevShrGlAcctMap.revShareDesc);
+  expect(component.revShrGlAcctmap.glAccountNumber).toBe(component.selectedRevShrGlAcctMap.glAccountNumber);
+  expect(component.revShrGlAcctmap.abaNbr).toBe(component.selectedRevShrGlAcctMap.abaNbr);
+  expect(component.revShrGlAcctmap.costCenterNbr).toBe(component.selectedRevShrGlAcctMap.costCenterNbr);
+
+  // displayServiceErrors should be invoked with server message
+  expect(displaySpy).toHaveBeenCalledWith('some server error');
+
+  // finalize actions (clear/hide) are called (clearSelection and modal hide are called after switch block)
+  expect(clearSpy).toHaveBeenCalled();
+  expect(modalHideSpy).toHaveBeenCalled();
 }));
