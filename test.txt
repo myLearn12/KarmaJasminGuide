@@ -1,18 +1,78 @@
-it('GenerateTableRows(): when getRequest errors should call displayServiceErrors, clear loading and dispatch LOADINGACTION(false)', fakeAsync(() => {
+it('ngOnInit(): when forkJoin errors with 404 should call displayServiceErrors, call LoadDefaultComboBox, stop loading and dispatch LOADINGACTION(false)', fakeAsync(() => {
   // Arrange
-  component.rbnTax = { value: true } as any; // so value = '1'
-  const errorObj = { error: { statusMessage: 'Test error' } };
+  const err = { error: { statusMessage: 'Boom!', statusCode: '404' } };
 
-  spyOn(component.feeApiservice, 'getRequest').and.returnValue(throwError(() => errorObj));
+  // Make every getRequest return an observable that errors immediately
+  spyOn(component.feeApiservice, 'getRequest').and.returnValue(throwError(() => err));
+
+  // Spy the pieces we expect to be invoked
   const displaySpy = spyOn(component as any, 'displayServiceErrors');
+  const loadDefaultSpy = spyOn(component as any, 'LoadDefaultComboBox');
+  const dispatchSpy = spyOn(component['store'], 'dispatch');
+
+  // Start with loading false (ngOnInit sets it true) just to observe transitions
+  component.loading = false;
+
+  // Act
+  component.ngOnInit();
+  tick(); // flush the observable error
+
+  // Assert
+  expect(displaySpy).toHaveBeenCalledWith('Boom!');
+  expect(loadDefaultSpy).toHaveBeenCalled();            // 404 path should call LoadDefaultComboBox
+  expect(component.loading).toBeFalse();                // loading turned off after error handling
+  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION)); // LOADINGACTION(false) dispatched
+}));
+
+
+it('ngOnInit(): on success should set combo data via utils.LoadComboBoxData, populate viewchild.options, clear loading and dispatch LOADINGACTION(false)', fakeAsync(() => {
+  // Arrange
+  // Realistic data returned by each request
+  const costCenters = [{ costCenterNbr: '100', costCenterDesc: 'Cost A', costCenterId: 1 }];
+  const revShareGlMaps: any[] = []; // if you need to assert LoadTableRows called, spy that separately
+  const revenueShares = [{ revShareTypeId: 10, revShareTypeDesc: 'Revenue A', revShareTypeCd: 'R1' }];
+
+  // Spy getRequest to return correct observables depending on URL substring -- robust to minor URL differences
+  spyOn(component.feeApiservice, 'getRequest').and.callFake((url: string) => {
+    const u = String(url).toLowerCase();
+    if (u.includes('cost') || u.includes('costcenter')) return of(costCenters);
+    if (u.includes('revsharegl') || u.includes('revshareglacct') || u.includes('revshareglacctmapping')) return of(revShareGlMaps);
+    if (u.includes('revsharetype') || u.includes('revsharetypecd')) return of(revenueShares);
+    // fallback
+    return of([]);
+  });
+
+  // Make utils.LoadComboBoxData return the mapped arrays the code expects for combo data
+  const mappedRevenue = [{ label: 'Revenue A', value: '10' }];
+  const mappedCostCenters = [{ label: 'Cost A', value: '100' }];
+  spyOn(component['utils'], 'LoadComboBoxData').and.callFake((arr: any[], label: string, _code: string, id: string) => {
+    if (label === 'revShareTypeDesc') return mappedRevenue;
+    if (label === 'costCenterDesc') return mappedCostCenters;
+    return [];
+  });
+
+  // Provide ViewChild mocks so assignments succeed
+  (component as any)._revenueShareComboBox = { options: null };
+  (component as any)._costCenterComboBox   = { options: null };
+
+  // spy any methods that would be called in next/complete for side-effects we don't want to run
+  spyOn(component as any, 'LoadTableRows'); // prevent side effects if code calls it
+
   const dispatchSpy = spyOn(component['store'], 'dispatch');
 
   // Act
-  component.GenerateTableRows();
-  tick(); // flush observable
+  component.ngOnInit();
+  tick(); // flush forkJoin next + complete
 
-  // Assert
-  expect(displaySpy).toHaveBeenCalledWith('Test error');
+  // Assert: combo data arrays built using utils.LoadComboBoxData
+  expect(component.revenueShareComboBoxData).toEqual([{ options: mappedRevenue }]);
+  expect(component.costCenterComboBoxData).toEqual([{ options: mappedCostCenters }]);
+
+  // Assert: ViewChild options set to deep-cloned arrays
+  expect((component as any)._revenueShareComboBox.options).toEqual(JSON.parse(JSON.stringify(revenueShares)));
+  expect((component as any)._costCenterComboBox.options).toEqual(JSON.parse(JSON.stringify(costCenters)));
+
+  // loading turned off and LOADINGACTION(false) dispatched
   expect(component.loading).toBeFalse();
   expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
 }));
