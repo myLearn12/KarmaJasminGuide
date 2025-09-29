@@ -1,50 +1,22 @@
-it('onUpdateModalClick: else branch deep clones model, sets values, and shows modal', () => {
-  // Arrange: ensure ELSE branch executes (deep-clone branch)
-  component.isRowSelected = false;
+it('onUpdateModalClick: when row is selected should deep clone revShrdivmap, set values, and show modal', () => {
+  component.isRowSelected = true;
+  component.revShrdivmap = { id: 1, name: 'Test Map' } as any;
 
-  // Provide a source object that exists on the component under the name used in your method
-  (component as any).revShrGlAcctmap = { revShareGlAcctId: 99, revShareDesc: 'Test Rev Share GL Map', someOtherField: 'x' } as any;
+  const setInitialSpy = spyOn(component as any, 'setIntialValues').and.stub();
+  const getRevSpy     = spyOn(component as any, 'getRevenueShareComboBoxValue').and.stub();
+  const getDivSpy     = spyOn(component as any, 'getDivisionComboBoxVal').and.stub();
 
-  // Stub helpers so they don't have side effects
-  if ((component as any).ActivateFormControls) { spyOn(component as any, 'ActivateFormControls').and.stub(); }
-  if ((component as any).setIntialvalues)      { spyOn(component as any, 'setIntialvalues').and.stub(); }
-  if ((component as any).getRevenueShareComboBoxValue) {
-    spyOn(component as any, 'getRevenueShareComboBoxValue').and.stub();
-  }
-  if ((component as any).getCostCenterComboBoxValue) {
-    spyOn(component as any, 'getCostCenterComboBoxValue').and.stub();
-  }
+  // Ensure modal present
+  (component as any)._actionModal = (component as any)._actionModal || { show: () => {} };
+  const modalSpy = spyOn((component as any)._actionModal, 'show');
 
-  // Ensure the modal object exists and spy show()
-  if (!(component as any)._actionModal && !(component as any).actionModal) {
-    (component as any)._actionModal = { show: () => {} };
-  }
-  const modalObj = (component as any)._actionModal || (component as any).actionModal;
-  const modalSpy = spyOn(modalObj, 'show');
-
-  // Act
   component.onUpdateModalClick();
 
-  // Assert: find which selected property was set (tolerant to naming)
-  const candidates = ['selectedRevShrGlAcctMap', 'selectedRevShrGlAcctmap', 'selectedRevShrglAcctMap', 'selectedRevShrglAcctmap'];
-  const found = candidates.find(n => (component as any)[n] !== undefined);
-  expect(found, 'method should set a selected* property; inspect keys if this fails').toBeDefined();
-
-  const selected = (component as any)[found!];
-  expect(selected).toEqual((component as any).revShrGlAcctmap); // same content
-  expect(selected).not.toBe((component as any).revShrGlAcctmap);  // deep clone — different reference
-
-  // Helpers called
-  if ((component as any).setIntialvalues) {
-    expect((component as any).setIntialvalues).toHaveBeenCalled();
-  }
-  if ((component as any).getRevenueShareComboBoxValue) {
-    expect((component as any).getRevenueShareComboBoxValue).toHaveBeenCalled();
-  }
-  if ((component as any).getCostCenterComboBoxValue) {
-    expect((component as any).getCostCenterComboBoxValue).toHaveBeenCalled();
-  }
-
+  expect((component as any).selectedRevShrDivMap).toEqual(component.revShrdivmap);
+  expect((component as any).selectedRevShrDivMap).not.toBe(component.revShrdivmap);
+  expect(setInitialSpy).toHaveBeenCalled();
+  expect(getRevSpy).toHaveBeenCalled();
+  expect(getDivSpy).toHaveBeenCalled();
   expect(modalSpy).toHaveBeenCalled();
   expect(component.actionModalTitle).toBe('Update');
   expect(component.actionModalType).toBe(ActionType.update);
