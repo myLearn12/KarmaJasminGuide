@@ -1,62 +1,55 @@
+import { of } from 'rxjs';
 import { fakeAsync, tick } from '@angular/core/testing';
-import { throwError, of } from 'rxjs';
 
-it('onAcceptButtonClick(ActionType.update): on putRequest error should restore model, display error and still clear/hide', fakeAsync(() => {
-  // Arrange — everything local to this test
+it('onAcceptButtonClick(ActionType.update): on complete should override start/end dates and call auditLogService.writeAuditLog', fakeAsync(() => {
+  // Arrange
   (component as any)._revenueShareComboBox = { value: '10' };
   (component as any)._costCenterComboBox  = { value: '100' };
 
-  // selected snapshot (the ORIGINAL values to restore from on error)
+  // baseline + selected snapshot
   component.selectedRevShrGlAcctMap = {
     revShareGlAcctId: 1,
-    revShareDesc: 'ORIGINAL',
-    glAccountNumber: 'GL-ORIG',
-    abaNbr: 'ABA-ORIG',
-    costCenterNbr: '100'
+    startDt: '2020-01-01',
+    endDt: '2020-12-31'
   } as any;
 
-  // revShrGlAcctmap has been changed by UI (simulate mutated data)
   component.revShrGlAcctmap = {
     revShareGlAcctId: 1,
-    revShareDesc: 'CHANGED',
-    glAccountNumber: 'GL-NEW',
-    abaNbr: 'ABA-NEW',
-    costCenterNbr: '200'
+    startDt: 'NEW-START',
+    endDt: 'NEW-END'
   } as any;
 
-  // Provide a minimal _actionModal so spyOn won't throw
-  (component as any)._actionModal = { hide: () => {} };
+  // spy getUpdatedModel to return a dummy model we can check
+  const dummyModel: any = { startDt: '', endDt: '' };
+  const getUpdatedSpy = spyOn(component as any, 'getUpdatedModel').and.returnValue(dummyModel);
 
-  // spies (set BEFORE calling the method)
-  const displaySpy = spyOn(component as any, 'displayServiceErrors');
-  const clearSpy = spyOn(component as any, 'clearSelection');
-  const modalHideSpy = spyOn((component as any)._actionModal, 'hide');
+  // spy auditLogService
+  const auditSpy = spyOn(component.auditLogService, 'writeAuditLog');
 
-  // make putRequest error (RxJS v7 style)
-  const errorResponse = { error: { statusMessage: 'some server error' } };
-  const putSpy = spyOn(component.feeApiservice, 'putRequest')
-    .and.returnValue(throwError(() => errorResponse));
+  // stub putRequest so it completes immediately (no next/error)
+  spyOn(component.feeApiservice, 'putRequest').and.returnValue(of().pipe());
 
-  // ensure validateFormControls allows execution
+  // allow execution to reach subscribe
   spyOn(component as any, 'validateFormControls').and.returnValue(false);
 
   // Act
   component.onAcceptButtonClick(ActionType.update);
-  tick(); // flush async
+  tick(); // flush async complete
 
-  // Assert - HTTP called
-  expect(putSpy).toHaveBeenCalled();
+  // Assert
+  expect(getUpdatedSpy).toHaveBeenCalled();
 
-  // revShrGlAcctmap should now have been restored (Object.assign copies selected into current object)
-  expect(component.revShrGlAcctmap.revShareDesc).toBe(component.selectedRevShrGlAcctMap.revShareDesc);
-  expect(component.revShrGlAcctmap.glAccountNumber).toBe(component.selectedRevShrGlAcctMap.glAccountNumber);
-  expect(component.revShrGlAcctmap.abaNbr).toBe(component.selectedRevShrGlAcctMap.abaNbr);
-  expect(component.revShrGlAcctmap.costCenterNbr).toBe(component.selectedRevShrGlAcctMap.costCenterNbr);
+  // after complete, startDt/endDt copied from selectedRevShrGlAcctMap
+  expect(dummyModel.startDt).toBe(component.selectedRevShrGlAcctMap.startDt);
+  expect(dummyModel.endDt).toBe(component.selectedRevShrGlAcctMap.endDt);
 
-  // displayServiceErrors should be invoked with server message
-  expect(displaySpy).toHaveBeenCalledWith('some server error');
-
-  // finalize actions (clear/hide) are called (clearSelection and modal hide are called after switch block)
-  expect(clearSpy).toHaveBeenCalled();
-  expect(modalHideSpy).toHaveBeenCalled();
+  // audit log called with proper arguments
+  expect(auditSpy).toHaveBeenCalledWith(
+    'revShareGlAcctId',
+    component.revShrGlAcctmap.revShareGlAcctId.toString(),
+    component.selectedRevShrGlAcctMap,
+    dummyModel,
+    component.auditLogService.updateAction,
+    component.PageTitle
+  );
 }));
