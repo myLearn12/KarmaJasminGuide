@@ -1,14 +1,13 @@
 it('onUpdateModalClick: else branch deep clones model, sets values, and shows modal', () => {
-  // Arrange - ensure ELSE branch executes
+  // Arrange: ensure ELSE branch executes (deep-clone branch)
   component.isRowSelected = false;
 
-  // Source object on component (use the actual property name you saw: revShrGlAcctmap)
-  const src = { revShareGlAcctId: 99, revShareDesc: 'Test Rev Share GL Map', someOtherField: 'x' } as any;
-  (component as any).revShrGlAcctmap = src; // matches key in your component keys output
+  // Provide a source object that exists on the component under the name used in your method
+  (component as any).revShrGlAcctmap = { revShareGlAcctId: 99, revShareDesc: 'Test Rev Share GL Map', someOtherField: 'x' } as any;
 
-  // Prevent side effects from helpers (if present)
+  // Stub helpers so they don't have side effects
   if ((component as any).ActivateFormControls) { spyOn(component as any, 'ActivateFormControls').and.stub(); }
-  if ((component as any).setIntialValues)      { spyOn(component as any, 'setIntialValues').and.stub(); }
+  if ((component as any).setIntialvalues)      { spyOn(component as any, 'setIntialvalues').and.stub(); }
   if ((component as any).getRevenueShareComboBoxValue) {
     spyOn(component as any, 'getRevenueShareComboBoxValue').and.stub();
   }
@@ -16,35 +15,28 @@ it('onUpdateModalClick: else branch deep clones model, sets values, and shows mo
     spyOn(component as any, 'getCostCenterComboBoxValue').and.stub();
   }
 
-  // Ensure modal exists and spy its show()
+  // Ensure the modal object exists and spy show()
   if (!(component as any)._actionModal && !(component as any).actionModal) {
     (component as any)._actionModal = { show: () => {} };
   }
-  const modal = (component as any).actionModal || (component as any)._actionModal;
-  const modalSpy = spyOn(modal, 'show');
+  const modalObj = (component as any)._actionModal || (component as any).actionModal;
+  const modalSpy = spyOn(modalObj, 'show');
 
   // Act
   component.onUpdateModalClick();
 
-  // Determine which selected property the component set (try the likely names)
-  const candidates = [
-    'selectedRevShrGlAcctMap',
-    'selectedRevShrGlAcctmap',
-    'selectedRevShrglAcctMap',
-    'selectedRevShrglAcctmap'
-  ];
+  // Assert: find which selected property was set (tolerant to naming)
+  const candidates = ['selectedRevShrGlAcctMap', 'selectedRevShrGlAcctmap', 'selectedRevShrglAcctMap', 'selectedRevShrglAcctmap'];
   const found = candidates.find(n => (component as any)[n] !== undefined);
+  expect(found, 'method should set a selected* property; inspect keys if this fails').toBeDefined();
 
-  expect(found, 'expected method to set a selected* property; inspect component keys if this fails').toBeDefined();
-
-  // Verify deep clone semantics and behavior
   const selected = (component as any)[found!];
-  expect(selected).toEqual(src);       // same content
-  expect(selected).not.toBe(src);      // different reference (deep clone)
+  expect(selected).toEqual((component as any).revShrGlAcctmap); // same content
+  expect(selected).not.toBe((component as any).revShrGlAcctmap);  // deep clone — different reference
 
-  // Helper calls (only assert if those helpers exist)
-  if ((component as any).setIntialValues) {
-    expect((component as any).setIntialValues).toHaveBeenCalled();
+  // Helpers called
+  if ((component as any).setIntialvalues) {
+    expect((component as any).setIntialvalues).toHaveBeenCalled();
   }
   if ((component as any).getRevenueShareComboBoxValue) {
     expect((component as any).getRevenueShareComboBoxValue).toHaveBeenCalled();
@@ -53,8 +45,7 @@ it('onUpdateModalClick: else branch deep clones model, sets values, and shows mo
     expect((component as any).getCostCenterComboBoxValue).toHaveBeenCalled();
   }
 
-  // Modal should be shown and modal title/type set
   expect(modalSpy).toHaveBeenCalled();
   expect(component.actionModalTitle).toBe('Update');
-  expect(component.actionModalType).toBeDefined();
+  expect(component.actionModalType).toBe(ActionType.update);
 });
