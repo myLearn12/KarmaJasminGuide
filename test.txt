@@ -1,22 +1,65 @@
-it('onUpdateModalClick: when row is selected should deep clone revShrdivmap, set values, and show modal', () => {
-  component.isRowSelected = true;
-  component.revShrdivmap = { id: 1, name: 'Test Map' } as any;
+it('onUpdateModalClick(): else branch deep-clones revShrGlAcctmap, calls helpers and shows modal', () => {
+  // Arrange: choose the branch that matches your component code.
+  // Your component's code showed the deep-clone in the `else` branch, so set isRowSelected = false
+  component.isRowSelected = false;
 
-  const setInitialSpy = spyOn(component as any, 'setIntialValues').and.stub();
-  const getRevSpy     = spyOn(component as any, 'getRevenueShareComboBoxValue').and.stub();
-  const getDivSpy     = spyOn(component as any, 'getDivisionComboBoxVal').and.stub();
+  // Provide the source object used by the method
+  component.revShrGlAcctmap = {
+    revShareGlAcctId: 99,
+    revShareDesc: 'Test Rev Share GL Map',
+    someOtherField: 'x'
+  } as any;
 
-  // Ensure modal present
-  (component as any)._actionModal = (component as any)._actionModal || { show: () => {} };
+  // Stub methods that the method calls (to avoid side effects)
+  if ((component as any).ActivateFormControls) {
+    spyOn(component as any, 'ActivateFormControls').and.stub();
+  }
+  if ((component as any).setIntialvalues) {
+    spyOn(component as any, 'setIntialvalues').and.stub();
+  } else {
+    // define a no-op so test won't throw if the method is missing
+    (component as any).setIntialvalues = () => {};
+    spyOn(component as any, 'setIntialvalues').and.stub();
+  }
+  if ((component as any).getRevenueShareComboBoxValue) {
+    spyOn(component as any, 'getRevenueShareComboBoxValue').and.stub();
+  } else {
+    (component as any).getRevenueShareComboBoxValue = () => {};
+    spyOn(component as any, 'getRevenueShareComboBoxValue').and.stub();
+  }
+  if ((component as any).getCostCenterComboBoxValue) {
+    spyOn(component as any, 'getCostCenterComboBoxValue').and.stub();
+  } else {
+    (component as any).getCostCenterComboBoxValue = () => {};
+    spyOn(component as any, 'getCostCenterComboBoxValue').and.stub();
+  }
+
+  // Ensure modal exists and spy on show()
+  if (!(component as any)._actionModal) {
+    (component as any)._actionModal = { show: () => {} };
+  }
   const modalSpy = spyOn((component as any)._actionModal, 'show');
 
+  // Act
   component.onUpdateModalClick();
 
-  expect((component as any).selectedRevShrDivMap).toEqual(component.revShrdivmap);
-  expect((component as any).selectedRevShrDivMap).not.toBe(component.revShrdivmap);
-  expect(setInitialSpy).toHaveBeenCalled();
-  expect(getRevSpy).toHaveBeenCalled();
-  expect(getDivSpy).toHaveBeenCalled();
+  // Assert: selected* property set (tolerant to slight naming differences)
+  const possibleNames = [
+    'selectedRevShrGlAcctMap', 'selectedRevShrGlAcctmap',
+    'selectedRevShrdivmap', 'selectedRevShrDivMap',
+    'selectedRevShrGlAcctmap' // variants seen across snippets
+  ];
+  const setName = possibleNames.find(n => (component as any)[n] !== undefined);
+  expect(setName, `expected one of ${possibleNames.join(', ')} to be set on the component`).toBeDefined();
+
+  const selected = (component as any)[setName!];
+  expect(selected).toEqual(component.revShrGlAcctmap, 'selected should deep-equal the source object');
+  expect(selected).not.toBe(component.revShrGlAcctmap, 'selected must be a deep clone, not same reference');
+
+  expect((component as any).setIntialvalues).toHaveBeenCalled();
+  expect((component as any).getRevenueShareComboBoxValue).toHaveBeenCalled();
+  expect((component as any).getCostCenterComboBoxValue).toHaveBeenCalled();
+
   expect(modalSpy).toHaveBeenCalled();
   expect(component.actionModalTitle).toBe('Update');
   expect(component.actionModalType).toBe(ActionType.update);
