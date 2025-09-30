@@ -1,19 +1,50 @@
-it('GenerateTableRows(): on error should display service errors, clear loading and dispatch LOADINGACTION(false)', fakeAsync(() => {
+it('getRevenueShareComboBoxValue(): should set revenueShareComboBox.value based on matching revShrGlAcctmap.revShareTypeId', () => {
   // Arrange
-  const errorResponse = { error: { statusMessage: 'Server failed!' } };
+  component.revenueShares = [
+    { revShareTypeId: 10, revShareTypeDesc: 'Revenue A', revShareTypeCd: 'R1' },
+    { revShareTypeId: 20, revShareTypeDesc: 'Revenue B', revShareTypeCd: 'R2' }
+  ] as any[];
 
-  // stub feeApiservice.getRequest to throw
-  spyOn(component.feeApiservice, 'getRequest').and.returnValue(throwError(() => errorResponse));
-
-  const displaySpy = spyOn(component as any, 'displayServiceErrors');
-  const dispatchSpy = spyOn(component['store'], 'dispatch');
+  component.revShrGlAcctmap = { revShareTypeId: 20 } as any;
+  (component as any).revenueShareComboBox = { value: null };
 
   // Act
-  component.GenerateTableRows();
-  tick(); // flush async
+  component.getRevenueShareComboBoxValue();
 
   // Assert
-  expect(displaySpy).toHaveBeenCalledWith('Server failed!');
-  expect(component.loading).toBeFalse();
-  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
-}));
+  expect((component as any).revenueShareComboBox.value).toEqual(['20']);
+});
+
+it('getCostCenterComboBoxValue(): should set costCenterComboBox.value when costCenterNbr is valid and found', () => {
+  // Arrange
+  component.costCenters = [
+    { costCenterNbr: 100, costCenterDesc: 'CC A' },
+    { costCenterNbr: 200, costCenterDesc: 'CC B' }
+  ] as any[];
+
+  component.revShrGlAcctmap = { costCenterNbr: 200 } as any;
+
+  (component as any).costCenterComboBox = { value: null };
+
+  spyOn(component['utils'], 'isStringValid').and.returnValue(true);
+
+  // Act
+  component.getCostCenterComboBoxValue();
+
+  // Assert
+  expect((component as any).costCenterComboBox.value).toEqual(['200']);
+});
+
+it('getCostCenterComboBoxValue(): should set costCenterComboBox.value to null if costCenterNbr is invalid', () => {
+  // Arrange
+  component.revShrGlAcctmap = { costCenterNbr: null } as any;
+  (component as any).costCenterComboBox = { value: 'oldValue' };
+
+  spyOn(component['utils'], 'isStringValid').and.returnValue(false);
+
+  // Act
+  component.getCostCenterComboBoxValue();
+
+  // Assert
+  expect((component as any).costCenterComboBox.value).toBeNull();
+});
