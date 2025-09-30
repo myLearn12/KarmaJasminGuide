@@ -1,64 +1,64 @@
-it('getRevenueShareComboBoxValue(): should set revenueShareComboBox.value based on matching revShrGlAcctmap.revShareTypeId', () => {
+it('ngOnInit(): on error should call displayServiceErrors, possibly LoadDefaultComboBox for 404, clear loading and dispatch LOADINGACTION(false)', fakeAsync(() => {
   // Arrange
-  component.revenueShares = [
-    { revShareTypeId: 10, revShareTypeDesc: 'Revenue A', revShareTypeCd: 'R1' },
-    { revShareTypeId: 20, revShareTypeDesc: 'Revenue B', revShareTypeCd: 'R2' }
-  ] as any[];
+  spyOn(component['authService'], 'canHideFinanceAdminControls').and.returnValue(false);
 
-  component.revShrGlAcctmap = { revShareTypeId: 20 } as any;
+  const errorResponse = { error: { statusMessage: 'server down', statusCode: '404' } };
+  const displaySpy = spyOn(component as any, 'displayServiceErrors');
+  const loadDefaultSpy = spyOn(component as any, 'LoadDefaultComboBox');
+  const dispatchSpy = spyOn(component['store'], 'dispatch');
 
-  // Provide both possible ViewChild names (defensive)
-  (component as any).revenueShareComboBox = { value: null };
-  (component as any)._revenueShareComboBox = { value: null };
+  // make feeApiservice.getRequest return error for any URL
+  spyOn(component.feeApiservice, 'getRequest').and.returnValue(throwError(() => errorResponse));
 
   // Act
-  component.getRevenueShareComboBoxValue();
+  component.ngOnInit();
+  tick();
 
-  // Assert: either property should be set to ['20'] (we test both)
-  expect((component as any).revenueShareComboBox.value || (component as any)._revenueShareComboBox.value).toEqual(['20']);
-});
+  // Assert
+  expect(displaySpy).toHaveBeenCalledWith('server down');
+  expect(loadDefaultSpy).toHaveBeenCalled(); // because statusCode was 404
+  expect(component.loading).toBeFalse();
+  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
+}));
 
-it('getCostCenterComboBoxValue(): should set costCenterComboBox.value when costCenterNbr is valid and found', () => {
+it('ngOnInit(): on complete should set combo data, clone ViewChild.options, clear loading and dispatch LOADINGACTION(false)', fakeAsync(() => {
   // Arrange
-  component.costCenters = [
-    { costCenterNbr: 100, costCenterDesc: 'Cost A', costCenterId: 1 },
-    { costCenterNbr: 200, costCenterDesc: 'Cost B', costCenterId: 2 }
-  ] as any[];
+  spyOn(component['authService'], 'canHideFinanceAdminControls').and.returnValue(false);
 
-  component.revShrGlAcctmap = { costCenterNbr: 200 } as any;
+  const costCenters = [{ costCenterId: 1, costCenterNbr: '100', costCenterDesc: 'Cost A' }];
+  const divisions = [{ divisionId: 20, divisionCd: 'D1', divisionDesc: 'Division A' }];
+  const altDivMaps: any[] = [];
 
-  // Provide both possible ViewChild names (defensive)
-  (component as any).costCenterComboBox = { value: null };
-  (component as any)._costCenterComboBox = { value: null };
+  spyOn(component.feeApiservice, 'getRequest').and.callFake((url: string) => {
+    if (url.includes('costcenter')) return of(costCenters);
+    if (url.includes('division')) return of(divisions);
+    if (url.includes('altdiv')) return of(altDivMaps);
+    return of([]);
+  });
 
-  // utils.isStringValid should be true for this case
-  spyOn(component['utils'], 'isStringValid').and.returnValue(true);
+  const mappedDivisions = [{ label: 'Division A', value: '20' }];
+  const mappedCostCenters = [{ label: 'Cost A', value: '100' }];
+  spyOn(component['utils'], 'LoadComboBoxData').and.callFake((arr, label) => {
+    if (label === 'divisionDesc') return mappedDivisions;
+    if (label === 'costCenterDesc') return mappedCostCenters;
+    return [];
+  });
 
-  // Act
-  component.getCostCenterComboBoxValue();
-
-  // Assert: either property should be set to ['200']
-  expect((component as any).costCenterComboBox.value || (component as any)._costCenterComboBox.value).toEqual(['200']);
-});
-
-it('getCostCenterComboBoxValue(): should set costCenterComboBox.value to null when costCenterNbr is invalid', () => {
-  // Arrange: no valid cost center value
-  component.revShrGlAcctmap = { costCenterNbr: null } as any;
-
-  // Provide both possible ViewChild names and give them an existing value so we can verify it becomes null
-  (component as any).costCenterComboBox = { value: 'oldValue' };
-  (component as any)._costCenterComboBox = { value: 'oldValue' };
-
-  // isStringValid returns false => method should set null
-  spyOn(component['utils'], 'isStringValid').and.returnValue(false);
+  (component as any)._divisionComboBox = { options: null };
+  (component as any)._costCenterComboBox = { options: null };
+  const dispatchSpy = spyOn(component['store'], 'dispatch');
 
   // Act
-  component.getCostCenterComboBoxValue();
+  component.ngOnInit();
+  tick();
 
-  // Assert: whichever property the component uses should now be null
-  const resultVal = (component as any).costCenterComboBox.value === null ? (component as any).costCenterComboBox.value
-                    : (component as any)._costCenterComboBox.value === null ? (component as any)._costCenterComboBox.value
-                    : (component as any).costCenterComboBox.value || (component as any)._costCenterComboBox.value;
+  // Assert
+  expect(component.divisionComboBoxData).toEqual([{ options: mappedDivisions }]);
+  expect(component.costCenterComboBoxData).toEqual([{ options: mappedCostCenters }]);
 
-  expect(resultVal).toBeNull();
-});
+  expect((component as any)._divisionComboBox.options).toEqual(JSON.parse(JSON.stringify(divisions)));
+  expect((component as any)._costCenterComboBox.options).toEqual(JSON.parse(JSON.stringify(costCenters)));
+
+  expect(component.loading).toBeFalse();
+  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
+}));
