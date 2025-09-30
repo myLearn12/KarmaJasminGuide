@@ -1,59 +1,19 @@
-it('onAcceptButtonClick(ActionType.update) -> next(): should regenerate table and show success message (safe complete)', fakeAsync(() => {
-  // allow action to proceed
-  spyOn((component as any), 'validateFormControls').and.returnValue(false);
+it('GenerateTableRows(): on error should display service errors, clear loading and dispatch LOADINGACTION(false)', fakeAsync(() => {
+  // Arrange
+  const errorResponse = { error: { statusMessage: 'Server failed!' } };
 
-  // minimal combo mocks used by payload construction
-  (component as any)._revenueShareComboBox = { value: '10' };
-  (component as any)._costCenterComboBox  = { value: '100' };
+  // stub feeApiservice.getRequest to throw
+  spyOn(component.feeApiservice, 'getRequest').and.returnValue(throwError(() => errorResponse));
 
-  // revShrGlAcctmap – object used by payload and other logic
-  component.revShrGlAcctmap = {
-    revShareGlAcctId: 321,
-    revShareDesc: 'SOME',
-    glAccountNumber: 'GL-1',
-    abaNbr: 'ABA1',
-    costCenterNbr: '100'
-  } as any;
-
-  // IMPORTANT: make sure selected snapshot exists so complete() can read .startDt/.endDt
-  component.selectedRevShrGlAcctMap = {
-    revShareGlAcctId: 321,
-    startDt: '2025-08-01T00:00:00.000Z',
-    endDt:   '9999-12-31T00:00:00.000Z'
-  } as any;
-
-  // spies for expected next() effects
-  const genSpy = spyOn(component as any, 'GenerateTableRows').and.stub();
-  const setMsgSpy = spyOn(component as any, 'SetMessageTypeAndValue').and.stub();
-
-  // make putRequest emit next() then complete() (of({}) does that)
-  const putSpy = spyOn(component.feeApiservice, 'putRequest').and.returnValue(of({}));
-
-  // stub getUpdatedModel (complete() will mutate it)
-  spyOn(component as any, 'getUpdatedModel').and.returnValue({});
-
-  // auditLogService may be private; get reference and spy the method if present
-  const audit = (component as any).auditLogService;
-  if (audit && audit.writeAuditLog) {
-    spyOn(audit, 'writeAuditLog').and.stub();
-  } else {
-    // if auditLogService doesn't exist on component (edge cases), create a harmless stub
-    (component as any).auditLogService = { writeAuditLog: () => {} };
-    spyOn((component as any).auditLogService, 'writeAuditLog').and.stub();
-  }
-
-  // avoid unexpected side-effects
-  if ((component as any).clearSelection) { spyOn(component as any, 'clearSelection').and.stub(); }
-  if ((component as any)._actionModal && (component as any)._actionModal.hide) { spyOn((component as any)._actionModal, 'hide').and.stub(); }
+  const displaySpy = spyOn(component as any, 'displayServiceErrors');
+  const dispatchSpy = spyOn(component['store'], 'dispatch');
 
   // Act
-  component.onAcceptButtonClick(ActionType.update);
-  tick(); // flush observable subscribe (next + complete)
+  component.GenerateTableRows();
+  tick(); // flush async
 
-  // Assert expected next() effects
-  expect(putSpy).toHaveBeenCalled();
-  expect(genSpy).toHaveBeenCalled();
-  expect(setMsgSpy).toHaveBeenCalledWith(BlockMessageType.success, component.updateSuccessMessage);
-  // and ensure complete() didn't crash and audit was called (or at least stubbed)
-  expect((component as any).auditLogService.writeAuditLog).toHaveBeenCalled();
+  // Assert
+  expect(displaySpy).toHaveBeenCalledWith('Server failed!');
+  expect(component.loading).toBeFalse();
+  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
 }));
