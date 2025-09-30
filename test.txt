@@ -1,24 +1,23 @@
-it('ngOnInit(): on complete should set combo data, clone ViewChild.options, clear loading and dispatch LOADINGACTION(false)', fakeAsync(() => {
+it('ngOnInit(): complete should populate combo data, deep-clone viewchild.options, clear loading and dispatch LOADINGACTION(false)', fakeAsync(() => {
   // Arrange
   spyOn(component['authService'], 'canHideFinanceAdminControls').and.returnValue(false);
 
-  const costCenters = [
-    { costCenterId: 1, costCenterNbr: '100', costCenterDesc: 'Cost A' }
-  ];
-  const divisions = [
-    { divisionId: 20, divisionCd: 'D1', divisionDesc: 'Division A' }
-  ];
-  const altDivMaps: any[] = [];
+  // realistic data returned by the forkJoin calls
+  const costCenters = [{ costCenterId: 1, costCenterNbr: '100', costCenterDesc: 'Cost A' }];
+  const divisions   = [{ divisionId: 20, divisionCd: 'D1', divisionDesc: 'Division A' }];
+  const altMaps     = []; // whatever the other forkJoin returns
 
+  // Make getRequest robust: match by substring so private/modified appConfigService won't break us
   spyOn(component.feeApiservice, 'getRequest').and.callFake((url: any) => {
     const u = String(url || '').toLowerCase();
-    if (u.includes('costcenter')) return of(costCenters);
+    if (u.includes('cost') || u.includes('costcenter')) return of(costCenters);
     if (u.includes('division')) return of(divisions);
-    if (u.includes('altdiv')) return of(altDivMaps);
+    if (u.includes('altdiv') || u.includes('altdivaba') || u.includes('alt')) return of(altMaps);
+    // fallback so test doesn't crash
     return of([]);
   });
 
-  // Stub LoadComboBoxData to map our mock data into the expected shape
+  // Ensure utils returns mapped options used in component combo data
   const mappedDivisions = [{ label: 'Division A', value: '20' }];
   const mappedCostCenters = [{ label: 'Cost A', value: '100' }];
   spyOn(component['utils'], 'LoadComboBoxData').and.callFake((arr: any[], label: string) => {
@@ -27,24 +26,30 @@ it('ngOnInit(): on complete should set combo data, clone ViewChild.options, clea
     return [];
   });
 
-  // Fake ViewChilds
+  // Provide ViewChild mocks so assignment this._divisionComboBox.options = ... won't blow up
   (component as any)._divisionComboBox = { options: null };
   (component as any)._costCenterComboBox = { options: null };
+
+  // Stub methods that would otherwise run and depend on global state
+  if ((component as any).LoadTableRows) {
+    spyOn(component as any, 'LoadTableRows').and.callFake(() => { /* noop for test */ });
+  }
+
   const dispatchSpy = spyOn(component['store'], 'dispatch');
 
   // Act
   component.ngOnInit();
-  tick();
+  tick(); // flush the forkJoin subscribe next + complete
 
-  // Assert – ComboBoxData populated
-  expect(component.divisionComboBoxData).toEqual([{ options: mappedDivisions }]);
-  expect(component.costCenterComboBoxData).toEqual([{ options: mappedCostCenters }]);
+  // Assert: comboData created from utils.LoadComboBoxData
+  expect(component.divisionComboBoxData).toEqual([{ options: mappedDivisions }], 'divisionComboBoxData mismatch');
+  expect(component.costCenterComboBoxData).toEqual([{ options: mappedCostCenters }], 'costCenterComboBoxData mismatch');
 
-  // Assert – ViewChild options deep-cloned
+  // Assert: component deep-cloned the original arrays into viewchild.options (component uses JSON.parse(JSON.stringify(...)))
   expect((component as any)._divisionComboBox.options).toEqual(JSON.parse(JSON.stringify(divisions)));
   expect((component as any)._costCenterComboBox.options).toEqual(JSON.parse(JSON.stringify(costCenters)));
 
-  // Assert – loading cleared and LOADINGACTION(false) dispatched
+  // Assert: loading false and LOADINGACTION dispatched
   expect(component.loading).toBeFalse();
   expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
 }));
