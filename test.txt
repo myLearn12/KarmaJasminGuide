@@ -1,53 +1,33 @@
-it('LoadDefaultComboBox(): complete -> sets combo data, deep-clones viewchild.options, clears loading and dispatches LOADINGACTION(false)', fakeAsync(() => {
-  // Arrange: provide appConfigService with the expected url properties
+it('LoadDefaultComboBox(): error -> calls displayServiceErrors, clears loading and dispatches LOADINGACTION(false)', fakeAsync(() => {
+  // Arrange: ensure appConfigService properties (avoid undefined URL passing)
   (component as any).appConfigService = {
     getAllDivisionUrl: '/api/divisions',
     getAllCostCenterUrl: '/api/costcenters'
   };
 
-  const divisions = [{ divisionId: 20, divisionDesc: 'Division A', divisionCd: 'D1' }];
-  const costCenters = [{ costCenterId: 1, costCenterNbr: '100', costCenterDesc: 'Cost A' }];
+  // Make feeApiservice.getRequest throw an error (simulate backend failure)
+  const serverError = { error: { statusMessage: 'Server failed' } };
+  spyOn(component.feeApiservice, 'getRequest').and.returnValue(throwError(() => serverError));
 
-  // Spy getRequest: return appropriate observables for known URLs
-  const calledUrls: string[] = [];
-  spyOn(component.feeApiservice, 'getRequest').and.callFake((url?: string) => {
-    calledUrls.push(String(url));
-    if (String(url).includes('/divisions')) return of(divisions);
-    if (String(url).includes('/costcenters')) return of(costCenters);
-    return of([]);
-  });
-
-  // utils.LoadComboBoxData mapping
-  const mappedDivisions = [{ label: 'Division A', value: '20' }];
-  const mappedCostCenters = [{ label: 'Cost A', value: '100' }];
-  spyOn(component['utils'], 'LoadComboBoxData').and.callFake((arr: any[], label: string) => {
-    if (label === 'divisionDesc') return mappedDivisions;
-    if (label === 'costCenterDesc') return mappedCostCenters;
-    return [];
-  });
-
-  // Provide view child mocks so .options assignment won't throw
+  // Provide viewchild mocks so component code that accesses them won't crash
   (component as any)._divisionComboBox = { options: null };
   (component as any)._costCenterComboBox = { options: null };
 
+  // Spy displayServiceErrors so we can assert it was called with the message
+  const displaySpy = spyOn(component as any, 'displayServiceErrors');
+
+  // Spy store.dispatch to assert LOADINGACTION(false) is dispatched
   const dispatchSpy = spyOn(component['store'], 'dispatch');
+
+  // Make sure loading starts true to test it becomes false
+  component.loading = true;
 
   // Act
   (component as any).LoadDefaultComboBox();
   tick();
 
-  // Assert we actually called the expected URLs
-  expect(calledUrls.some(u => u.includes('/divisions'))).toBeTrue('divisions url was not called');
-  expect(calledUrls.some(u => u.includes('/costcenters'))).toBeTrue('costcenters url was not called');
-
-  // Assert combo data built from utils.LoadComboBoxData
-  expect(component.divisionComboBoxData).toEqual([{ options: mappedDivisions }]);
-  expect(component.costCenterComboBoxData).toEqual([{ options: mappedCostCenters }]);
-
-  // Assert viewchild options deep-cloned
-  expect((component as any)._divisionComboBox.options).toEqual(JSON.parse(JSON.stringify(divisions)));
-  expect((component as any)._costCenterComboBox.options).toEqual(JSON.parse(JSON.stringify(costCenters)));
-
+  // Assert
+  expect(displaySpy).toHaveBeenCalledWith('Server failed');
   expect(component.loading).toBeFalse();
   expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
 }));
