@@ -1,33 +1,23 @@
-it('LoadDefaultComboBox(): error -> calls displayServiceErrors, clears loading and dispatches LOADINGACTION(false)', fakeAsync(() => {
-  // Arrange: ensure appConfigService properties (avoid undefined URL passing)
-  (component as any).appConfigService = {
-    getAllDivisionUrl: '/api/divisions',
-    getAllCostCenterUrl: '/api/costcenters'
-  };
+it('onUpdateModalClick(): else branch should deep clone altdivabacostcntrmap, call helpers and show modal', () => {
+  // Arrange
+  component.isRowSelected = true; // ensure else branch executes
+  component.altdivabacostcntrmap = { id: 99, desc: 'Test Map' } as any;
 
-  // Make feeApiservice.getRequest throw an error (simulate backend failure)
-  const serverError = { error: { statusMessage: 'Server failed' } };
-  spyOn(component.feeApiservice, 'getRequest').and.returnValue(throwError(() => serverError));
-
-  // Provide viewchild mocks so component code that accesses them won't crash
-  (component as any)._divisionComboBox = { options: null };
-  (component as any)._costCenterComboBox = { options: null };
-
-  // Spy displayServiceErrors so we can assert it was called with the message
-  const displaySpy = spyOn(component as any, 'displayServiceErrors');
-
-  // Spy store.dispatch to assert LOADINGACTION(false) is dispatched
-  const dispatchSpy = spyOn(component['store'], 'dispatch');
-
-  // Make sure loading starts true to test it becomes false
-  component.loading = true;
+  const setInitialSpy = spyOn(component as any, 'setIntialvalues');
+  const getDivSpy = spyOn(component as any, 'getDivisionComboBoxValue');
+  const getCostSpy = spyOn(component as any, 'getCostCenterComboBoxValue');
+  const modalSpy = spyOn((component as any)._actionModal, 'show');
 
   // Act
-  (component as any).LoadDefaultComboBox();
-  tick();
+  component.onUpdateModalClick();
 
   // Assert
-  expect(displaySpy).toHaveBeenCalledWith('Server failed');
-  expect(component.loading).toBeFalse();
-  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
-}));
+  expect(component.selectedaltdivabacostcntrmap).toEqual(component.altdivabacostcntrmap);
+  expect(component.selectedaltdivabacostcntrmap).not.toBe(component.altdivabacostcntrmap); // deep clone
+  expect(setInitialSpy).toHaveBeenCalled();
+  expect(getDivSpy).toHaveBeenCalled();
+  expect(getCostSpy).toHaveBeenCalled();
+  expect(modalSpy).toHaveBeenCalled();
+  expect(component.actionModalTitle).toBe('Update');
+  expect(component.actionModalType).toBe(ActionType.update);
+});
