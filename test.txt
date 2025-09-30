@@ -1,73 +1,78 @@
-it('onAcceptButtonClick(ActionType.add): posts payload, regenerates table, shows success and writes audit log (self-contained)', fakeAsync(() => {
-  // ---------- Arrange ----------
-  // Provide the combo viewchild values used by the code
-  (component as any)._divisionComboBox = { value: '20' };
-  (component as any)._costCenterComboBox = { value: '100' };
+it('onAcceptButtonClick(ActionType.update): next() should regenerate table & show success; complete() should build updateModel and call auditLogService.writeAuditLog', fakeAsync(() => {
+  // --- Arrange ---
+  // Make validateFormControls allow execution
+  spyOn(component as any, 'validateFormControls').and.returnValue(false);
 
-  // Provide arrays that .find/.filter will operate on
-  component.divisions = [
-    { divisionId: 20, divisionDesc: 'Division A', divisionCd: 'D1', costCenterId: 1 }
-  ] as any;
-  component.costCenters = [
-    { costCenterId: 1, costCenterNbr: '100', costCenterDesc: 'Cost A' }
-  ] as any;
-  component.revenueShares = [
-    { revShareTypeId: 10, revShareTypeDesc: 'Revenue A', revShareTypeCd: 'R1' }
-  ] as any;
+  // Provide the model that will be updated
+  component.selectedaltdivabacostcntrmap = {
+    altDivIdCostCntrMapId: 999,
+    startDt: '2025-01-01T00:00:00.000Z',
+    endDt: '9999-12-31T00:00:00.000Z'
+  } as any;
 
-  // The model being added
+  // Current (mutated) object that should be restored/used in audit call
   component.altdivabacostcntrmap = {
-    altDivIdCostCntrMapId: 99,
+    altDivIdCostCntrMapId: 999,
     altDivId: 20,
-    abaNbr: 'ABA-1',
-    costCenterNbr: '100',
+    abaNbr: 'ABA-NEW',
+    costCenterNbr: '200',
     startDt: null,
     endDt: null
   } as any;
 
-  // Ensure validateFormControls allows execution
-  spyOn(component as any, 'validateFormControls').and.returnValue(false);
+  // Make sure division/costCenter arrays exist if getUpdatedModel uses them
+  component.divisions = [{ divisionId: 20, divisionDesc: 'Div A', divisionCd: 'D1' }] as any;
+  component.costCenters = [{ costCenterId: 1, costCenterNbr: '200', costCenterDesc: 'Cost B' }] as any;
 
-  // Stub POST to succeed (so complete() runs)
-  const postSpy = spyOn(component.feeApiservice, 'postRequest').and.returnValue(of({}));
+  // Provide any viewchild values used by getUpdatedModel (if any)
+  (component as any)._divisionComboBox = { value: '20' };
+  (component as any)._costCenterComboBox = { value: '200' };
 
-  // Spy on helpers called inside complete()
+  // Spy on methods called in subscription next/complete
   const genSpy = spyOn(component as any, 'GenerateTableRows').and.callFake(() => {});
   const setMsgSpy = spyOn(component as any, 'SetMessageTypeAndValue').and.callFake(() => {});
 
-  // Provide auditLogService and spy on writeAuditLog
+  // Provide auditLogService and spy writeAuditLog
   (component as any).auditLogService = {
     writeAuditLog: (_a?: any, _b?: any, _c?: any, _d?: any, _e?: any, _f?: any) => {}
   };
   const auditSpy = spyOn((component as any).auditLogService, 'writeAuditLog').and.callThrough();
 
-  // Make getUpdatedModel predictable (complete() uses it to pass to auditLogService)
-  spyOn(component as any, 'getUpdatedModel').and.returnValue({ updated: true });
+  // Ensure getUpdatedModel returns an object the component will modify
+  spyOn(component as any, 'getUpdatedModel').and.returnValue({ startDt: null, endDt: null });
 
-  // Provide clearSelection and _actionModal so final cleanup doesn't throw
+  // Stub feeApiservice.putRequest to return a successful observable so next() and complete() run
+  const putSpy = spyOn(component.feeApiservice, 'putRequest').and.returnValue(of({}));
+
+  // Final cleanup spies
   const clearSpy = spyOn(component as any, 'clearSelection').and.callFake(() => {});
   (component as any)._actionModal = { hide: () => {} };
   const modalHideSpy = spyOn((component as any)._actionModal, 'hide').and.callThrough();
 
-  // ---------- Act ----------
-  component.onAcceptButtonClick(ActionType.add);
-  tick(); // let the observable complete run
+  // Make sure an updateSuccessMessage exists
+  (component as any).updateSuccessMessage = 'Updated successfully';
 
-  // ---------- Assert ----------
-  expect(postSpy).toHaveBeenCalled();               // posted payload
-  expect(genSpy).toHaveBeenCalled();                // regenerated table rows
-  expect(setMsgSpy).toHaveBeenCalledWith(jasmine.anything(), (component as any).addSuccessMessage);
-  expect(auditSpy).toHaveBeenCalled();              // audit log written
+  // --- Act ---
+  component.onAcceptButtonClick(ActionType.update);
+  tick(); // process the putRequest observable, next + complete
 
-  // check audit args loosely (flexible so test won't be brittle)
+  // --- Assert ---
+  expect(putSpy).toHaveBeenCalled();                       // HTTP call
+  expect(genSpy).toHaveBeenCalled();                       // next() triggers GenerateTableRows
+  expect(setMsgSpy).toHaveBeenCalledWith(jasmine.anything(), component.updateSuccessMessage);
+
+  // complete() should call getUpdatedModel and then auditLogService.writeAuditLog
+  expect((component as any).getUpdatedModel).toHaveBeenCalled();
+  expect(auditSpy).toHaveBeenCalled();
+
   const args = auditSpy.calls.mostRecent().args;
-  expect(args[0]).toBe('NA');                       // add uses 'NA'
-  expect(args[1]).toBe('NA');
-  expect(typeof args[2]).toBe('object');            // unmodified object passed
-  expect(typeof args[3]).toBe('object');            // getUpdatedModel() result
-  expect(args[5]).toBeDefined();                    // page title passed
+  expect(args[0]).toBe('altDivIdCostCntrMapId');           // first param key
+  expect(args[1]).toBe(component.altdivabacostcntrmap.altDivIdCostCntrMapId.toString()); // id as string
+  expect(typeof args[2]).toBe('object');                   // selected (old) object passed
+  expect(typeof args[3]).toBe('object');                   // updateModel passed
+  expect(args[5]).toBeDefined();                           // page title exists
 
-  // cleanup called
+  // cleanup still called
   expect(clearSpy).toHaveBeenCalled();
   expect(modalHideSpy).toHaveBeenCalled();
 }));
