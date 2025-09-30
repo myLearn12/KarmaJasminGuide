@@ -1,12 +1,12 @@
-it('onAcceptButtonClick(ActionType.update) -> next(): should regenerate table and show success message', fakeAsync(() => {
-  // Arrange: make validateFormControls allow the action
+it('onAcceptButtonClick(ActionType.update) -> next(): should regenerate table and show success message (safe complete)', fakeAsync(() => {
+  // allow action to proceed
   spyOn((component as any), 'validateFormControls').and.returnValue(false);
 
-  // Provide minimal UI combo mocks so payload building doesn't crash
+  // minimal combo mocks used by payload construction
   (component as any)._revenueShareComboBox = { value: '10' };
   (component as any)._costCenterComboBox  = { value: '100' };
 
-  // Ensure a revShrGlAcctmap exists (used in payload and other code)
+  // revShrGlAcctmap – object used by payload and other logic
   component.revShrGlAcctmap = {
     revShareGlAcctId: 321,
     revShareDesc: 'SOME',
@@ -15,29 +15,45 @@ it('onAcceptButtonClick(ActionType.update) -> next(): should regenerate table an
     costCenterNbr: '100'
   } as any;
 
-  // Spy the two things we expect to be called in next()
+  // IMPORTANT: make sure selected snapshot exists so complete() can read .startDt/.endDt
+  component.selectedRevShrGlAcctMap = {
+    revShareGlAcctId: 321,
+    startDt: '2025-08-01T00:00:00.000Z',
+    endDt:   '9999-12-31T00:00:00.000Z'
+  } as any;
+
+  // spies for expected next() effects
   const genSpy = spyOn(component as any, 'GenerateTableRows').and.stub();
   const setMsgSpy = spyOn(component as any, 'SetMessageTypeAndValue').and.stub();
 
-  // Make putRequest emit next() (and complete - that's OK). of({}) triggers next then complete.
+  // make putRequest emit next() then complete() (of({}) does that)
   const putSpy = spyOn(component.feeApiservice, 'putRequest').and.returnValue(of({}));
 
-  // If complete() in your implementation calls getUpdatedModel or audit log,
-  // stub them to avoid side effects in this small test:
-  if ((component as any).getUpdatedModel) { spyOn(component as any, 'getUpdatedModel').and.returnValue({}); }
-  const auditSvc = (component as any).auditLogService;
-  if (auditSvc && auditSvc.writeAuditLog) { spyOn(auditSvc, 'writeAuditLog').and.stub(); }
+  // stub getUpdatedModel (complete() will mutate it)
+  spyOn(component as any, 'getUpdatedModel').and.returnValue({});
 
-  // Also stub validateFormControls (done) and any UI hide/clear functions to avoid extra side effects
+  // auditLogService may be private; get reference and spy the method if present
+  const audit = (component as any).auditLogService;
+  if (audit && audit.writeAuditLog) {
+    spyOn(audit, 'writeAuditLog').and.stub();
+  } else {
+    // if auditLogService doesn't exist on component (edge cases), create a harmless stub
+    (component as any).auditLogService = { writeAuditLog: () => {} };
+    spyOn((component as any).auditLogService, 'writeAuditLog').and.stub();
+  }
+
+  // avoid unexpected side-effects
   if ((component as any).clearSelection) { spyOn(component as any, 'clearSelection').and.stub(); }
   if ((component as any)._actionModal && (component as any)._actionModal.hide) { spyOn((component as any)._actionModal, 'hide').and.stub(); }
 
   // Act
   component.onAcceptButtonClick(ActionType.update);
-  tick(); // flush observable
+  tick(); // flush observable subscribe (next + complete)
 
-  // Assert
+  // Assert expected next() effects
   expect(putSpy).toHaveBeenCalled();
   expect(genSpy).toHaveBeenCalled();
   expect(setMsgSpy).toHaveBeenCalledWith(BlockMessageType.success, component.updateSuccessMessage);
+  // and ensure complete() didn't crash and audit was called (or at least stubbed)
+  expect((component as any).auditLogService.writeAuditLog).toHaveBeenCalled();
 }));
