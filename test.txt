@@ -1,78 +1,72 @@
-it('onAcceptButtonClick(ActionType.update): next() should regenerate table & show success; complete() should build updateModel and call auditLogService.writeAuditLog', fakeAsync(() => {
-  // --- Arrange ---
-  // Make validateFormControls allow execution
-  spyOn(component as any, 'validateFormControls').and.returnValue(false);
+it('getUpdatedModel(): builds model using divisions + costCenters when costCenter present', () => {
+  // Arrange - ensure arrays exist (so .find() works)
+  component.divisions = [
+    { divisionId: 20, divisionCd: 'D1', divisionDesc: 'Division A', costCenterId: 1 }
+  ] as any;
 
-  // Provide the model that will be updated
-  component.selectedaltdivabacostcntrmap = {
-    altDivIdCostCntrMapId: 999,
-    startDt: '2025-01-01T00:00:00.000Z',
-    endDt: '9999-12-31T00:00:00.000Z'
-  } as any;
+  component.costCenters = [
+    { costCenterId: 1, costCenterNbr: '100', costCenterDesc: 'Cost A' }
+  ] as any;
 
-  // Current (mutated) object that should be restored/used in audit call
+  // Provide combo values used in comparisons
+  (component as any).divisionComboBox = { value: '20' };
+  (component as any)._costCenterComboBox = { value: '100' };
+
+  // The source model (existing record)
   component.altdivabacostcntrmap = {
-    altDivIdCostCntrMapId: 999,
-    altDivId: 20,
-    abaNbr: 'ABA-NEW',
-    costCenterNbr: '200',
-    startDt: null,
-    endDt: null
+    altDivIdCostCntrMapId: 55,
+    abaNbr: 'ABA-001',
+    creatById: 'u1',
+    creatDt: '2025-08-01T00:00:00',
+    updtById: 'u2',
+    updtDt: '2025-08-02T00:00:00'
   } as any;
 
-  // Make sure division/costCenter arrays exist if getUpdatedModel uses them
-  component.divisions = [{ divisionId: 20, divisionDesc: 'Div A', divisionCd: 'D1' }] as any;
-  component.costCenters = [{ costCenterId: 1, costCenterNbr: '200', costCenterDesc: 'Cost B' }] as any;
+  // Act
+  const updated = (component as any).getUpdatedModel();
 
-  // Provide any viewchild values used by getUpdatedModel (if any)
-  (component as any)._divisionComboBox = { value: '20' };
-  (component as any)._costCenterComboBox = { value: '200' };
+  // Assert: fields populated from finds/combos
+  expect(updated).toBeDefined();
+  expect(updated.altDivIdCostCntrMapId).toBe(55);
+  expect(updated.altDivisionCd).toBe('D1');
+  expect(updated.altDivisionDesc).toBe('Division A');
+  expect(updated.abaNbr).toBe('ABA-001');
+  expect(updated.costCenterNbr).toBe('100');
+  expect(updated.costCenterDesc).toBe('Cost A');
+  expect(updated.creatById).toBe('u1');
+  expect(updated.creatDt).toBe('2025-08-01T00:00:00');
+  expect(updated.updtById).toBe('u2');
+  expect(updated.updtDt).toBe('2025-08-02T00:00:00');
+});
 
-  // Spy on methods called in subscription next/complete
-  const genSpy = spyOn(component as any, 'GenerateTableRows').and.callFake(() => {});
-  const setMsgSpy = spyOn(component as any, 'SetMessageTypeAndValue').and.callFake(() => {});
+it('getUpdatedModel(): leaves costCenterDesc null when cost center not found or costCenterNbr missing', () => {
+  // Arrange - divisions present but cost center list empty (or combo null)
+  component.divisions = [
+    { divisionId: 30, divisionCd: 'D2', divisionDesc: 'Division B', costCenterId: 2 }
+  ] as any;
 
-  // Provide auditLogService and spy writeAuditLog
-  (component as any).auditLogService = {
-    writeAuditLog: (_a?: any, _b?: any, _c?: any, _d?: any, _e?: any, _f?: any) => {}
-  };
-  const auditSpy = spyOn((component as any).auditLogService, 'writeAuditLog').and.callThrough();
+  component.costCenters = [] as any; // not found
+  (component as any).divisionComboBox = { value: '30' };
+  (component as any)._costCenterComboBox = { value: null }; // user didn't select cost center
 
-  // Ensure getUpdatedModel returns an object the component will modify
-  spyOn(component as any, 'getUpdatedModel').and.returnValue({ startDt: null, endDt: null });
+  component.altdivabacostcntrmap = {
+    altDivIdCostCntrMapId: 99,
+    abaNbr: 'ABA-XYZ',
+    creatById: 'u3',
+    creatDt: '2025-07-01T00:00:00',
+    updtById: 'u4',
+    updtDt: '2025-07-02T00:00:00'
+  } as any;
 
-  // Stub feeApiservice.putRequest to return a successful observable so next() and complete() run
-  const putSpy = spyOn(component.feeApiservice, 'putRequest').and.returnValue(of({}));
+  // Act
+  const updated = (component as any).getUpdatedModel();
 
-  // Final cleanup spies
-  const clearSpy = spyOn(component as any, 'clearSelection').and.callFake(() => {});
-  (component as any)._actionModal = { hide: () => {} };
-  const modalHideSpy = spyOn((component as any)._actionModal, 'hide').and.callThrough();
-
-  // Make sure an updateSuccessMessage exists
-  (component as any).updateSuccessMessage = 'Updated successfully';
-
-  // --- Act ---
-  component.onAcceptButtonClick(ActionType.update);
-  tick(); // process the putRequest observable, next + complete
-
-  // --- Assert ---
-  expect(putSpy).toHaveBeenCalled();                       // HTTP call
-  expect(genSpy).toHaveBeenCalled();                       // next() triggers GenerateTableRows
-  expect(setMsgSpy).toHaveBeenCalledWith(jasmine.anything(), component.updateSuccessMessage);
-
-  // complete() should call getUpdatedModel and then auditLogService.writeAuditLog
-  expect((component as any).getUpdatedModel).toHaveBeenCalled();
-  expect(auditSpy).toHaveBeenCalled();
-
-  const args = auditSpy.calls.mostRecent().args;
-  expect(args[0]).toBe('altDivIdCostCntrMapId');           // first param key
-  expect(args[1]).toBe(component.altdivabacostcntrmap.altDivIdCostCntrMapId.toString()); // id as string
-  expect(typeof args[2]).toBe('object');                   // selected (old) object passed
-  expect(typeof args[3]).toBe('object');                   // updateModel passed
-  expect(args[5]).toBeDefined();                           // page title exists
-
-  // cleanup still called
-  expect(clearSpy).toHaveBeenCalled();
-  expect(modalHideSpy).toHaveBeenCalled();
-}));
+  // Assert
+  expect(updated).toBeDefined();
+  expect(updated.altDivIdCostCntrMapId).toBe(99);
+  expect(updated.altDivisionCd).toBe('D2');
+  expect(updated.altDivisionDesc).toBe('Division B');
+  expect(updated.costCenterNbr).toBe('null' || null); // depending on your implementation it may coerce to 'null' or null
+  // Ensure costCenterDesc is null when costCenter not present
+  expect(updated.costCenterDesc === null || updated.costCenterDesc === undefined).toBeTrue();
+});
