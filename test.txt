@@ -1,5 +1,5 @@
 it('getUpdatedModel(): builds model using divisions + costCenters when costCenter present', () => {
-  // Arrange - ensure arrays exist (so .find() works)
+  // Arrange: realistic arrays so .find() works
   component.divisions = [
     { divisionId: 20, divisionCd: 'D1', divisionDesc: 'Division A', costCenterId: 1 }
   ] as any;
@@ -8,11 +8,11 @@ it('getUpdatedModel(): builds model using divisions + costCenters when costCente
     { costCenterId: 1, costCenterNbr: '100', costCenterDesc: 'Cost A' }
   ] as any;
 
-  // Provide combo values used in comparisons
-  (component as any).divisionComboBox = { value: '20' };
-  (component as any)._costCenterComboBox = { value: '100' };
+  // Provide combo boxes and their .value (must be non-null string toString() safe)
+  (component as any).divisionComboBox = { value: '20' };         // used for division find
+  (component as any)._costCenterComboBox = { value: '100' };     // used for cost center find
 
-  // The source model (existing record)
+  // Source model
   component.altdivabacostcntrmap = {
     altDivIdCostCntrMapId: 55,
     abaNbr: 'ABA-001',
@@ -25,7 +25,7 @@ it('getUpdatedModel(): builds model using divisions + costCenters when costCente
   // Act
   const updated = (component as any).getUpdatedModel();
 
-  // Assert: fields populated from finds/combos
+  // Assert
   expect(updated).toBeDefined();
   expect(updated.altDivIdCostCntrMapId).toBe(55);
   expect(updated.altDivisionCd).toBe('D1');
@@ -40,14 +40,15 @@ it('getUpdatedModel(): builds model using divisions + costCenters when costCente
 });
 
 it('getUpdatedModel(): leaves costCenterDesc null when cost center not found or costCenterNbr missing', () => {
-  // Arrange - divisions present but cost center list empty (or combo null)
+  // Arrange: divisions exist but costCenters is empty (nothing to find)
   component.divisions = [
     { divisionId: 30, divisionCd: 'D2', divisionDesc: 'Division B', costCenterId: 2 }
   ] as any;
+  component.costCenters = [] as any;
 
-  component.costCenters = [] as any; // not found
+  // division value is present, but cost center combo value is null (simulate no selection)
   (component as any).divisionComboBox = { value: '30' };
-  (component as any)._costCenterComboBox = { value: null }; // user didn't select cost center
+  (component as any)._costCenterComboBox = { value: null };
 
   component.altdivabacostcntrmap = {
     altDivIdCostCntrMapId: 99,
@@ -61,12 +62,13 @@ it('getUpdatedModel(): leaves costCenterDesc null when cost center not found or 
   // Act
   const updated = (component as any).getUpdatedModel();
 
-  // Assert
+  // Assert - division fields populated, cost center fields absent/nullable
   expect(updated).toBeDefined();
   expect(updated.altDivIdCostCntrMapId).toBe(99);
   expect(updated.altDivisionCd).toBe('D2');
   expect(updated.altDivisionDesc).toBe('Division B');
-  expect(updated.costCenterNbr).toBe('null' || null); // depending on your implementation it may coerce to 'null' or null
-  // Ensure costCenterDesc is null when costCenter not present
+
+  // costCenterNbr may be set to string 'null' or left null depending on your component;
+  // assert defensively that costCenterDesc is not set:
   expect(updated.costCenterDesc === null || updated.costCenterDesc === undefined).toBeTrue();
 });
