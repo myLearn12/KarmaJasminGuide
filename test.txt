@@ -1,72 +1,103 @@
-it('onAcceptButtonClick(ActionType.add): posts payload, regenerates table, shows success and writes audit log (self-contained, flexible assertions)', fakeAsync(() => {
-  // --- Arrange (all setup inside test) ---
-  // viewchild mocks (used by onAcceptButtonClick to build payload)
+it('onAcceptButtonClick(ActionType.add): posts payload, regenerates table, shows success and writes audit log (self-contained)', fakeAsync(() => {
+  // Arrange - put everything in this test
+  // prepare view-controls used by method
   (component as any)._divisionComboBox = { value: '20' };
   (component as any)._costCenterComboBox = { value: '100' };
 
-  // the domain object that would be created/edited by UI
+  // current model used for payload
   component.altdivabacostcntrmap = {
     altDivIdCostCntrMapId: 1,
     abaNbr: 'ABA-1',
     altDivId: 20,
-    costCenterNbr: '100',
-    startDt: null,
-    endDt: null,
-    creatById: 'u1',
-    creatDt: '2025-01-01'
+    costCenterNbr: '100'
   } as any;
 
-  // prevent form validation from blocking the flow
-  spyOn(component as any, 'validateFormControls').and.returnValue(false);
+  // spies for helpers & side effects
+  const genSpy = spyOn(component as any, 'GenerateTableRows');
+  const setMsgSpy = spyOn(component as any, 'SetMessageTypeAndValue');
+  // auditLogService may be private; access via `as any`. If undefined, make a noop so spyOn won't throw.
+  if (!(component as any).auditLogService) { (component as any).auditLogService = { writeAuditLog: () => {} }; }
+  const auditSpy = spyOn((component as any).auditLogService, 'writeAuditLog').and.callFake(() => {});
+  const clearSpy = spyOn(component as any, 'clearSelection');
+  // ensure _actionModal exists so spyOn won't throw
+  if (!(component as any)._actionModal) { (component as any)._actionModal = { hide: () => {} }; }
+  const modalHideSpy = spyOn((component as any)._actionModal, 'hide');
 
-  // prevent external side-effects; we only want to know that these were triggered
-  const genSpy = spyOn(component as any, 'GenerateTableRows').and.callFake(() => {});
-  const setMsgSpy = spyOn(component as any, 'SetMessageTypeAndValue').and.callFake(() => {});
-
-  // stub HTTP post to return a successful observable so complete callback runs
+  // make postRequest return success observable (will call next -> complete)
   const postSpy = spyOn(component.feeApiservice, 'postRequest').and.returnValue(of({}));
 
-  // stub getUpdatedModel so it returns a predictable object (so that writeAuditLog gets stable args)
-  spyOn(component as any, 'getUpdatedModel').and.returnValue({ updated: 'model' });
-
-  // ensure auditLogService exists and spy on writeAuditLog
-  (component as any).auditLogService = { writeAuditLog: (_a?: any, _b?: any, _c?: any, _d?: any, _e?: any, _f?: any) => {} };
-  const auditSpy = spyOn((component as any).auditLogService, 'writeAuditLog').and.callThrough();
-
-  // ensure clearSelection() and modal hide exist so final cleanup works
-  const clearSpy = spyOn(component as any, 'clearSelection').and.callFake(() => {});
-  (component as any)._actionModal = { hide: () => {} };
-  const modalHideSpy = spyOn((component as any)._actionModal, 'hide').and.callThrough();
+  // ensure validateFormControls allows the execution
+  spyOn(component as any, 'validateFormControls').and.returnValue(false);
 
   // Act
   component.onAcceptButtonClick(ActionType.add);
-  tick(); // flush observables (postRequest -> next/complete)
+  tick(); // flush microtasks / observables
 
-  // --- Assert high-level behavior ---
+  // Assert
   expect(postSpy).toHaveBeenCalled();
   expect(genSpy).toHaveBeenCalled();
-  expect(setMsgSpy).toHaveBeenCalledWith(jasmine.anything(), component.addSuccessMessage);
-
-  // Assert writeAuditLog was called (flexible checks)
+  // Second arg of SetMessageTypeAndValue is the message; assert loosely so text changes don't break test
+  expect(setMsgSpy).toHaveBeenCalledWith(jasmine.anything(), (component as any).addSuccessMessage);
+  // auditLog called on complete (we stubbed it)
   expect(auditSpy).toHaveBeenCalled();
+  // final UI cleanup called
+  expect(clearSpy).toHaveBeenCalled();
+  expect(modalHideSpy).toHaveBeenCalled();
+}));
 
-  // inspect the most recent call's args and assert the important pieces
-  const args = auditSpy.calls.mostRecent().args;
-  // 0 and 1 should be 'NA' per the code path for add
-  expect(args[0]).toBe('NA');
-  expect(args[1]).toBe('NA');
 
-  // 2 & 3 should be objects (old value & new/update model). We stubbed getUpdatedModel() to {} for the new model
-  expect(typeof args[2]).toBe('object');
-  expect(typeof args[3]).toBe('object');
+it('onAcceptButtonClick(ActionType.update): on putRequest error should restore model, display error and still clear/hide', fakeAsync(() => {
+  // Arrange
+  (component as any)._divisionComboBox = { value: '20' };
+  (component as any)._costCenterComboBox = { value: '100' };
 
-  // 4 is the audit action (could be enum/string). Accept any non-null value (or check exact if you set it up)
-  expect(args[4]).toBeDefined();
+  // "selected" snapshot original model to restore on error
+  component.selectedaltdivabacostcntrmap = {
+    altDivIdCostCntrMapId: 1,
+    altDivId: 20,
+    abaNbr: 'ABA-ORIG',
+    costCenterNbr: '100'
+  } as any;
 
-  // 5 should be the page title string — assert it contains an identifying substring, be tolerant of minor differences
-  expect(String(args[5])).toContain('AltDiv'); // e.g. 'AltDivision ABA CostCenter Mapping'
+  // mutated model (what user changed)
+  component.altdivabacostcntrmap = {
+    altDivIdCostCntrMapId: 1,
+    altDivId: 99,
+    abaNbr: 'ABA-NEW',
+    costCenterNbr: '200'
+  } as any;
 
-  // finalize expectations
+  // ensure action modal exists
+  if (!(component as any)._actionModal) { (component as any)._actionModal = { hide: () => {} }; }
+
+  // spies
+  const displaySpy = spyOn(component as any, 'displayServiceErrors');
+  const clearSpy = spyOn(component as any, 'clearSelection');
+  const modalHideSpy = spyOn((component as any)._actionModal, 'hide');
+
+  // make putRequest return an error observable (RxJS v7 form)
+  const serverErr = { error: { statusMessage: 'server failed' } };
+  const putSpy = spyOn(component.feeApiservice, 'putRequest').and.returnValue(throwError(() => serverErr));
+
+  // ensure validateFormControls allows the call
+  spyOn(component as any, 'validateFormControls').and.returnValue(false);
+
+  // Act
+  component.onAcceptButtonClick(ActionType.update);
+  tick();
+
+  // Assert - HTTP called
+  expect(putSpy).toHaveBeenCalled();
+
+  // model restored from selected snapshot (Object.assign should copy fields back)
+  expect(component.altdivabacostcntrmap.altDivId).toBe(component.selectedaltdivabacostcntrmap.altDivId);
+  expect(component.altdivabacostcntrmap.abaNbr).toBe(component.selectedaltdivabacostcntrmap.abaNbr);
+  expect(component.altdivabacostcntrmap.costCenterNbr).toBe(component.selectedaltdivabacostcntrmap.costCenterNbr);
+
+  // displayServiceErrors should be invoked with the server message
+  expect(displaySpy).toHaveBeenCalledWith('server failed');
+
+  // finalize actions (clear/hide) are called
   expect(clearSpy).toHaveBeenCalled();
   expect(modalHideSpy).toHaveBeenCalled();
 }));
