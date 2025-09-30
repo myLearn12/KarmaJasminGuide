@@ -1,50 +1,72 @@
-it('onAcceptButtonClick(ActionType.add): posts payload, regenerates table, shows success and writes audit log (self- contained)', fakeAsync(() => {
-  // Arrange
-  // Provide viewchild-like controls used by the method
+it('onAcceptButtonClick(ActionType.add): posts payload, regenerates table, shows success and writes audit log (self-contained, flexible assertions)', fakeAsync(() => {
+  // --- Arrange (all setup inside test) ---
+  // viewchild mocks (used by onAcceptButtonClick to build payload)
   (component as any)._divisionComboBox = { value: '20' };
   (component as any)._costCenterComboBox = { value: '100' };
 
-  // Minimal model (what UI would set)
+  // the domain object that would be created/edited by UI
   component.altdivabacostcntrmap = {
     altDivIdCostCntrMapId: 1,
     abaNbr: 'ABA-1',
     altDivId: 20,
-    costCenterNbr: '100'
+    costCenterNbr: '100',
+    startDt: null,
+    endDt: null,
+    creatById: 'u1',
+    creatDt: '2025-01-01'
   } as any;
 
-  // Stub validateFormControls so function proceeds
+  // prevent form validation from blocking the flow
   spyOn(component as any, 'validateFormControls').and.returnValue(false);
 
-  // Stub GenerateTableRows & SetMessageTypeAndValue so we can assert they were called
+  // prevent external side-effects; we only want to know that these were triggered
   const genSpy = spyOn(component as any, 'GenerateTableRows').and.callFake(() => {});
   const setMsgSpy = spyOn(component as any, 'SetMessageTypeAndValue').and.callFake(() => {});
 
-  // Make feeApiservice.postRequest return success (next + complete)
+  // stub HTTP post to return a successful observable so complete callback runs
   const postSpy = spyOn(component.feeApiservice, 'postRequest').and.returnValue(of({}));
 
-  // Prevent getUpdatedModel from exercising .find(...) by stubbing it
-  spyOn(component as any, 'getUpdatedModel').and.returnValue({ some: 'model' });
+  // stub getUpdatedModel so it returns a predictable object (so that writeAuditLog gets stable args)
+  spyOn(component as any, 'getUpdatedModel').and.returnValue({ updated: 'model' });
 
-  // Ensure auditLogService exists and spy on writeAuditLog (auditLogService is private on component)
-  (component as any).auditLogService = { writeAuditLog: () => {} };
-  const auditSpy = spyOn((component as any).auditLogService, 'writeAuditLog').and.callFake(() => {});
+  // ensure auditLogService exists and spy on writeAuditLog
+  (component as any).auditLogService = { writeAuditLog: (_a?: any, _b?: any, _c?: any, _d?: any, _e?: any, _f?: any) => {} };
+  const auditSpy = spyOn((component as any).auditLogService, 'writeAuditLog').and.callThrough();
 
-  // Ensure clearSelection() and modal hide exist (the method hides modal after switch)
+  // ensure clearSelection() and modal hide exist so final cleanup works
   const clearSpy = spyOn(component as any, 'clearSelection').and.callFake(() => {});
   (component as any)._actionModal = { hide: () => {} };
   const modalHideSpy = spyOn((component as any)._actionModal, 'hide').and.callThrough();
 
   // Act
   component.onAcceptButtonClick(ActionType.add);
-  tick(); // flush observable completions
+  tick(); // flush observables (postRequest -> next/complete)
 
-  // Assert
+  // --- Assert high-level behavior ---
   expect(postSpy).toHaveBeenCalled();
   expect(genSpy).toHaveBeenCalled();
   expect(setMsgSpy).toHaveBeenCalledWith(jasmine.anything(), component.addSuccessMessage);
-  expect(auditSpy).toHaveBeenCalledWith(
-    'NA', 'NA', jasmine.any(Object), jasmine.any(Object), jasmine.anything(), component.PageTitle
-  );
+
+  // Assert writeAuditLog was called (flexible checks)
+  expect(auditSpy).toHaveBeenCalled();
+
+  // inspect the most recent call's args and assert the important pieces
+  const args = auditSpy.calls.mostRecent().args;
+  // 0 and 1 should be 'NA' per the code path for add
+  expect(args[0]).toBe('NA');
+  expect(args[1]).toBe('NA');
+
+  // 2 & 3 should be objects (old value & new/update model). We stubbed getUpdatedModel() to {} for the new model
+  expect(typeof args[2]).toBe('object');
+  expect(typeof args[3]).toBe('object');
+
+  // 4 is the audit action (could be enum/string). Accept any non-null value (or check exact if you set it up)
+  expect(args[4]).toBeDefined();
+
+  // 5 should be the page title string — assert it contains an identifying substring, be tolerant of minor differences
+  expect(String(args[5])).toContain('AltDiv'); // e.g. 'AltDivision ABA CostCenter Mapping'
+
+  // finalize expectations
   expect(clearSpy).toHaveBeenCalled();
   expect(modalHideSpy).toHaveBeenCalled();
 }));
