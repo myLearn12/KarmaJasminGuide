@@ -1,50 +1,44 @@
-it('getUpdatedModel(): robust - does not throw and builds expected fields when combos and arrays present', () => {
-  // make sure everything used by method exists and is non-null
-  component.divisions = [
-    { divisionId: 20, divisionCd: 'D1', divisionDesc: 'Division A', costCenterId: 1 }
-  ] as any;
-  component.costCenters = [
-    { costCenterId: 1, costCenterNbr: '100', costCenterDesc: 'Cost A' }
-  ] as any;
-
-  // Some code paths use _divisionComboBox, others divisionComboBox — set both
-  (component as any)._divisionComboBox = { value: '20' }; // common string form
-  (component as any).divisionComboBox  = { value: 20 };   // number form also present in some apps
-
-  // Same for cost center combos (some methods use _costCenterComboBox)
+it('onCostCenterComboBoxChangeEvent: sets error true when form control has required error', () => {
+  // arrange
+  component.showCostCenterRequiredError = false;
+  (component as any).fcn_costCenterId = { hasError: (_: string) => true } as any;
   (component as any)._costCenterComboBox = { value: '100' };
-  (component as any).costCenterComboBox  = { value: '100' };
+  (component as any).utils = { isStringValid: jasmine.createSpy('isStringValid').and.returnValue(true) } as any;
 
-  // Provide the source model object the method reads from
-  component.altdivabacostcntrmap = {
-    altDivIdCostCntrMapId: 55,
-    abaNbr: 'ABA-001',
-    creatById: 'creator',
-    creatDt: '2025-08-01T00:00:00',
-    updtById: 'upd',
-    updtDt: '2025-08-02T00:00:00'
-  } as any;
+  // act
+  (component as any).onCostCenterComboBoxChangeEvent();
 
-  // Act: call the method under test. Wrap with try/catch to surface errors in test output.
-  let updated: any;
-  try {
-    updated = (component as any).getUpdatedModel();
-  } catch (err) {
-    // Fail with helpful diagnostics instead of uncaught error
-    fail('getUpdatedModel threw: ' + (err && err.message) + '\n' +
-      'divisionComboBox=' + JSON.stringify((component as any).divisionComboBox) + '\n' +
-      '_divisionComboBox=' + JSON.stringify((component as any)._divisionComboBox) + '\n' +
-      'costCenters=' + JSON.stringify(component.costCenters) + '\n' +
-      'divisions=' + JSON.stringify(component.divisions));
-    return;
-  }
+  // assert
+  expect(component.showCostCenterRequiredError).toBeTrue();
+});
 
-  // Basic expectations (defensive)
-  expect(updated).toBeDefined();
-  expect(updated.altDivIdCostCntrMapId).toBe(55);
-  expect(updated.altDivisionCd).toBe('D1');
-  expect(updated.altDivisionDesc).toBe('Division A');
-  expect(updated.abaNbr).toBe('ABA-001');
-  expect(updated.costCenterNbr).toBe('100');
-  expect(updated.costCenterDesc).toBe('Cost A');
+it('onCostCenterComboBoxChangeEvent: sets error true when no required error but combo value is not a valid string', () => {
+  // arrange
+  component.showCostCenterRequiredError = false;
+  (component as any).fcn_costCenterId = { hasError: (_: string) => false } as any;
+  // use an empty string to simulate invalid value (toString() is safe here)
+  (component as any)._costCenterComboBox = { value: '' };
+  (component as any).utils = { isStringValid: jasmine.createSpy('isStringValid').and.returnValue(false) } as any;
+
+  // act
+  (component as any).onCostCenterComboBoxChangeEvent();
+
+  // assert
+  expect(component.showCostCenterRequiredError).toBeTrue();
+  expect((component as any).utils.isStringValid).toHaveBeenCalledWith(''); // sanity-check
+});
+
+it('onCostCenterComboBoxChangeEvent: clears error when control ok and value is valid', () => {
+  // arrange
+  component.showCostCenterRequiredError = true; // start true to ensure it can be cleared
+  (component as any).fcn_costCenterId = { hasError: (_: string) => false } as any;
+  (component as any)._costCenterComboBox = { value: '100' };
+  (component as any).utils = { isStringValid: jasmine.createSpy('isStringValid').and.returnValue(true) } as any;
+
+  // act
+  (component as any).onCostCenterComboBoxChangeEvent();
+
+  // assert
+  expect(component.showCostCenterRequiredError).toBeFalse();
+  expect((component as any).utils.isStringValid).toHaveBeenCalledWith('100');
 });
