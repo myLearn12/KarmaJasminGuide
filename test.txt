@@ -1,18 +1,20 @@
-it('getDivisionComboBoxValue(): should set divisionComboBox.value based on matching altDivisionCd', () => {
+it('getCostCenterComboBoxValue(): should set costCenterComboBox.value when costCenterNbr is valid and found', () => {
   // Arrange
-  component.divisions = [
-    { divisionId: 10, divisionCd: 'D1', divisionDesc: 'Division A' },
-    { divisionId: 20, divisionCd: 'D2', divisionDesc: 'Division B' }
+  component.costCenters = [
+    { costCenterNbr: '100', costCenterDesc: 'Finance' },
+    { costCenterNbr: '200', costCenterDesc: 'Tax' }
   ] as any;
 
-  component.altdivabacostcntrmap = { altDivisionCd: 'D2' } as any;
+  component.altdivabacostcntrmap = { costCenterNbr: '200' } as any;
 
-  // mock combo box
-  (component as any).divisionComboBox = { value: null };
+  (component as any).costCenterComboBox = { value: null };
+
+  const utilsSpy = spyOn(component['utils'], 'isStringValid').and.returnValue(true);
 
   // Act
-  (component as any).getDivisionComboBoxValue();
+  (component as any).getCostCenterComboBoxValue();
 
   // Assert
-  expect((component as any).divisionComboBox.value).toEqual(['20']);
+  expect(utilsSpy).toHaveBeenCalledWith('200');
+  expect((component as any).costCenterComboBox.value).toEqual(['200']);
 });
