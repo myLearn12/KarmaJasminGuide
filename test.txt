@@ -1,21 +1,106 @@
-it('GenerateTableRows(): should handle error by displaying service errors, stop loading, and dispatch LOADINGACTION(false)', () => {
+import { throwError, of } from 'rxjs';
+
+it('getDivisionComboBoxValue(): sets divisionComboBox.value when altDivisionCd matches a division.cd', () => {
   // Arrange
-  const errorResponse = { error: { statusMessage: 'Server error occurred' } };
+  component.divisions = [
+    { divisionId: 20, divisionCd: 'D1', divisionDesc: 'Division A' },
+    { divisionId: 21, divisionCd: 'D2', divisionDesc: 'Division B' },
+  ] as any;
 
-  const getReqSpy = spyOn(component.feeApiservice, 'getRequest')
-    .and.returnValue(throwError(() => errorResponse));
+  component.altdivabacostcntrmap = {
+    altDivisionCd: 'D2'
+  } as any;
 
-  const displaySpy = spyOn(component as any, 'displayServiceErrors');
-  const dispatchSpy = spyOn(component['store'], 'dispatch');
-
-  component.loading = true;
+  // Provide a mock combo object where .value can be assigned
+  (component as any).divisionComboBox = { value: null };
 
   // Act
-  component.GenerateTableRows();
+  (component as any).getDivisionComboBoxValue();
+
+  // Assert - expect the combo value to be array of matching divisionId as string
+  expect((component as any).divisionComboBox.value).toEqual(['21']);
+});
+
+it('getDivisionComboBoxValue(): sets divisionComboBox.value to null when no match is found', () => {
+  // Arrange
+  component.divisions = [
+    { divisionId: 20, divisionCd: 'D1', divisionDesc: 'Division A' }
+  ] as any;
+
+  component.altdivabacostcntrmap = {
+    altDivisionCd: 'NOT_FOUND'
+  } as any;
+
+  (component as any).divisionComboBox = { value: 'old' };
+
+  // Act
+  (component as any).getDivisionComboBoxValue();
 
   // Assert
-  expect(getReqSpy).toHaveBeenCalledWith(component.appConfigService.getAllAltDivCostCenterMappingUrl);
-  expect(displaySpy).toHaveBeenCalledWith('Server error occurred');
-  expect(component.loading).toBeFalse();
-  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
+  expect((component as any).divisionComboBox.value).toBeNull();
+});
+
+it('getCostCenterComboBoxValue(): sets costCenterComboBox.value when costCenterNbr is valid and found', () => {
+  // Arrange
+  component.costCenters = [
+    { costCenterId: 1, costCenterNbr: '100', costCenterDesc: 'Cost A' },
+    { costCenterId: 2, costCenterNbr: '200', costCenterDesc: 'Cost B' },
+  ] as any;
+
+  // altdivabacostcntrmap has a costCenterNbr we expect to match
+  component.altdivabacostcntrmap = { costCenterNbr: '200' } as any;
+
+  // Spy utils.isStringValid to return true for the given value
+  const utils = component['utils'] as any;
+  spyOn(utils, 'isStringValid').and.callFake((v: any) => !!v && String(v).trim().length > 0);
+
+  (component as any).costCenterComboBox = { value: null };
+
+  // Act
+  (component as any).getCostCenterComboBoxValue();
+
+  // Assert
+  expect((component as any).costCenterComboBox.value).toEqual(['200']);
+  expect(utils.isStringValid).toHaveBeenCalledWith('200');
+});
+
+it('getCostCenterComboBoxValue(): sets costCenterComboBox.value to null when costCenterNbr is invalid (utils.isStringValid false)', () => {
+  // Arrange
+  component.costCenters = [
+    { costCenterId: 1, costCenterNbr: '100', costCenterDesc: 'Cost A' }
+  ] as any;
+
+  component.altdivabacostcntrmap = { costCenterNbr: '' } as any;
+
+  const utils = component['utils'] as any;
+  spyOn(utils, 'isStringValid').and.returnValue(false);
+
+  (component as any).costCenterComboBox = { value: 'oldValue' };
+
+  // Act
+  (component as any).getCostCenterComboBoxValue();
+
+  // Assert
+  expect((component as any).costCenterComboBox.value).toBeNull();
+  expect(utils.isStringValid).toHaveBeenCalledWith('');
+});
+
+it('getCostCenterComboBoxValue(): sets costCenterComboBox.value to null when not found in costCenters', () => {
+  // Arrange
+  component.costCenters = [
+    { costCenterId: 1, costCenterNbr: '100', costCenterDesc: 'Cost A' }
+  ] as any;
+
+  component.altdivabacostcntrmap = { costCenterNbr: '999' } as any;
+
+  const utils = component['utils'] as any;
+  spyOn(utils, 'isStringValid').and.returnValue(true);
+
+  (component as any).costCenterComboBox = { value: 'old' };
+
+  // Act
+  (component as any).getCostCenterComboBoxValue();
+
+  // Assert
+  expect((component as any).costCenterComboBox.value).toBeNull();
 });
