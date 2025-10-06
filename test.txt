@@ -1,84 +1,21 @@
-it('LoadTableRows: maps rows using divisions and costCenters (happy path)', () => {
-  // arrange
-  (component as any).divisions = [
-    { divisionId: 10, divisionCd: 'D10', divisionDesc: 'Division 10' },
-    { divisionId: 20, divisionCd: 'D20', divisionDesc: 'Division 20' }
-  ];
-  (component as any).costCenters = [
-    { costCenterId: 1, costCenterNbr: '100', costCenterDesc: 'Cost A' },
-    { costCenterId: 2, costCenterNbr: '200', costCenterDesc: 'Cost B' }
-  ];
+it('GenerateTableRows(): should handle error by displaying service errors, stop loading, and dispatch LOADINGACTION(false)', () => {
+  // Arrange
+  const errorResponse = { error: { statusMessage: 'Server error occurred' } };
 
-  // utils spies (component.utils must exist)
-  (component as any).utils = {
-    getFormatedString: jasmine.createSpy('getFormatedString').and.callFake((s: any) => s ? String(s) : ''),
-    getDisplayDate: jasmine.createSpy('getDisplayDate').and.callFake((d: any) => d ? '2025-08-01' : '')
-  };
+  const getReqSpy = spyOn(component.feeApiservice, 'getRequest')
+    .and.returnValue(throwError(() => errorResponse));
 
-  const input = [
-    {
-      altDivIdCostCntrMapId: 999,
-      altDivId: 20,
-      abaNbr: 'ABA-1',
-      costCenterNbr: '200',
-      startDt: '2025-01-01',
-      endDt: '',
-      creatById: 'u1',
-      creatDt: '2025-01-02T00:00:00Z',
-      updtById: 'u2',
-      updtDt: '2025-01-03T00:00:00Z'
-    }
-  ];
+  const displaySpy = spyOn(component as any, 'displayServiceErrors');
+  const dispatchSpy = spyOn(component['store'], 'dispatch');
 
-  // act
-  component.LoadTableRows(input);
+  component.loading = true;
 
-  // assert
-  expect(component.initialaltdivabacostcntrmaps).toBeDefined();
-  expect(component.altdivabacostcntrmaps.length).toBe(1);
+  // Act
+  component.GenerateTableRows();
 
-  const row = component.altdivabacostcntrmaps[0];
-  expect(row.altDivIdCostCntrMapId).toBe(999);
-  expect(row.altDivisionCd).toBe('D20');
-  expect(row.altDivisionDesc).toBe('Division 20'); // utils.getFormatedString returned the raw string
-  expect(row.abaNbr).toBe('ABA-1');
-  expect(row.costCenterNbr).toBe('200');
-  expect(row.costCenterDesc).toBe('Cost B');
-  expect(row.creatDt).toBe('2025-08-01'); // from mocked getDisplayDate
-});
-
-it('LoadTableRows: handles missing divisions/costCenters and null costCenterNbr safely', () => {
-  // arrange: divisions and costCenters missing or empty
-  (component as any).divisions = [];
-  (component as any).costCenters = [];
-
-  (component as any).utils = {
-    getFormatedString: jasmine.createSpy('getFormatedString').and.returnValue(''),
-    getDisplayDate: jasmine.createSpy('getDisplayDate').and.returnValue('')
-  };
-
-  const input = [
-    {
-      altDivIdCostCntrMapId: 111,
-      altDivId: 555, // not found in divisions
-      abaNbr: 'ABA-X',
-      costCenterNbr: null, // intentionally null
-      startDt: null,
-      endDt: null,
-      creatById: null,
-      creatDt: null,
-      updtById: null,
-      updtDt: null
-    }
-  ];
-
-  // act (should not throw)
-  component.LoadTableRows(input);
-
-  // assert
-  expect(component.altdivabacostcntrmaps.length).toBe(1);
-  const row = component.altdivabacostcntrmaps[0];
-  expect(row.altDivisionCd).toBe(''); // no division found -> empty string
-  expect(row.costCenterNbr).toBeNull();
-  expect(row.costCenterDesc).toBeNull(); // cost center absent -> null
+  // Assert
+  expect(getReqSpy).toHaveBeenCalledWith(component.appConfigService.getAllAltDivCostCenterMappingUrl);
+  expect(displaySpy).toHaveBeenCalledWith('Server error occurred');
+  expect(component.loading).toBeFalse();
+  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
 });
