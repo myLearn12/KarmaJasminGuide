@@ -1,44 +1,84 @@
-it('onCostCenterComboBoxChangeEvent: sets error true when form control has required error', () => {
+it('LoadTableRows: maps rows using divisions and costCenters (happy path)', () => {
   // arrange
-  component.showCostCenterRequiredError = false;
-  (component as any).fcn_costCenterId = { hasError: (_: string) => true } as any;
-  (component as any)._costCenterComboBox = { value: '100' };
-  (component as any).utils = { isStringValid: jasmine.createSpy('isStringValid').and.returnValue(true) } as any;
+  (component as any).divisions = [
+    { divisionId: 10, divisionCd: 'D10', divisionDesc: 'Division 10' },
+    { divisionId: 20, divisionCd: 'D20', divisionDesc: 'Division 20' }
+  ];
+  (component as any).costCenters = [
+    { costCenterId: 1, costCenterNbr: '100', costCenterDesc: 'Cost A' },
+    { costCenterId: 2, costCenterNbr: '200', costCenterDesc: 'Cost B' }
+  ];
+
+  // utils spies (component.utils must exist)
+  (component as any).utils = {
+    getFormatedString: jasmine.createSpy('getFormatedString').and.callFake((s: any) => s ? String(s) : ''),
+    getDisplayDate: jasmine.createSpy('getDisplayDate').and.callFake((d: any) => d ? '2025-08-01' : '')
+  };
+
+  const input = [
+    {
+      altDivIdCostCntrMapId: 999,
+      altDivId: 20,
+      abaNbr: 'ABA-1',
+      costCenterNbr: '200',
+      startDt: '2025-01-01',
+      endDt: '',
+      creatById: 'u1',
+      creatDt: '2025-01-02T00:00:00Z',
+      updtById: 'u2',
+      updtDt: '2025-01-03T00:00:00Z'
+    }
+  ];
 
   // act
-  (component as any).onCostCenterComboBoxChangeEvent();
+  component.LoadTableRows(input);
 
   // assert
-  expect(component.showCostCenterRequiredError).toBeTrue();
+  expect(component.initialaltdivabacostcntrmaps).toBeDefined();
+  expect(component.altdivabacostcntrmaps.length).toBe(1);
+
+  const row = component.altdivabacostcntrmaps[0];
+  expect(row.altDivIdCostCntrMapId).toBe(999);
+  expect(row.altDivisionCd).toBe('D20');
+  expect(row.altDivisionDesc).toBe('Division 20'); // utils.getFormatedString returned the raw string
+  expect(row.abaNbr).toBe('ABA-1');
+  expect(row.costCenterNbr).toBe('200');
+  expect(row.costCenterDesc).toBe('Cost B');
+  expect(row.creatDt).toBe('2025-08-01'); // from mocked getDisplayDate
 });
 
-it('onCostCenterComboBoxChangeEvent: sets error true when no required error but combo value is not a valid string', () => {
-  // arrange
-  component.showCostCenterRequiredError = false;
-  (component as any).fcn_costCenterId = { hasError: (_: string) => false } as any;
-  // use an empty string to simulate invalid value (toString() is safe here)
-  (component as any)._costCenterComboBox = { value: '' };
-  (component as any).utils = { isStringValid: jasmine.createSpy('isStringValid').and.returnValue(false) } as any;
+it('LoadTableRows: handles missing divisions/costCenters and null costCenterNbr safely', () => {
+  // arrange: divisions and costCenters missing or empty
+  (component as any).divisions = [];
+  (component as any).costCenters = [];
 
-  // act
-  (component as any).onCostCenterComboBoxChangeEvent();
+  (component as any).utils = {
+    getFormatedString: jasmine.createSpy('getFormatedString').and.returnValue(''),
+    getDisplayDate: jasmine.createSpy('getDisplayDate').and.returnValue('')
+  };
+
+  const input = [
+    {
+      altDivIdCostCntrMapId: 111,
+      altDivId: 555, // not found in divisions
+      abaNbr: 'ABA-X',
+      costCenterNbr: null, // intentionally null
+      startDt: null,
+      endDt: null,
+      creatById: null,
+      creatDt: null,
+      updtById: null,
+      updtDt: null
+    }
+  ];
+
+  // act (should not throw)
+  component.LoadTableRows(input);
 
   // assert
-  expect(component.showCostCenterRequiredError).toBeTrue();
-  expect((component as any).utils.isStringValid).toHaveBeenCalledWith(''); // sanity-check
-});
-
-it('onCostCenterComboBoxChangeEvent: clears error when control ok and value is valid', () => {
-  // arrange
-  component.showCostCenterRequiredError = true; // start true to ensure it can be cleared
-  (component as any).fcn_costCenterId = { hasError: (_: string) => false } as any;
-  (component as any)._costCenterComboBox = { value: '100' };
-  (component as any).utils = { isStringValid: jasmine.createSpy('isStringValid').and.returnValue(true) } as any;
-
-  // act
-  (component as any).onCostCenterComboBoxChangeEvent();
-
-  // assert
-  expect(component.showCostCenterRequiredError).toBeFalse();
-  expect((component as any).utils.isStringValid).toHaveBeenCalledWith('100');
+  expect(component.altdivabacostcntrmaps.length).toBe(1);
+  const row = component.altdivabacostcntrmaps[0];
+  expect(row.altDivisionCd).toBe(''); // no division found -> empty string
+  expect(row.costCenterNbr).toBeNull();
+  expect(row.costCenterDesc).toBeNull(); // cost center absent -> null
 });
