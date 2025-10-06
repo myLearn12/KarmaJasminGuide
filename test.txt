@@ -1,20 +1,68 @@
-it('getCostCenterComboBoxValue(): should set costCenterComboBox.value when costCenterNbr is valid and found', () => {
-  // Arrange
+it('LoadDatatoExport(): when list has items should build mapped export rows', () => {
+  // Arrange - component state used by the method
+  component.divisions = [
+    { divisionId: 10, divisionCd: 'D10', divisionDesc: 'Division Ten' }
+  ] as any[];
   component.costCenters = [
-    { costCenterNbr: '100', costCenterDesc: 'Finance' },
-    { costCenterNbr: '200', costCenterDesc: 'Tax' }
-  ] as any;
+    { costCenterNbr: '100', costCenterDesc: 'Cost A', costCenterId: 1 }
+  ] as any[];
 
-  component.altdivabacostcntrmap = { costCenterNbr: '200' } as any;
+  // spy utils formatting functions used inside method
+  const utils = component['utils'] as any;
+  spyOn(utils, 'getFormatedString').and.callFake((s: any) => (s == null ? '' : 'fmt:' + s));
+  spyOn(utils, 'getDisplayDate').and.callFake((d: any) => (d ? 'DISPLAY:' + d : ''));
 
-  (component as any).costCenterComboBox = { value: null };
-
-  const utilsSpy = spyOn(component['utils'], 'isStringValid').and.returnValue(true);
+  // One alt-div record to export
+  const rows = [{
+    altDivId: 10,
+    abaNbr: 'ABA-123',
+    costCenterNbr: '100',
+    creatById: 'user1',
+    creatDt: '2025-08-01T12:00:00Z',
+    updtById: 'user2',
+    updtDt: '2025-08-02T12:00:00Z'
+  }] as any[];
 
   // Act
-  (component as any).getCostCenterComboBoxValue();
+  (component as any).LoadDatatoExport(rows);
 
   // Assert
-  expect(utilsSpy).toHaveBeenCalledWith('200');
-  expect((component as any).costCenterComboBox.value).toEqual(['200']);
+  expect(Array.isArray(component.mappingDatatoExport)).toBeTrue();
+  expect(component.mappingDatatoExport.length).toBe(1);
+
+  const mapped = component.mappingDatatoExport[0];
+
+  // Division mapping (found by divisionId)
+  expect(mapped['Division cd']).toBe('D10');
+
+  // Division Desc should be passed through utils.getFormatedString
+  expect(mapped['Division Desc']).toBe('fmt:Division Ten');
+
+  // ABA Number copied from source
+  expect(mapped['ABA Number']).toBe('ABA-123');
+
+  // Cost center fields
+  expect(mapped['CostCenter Number']).toBe('100');
+  expect(mapped['CostCenter Desc']).toBe('fmt:Cost A');
+
+  // Created/Modified columns formatted via utils.getDisplayDate
+  expect(mapped['Created Date']).toBe('DISPLAY:2025-08-01T12:00:00Z');
+  expect(mapped['Modified Date']).toBe('DISPLAY:2025-08-02T12:00:00Z');
+
+  // ensure formatting helpers were called
+  expect(utils.getFormatedString).toHaveBeenCalled();
+  expect(utils.getDisplayDate).toHaveBeenCalled();
+});
+
+it('LoadDatatoExport(): when list is empty should produce empty mappingDatatoExport', () => {
+  // Arrange
+  component.mappingDatatoExport = ['garbage'];
+  const rows: any[] = [];
+
+  // Act
+  (component as any).LoadDatatoExport(rows);
+
+  // Assert
+  expect(Array.isArray(component.mappingDatatoExport)).toBeTrue();
+  expect(component.mappingDatatoExport.length).toBe(0);
 });
