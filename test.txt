@@ -1,71 +1,75 @@
-it('onAcceptButtonClick(ActionType.update): calls putRequest with update payload, regenerates table and writes audit log on complete', fakeAsync(() => {
-  // Arrange: make validateFormControls allow action
+it('onAcceptButtonClick(ActionType.update) - error: restores model, calls displayServiceErrors and performs cleanup', fakeAsync(() => {
+  // Arrange - allow action to proceed
   spyOn(component as any, 'validateFormControls').and.returnValue(false);
 
-  // Provide appConfigService URL (appConfigService is private on the component)
-  (component as any).appConfigService = {
-    updateDivConBraMappingUrl: '/api/divconbra/update/'
-  } as any;
+  // appConfig URL used to build the put URL
+  (component as any).appConfigService = { updateDivConBraMappingUrl: '/api/divconbra/update/' } as any;
 
-  // Provide combo ViewChild mocks (values as strings like the real component expects)
+  // Provide combo mocks used in payload building
   (component as any)._divisionComboBox = { value: '10' };
   (component as any)._controlIdComboBox = { value: '200' };
   (component as any)._branchCdComboBox = { value: 'B1' };
 
-  // Provide the current (mutated) model and the selected snapshot used for restore/audit
-  component.divConBraMap = {
-    divConBraId: 99,
-    activeIndic: true,
-    // other properties may exist but aren't necessary for this test
-  } as any;
+  // Current mutated model and snapshot (selected) -- snapshot is the original we should restore to
+  component.divConBraMap = { divConBraId: 99, activeIndic: false, someField: 'CHANGED' } as any;
+  component.selectedDivConBraMap = { divConBraId: 99, activeIndic: true, someField: 'ORIGINAL' } as any;
 
-  component.selectedDivConBraMap = JSON.parse(JSON.stringify(component.divConBraMap));
+  // Ensure methods/objects used for cleanup exist and are spied
+  const clearSpy = spyOn(component as any, 'clearSelection');
+  const modalHideSpy = spyOn(((component as any)._actionModal = (component as any)._actionModal || { hide() {} }), 'hide');
 
-  // Provide lookup arrays so getUpdatedModel() / other helpers won't throw
-  component.divisions = [{ divisionId: 10, divisionCd: 'D10', divisionDesc: 'Division 10' }] as any;
-  component.controlIds = [{ conId: 200, controlDesc: 'Control 200' }] as any;
-  component.branchCds = [{ branchCode: 'B1', branchDesc: 'Branch 1' }] as any;
+  // Spy displayServiceErrors
+  const displaySpy = spyOn(component as any, 'displayServiceErrors');
 
-  // Spies for side-effect methods
-  const putSpy = spyOn(component.feeApiservice, 'putRequest').and.returnValue(of({})); // success
-  const genSpy = spyOn(component as any, 'GenerateTableRows');
-  const setMsgSpy = spyOn(component as any, 'SetMessageTypeAndValue');
-  // auditLogService is private; access via bracket notation
-  const auditSpy = spyOn((component as any)['auditLogService'], 'writeAuditLog');
+  // Make putRequest emit an error
+  const serverError = { error: { statusMessage: 'server validation failed' } };
+  const putSpy = spyOn(component.feeApiservice, 'putRequest').and.returnValue(throwError(() => serverError));
 
   // Act
   component.onAcceptButtonClick(ActionType.update);
-  tick(); // flush asynchronous subscription (next + complete)
+  tick();
 
-  // Assert: HTTP called with correct URL + payload containing the combo values
-  expect(putSpy).toHaveBeenCalledTimes(1);
-  const [calledUrl, calledPayload] = putSpy.calls.mostRecent().args as [string, any];
-  expect(calledUrl).toBe('/api/divconbra/update/' + component.divConBraMap.divConBraId);
+  // Assert: HTTP called
+  expect(putSpy).toHaveBeenCalled();
 
-  // Payload contains expected fields (strings because .toString() used in code)
-  expect(calledPayload).toEqual(jasmine.objectContaining({
-    divisionId: '10',
-    controlId: '200',
-    branchCd: 'B1',
-    activeIndic: true,
-    updatedBy: jasmine.any(String),
-    updatedDt: jasmine.any(String)
-  }));
+  // The in-error handler should have restored the model from selected snapshot
+  expect(component.divConBraMap).toEqual(component.selectedDivConBraMap);
 
-  // Next() side effects
-  expect(genSpy).toHaveBeenCalled();
-  expect(setMsgSpy).toHaveBeenCalledWith(BlockMessageType.success, component.updateSuccessMessage);
+  // displayServiceErrors called with server message
+  expect(displaySpy).toHaveBeenCalledWith('server validation failed');
 
-  // Complete() should call audit log with expected args (flexible matching)
-  expect(auditSpy).toHaveBeenCalled();
-  const auditArgs = auditSpy.calls.mostRecent().args;
-  // first arg is the id key, second arg should be the id as string
-  expect(auditArgs[0]).toBe('divConBraId');
-  expect(auditArgs[1]).toBe(component.divConBraMap.divConBraId.toString());
-  // third and fourth args are objects (selected snapshot and updated model)
-  expect(auditArgs[2]).toEqual(component.selectedDivConBraMap);
-  expect(auditArgs[3]).toEqual(jasmine.any(Object));
-  // last args: action and title
-  expect(auditArgs[4]).toBe((component as any)['auditLogService'].updateAction);
-  expect(auditArgs[5]).toBe(component.PageTitle);
+  // final cleanup (clear & hide) should have been called
+  expect(clearSpy).toHaveBeenCalled();
+  expect(modalHideSpy).toHaveBeenCalled();
+}));
+
+
+it('onAcceptButtonClick(ActionType.add) - error: postRequest throws -> displayServiceErrors called and cleanup runs', fakeAsync(() => {
+  // Arrange
+  spyOn(component as any, 'validateFormControls').and.returnValue(false);
+
+  (component as any).appConfigService = { addDivConBraMappingUrl: '/api/divconbra/add' } as any;
+  (component as any)._divisionComboBox = { value: '10' };
+  (component as any)._controlIdComboBox = { value: '200' };
+  (component as any)._branchCdComboBox = { value: 'B1' };
+
+  component.divConBraMap = { divConBraId: null, activeIndic: true } as any;
+
+  const displaySpy = spyOn(component as any, 'displayServiceErrors');
+  const clearSpy = spyOn(component as any, 'clearSelection');
+  const modalHideSpy = spyOn(((component as any)._actionModal = (component as any)._actionModal || { hide() {} }), 'hide');
+
+  // Make postRequest throw
+  const serverError = { error: { statusMessage: 'add failed' } };
+  const postSpy = spyOn(component.feeApiservice, 'postRequest').and.returnValue(throwError(() => serverError));
+
+  // Act
+  component.onAcceptButtonClick(ActionType.add);
+  tick();
+
+  // Assert
+  expect(postSpy).toHaveBeenCalled();
+  expect(displaySpy).toHaveBeenCalledWith('add failed');
+  expect(clearSpy).toHaveBeenCalled();
+  expect(modalHideSpy).toHaveBeenCalled();
 }));
