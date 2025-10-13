@@ -1,32 +1,24 @@
-it('onSearchButtonClick(): when division+control+branch selected -> loads filtered rows', () => {
-  // Arrange
+it('onSearchButtonClick(): when only division selected -> loads filtered rows by division', () => {
   component.initialDivConBraMaps = [
     { divisionId: 10, controlId: 100, branchCd: 'B1' },
-    { divisionId: 10, controlId: 100, branchCd: 'B2' },
-    { divisionId: 20, controlId: 200, branchCd: 'B1' }
+    { divisionId: 20, controlId: 200, branchCd: 'B2' }
   ] as any[];
 
-  (component as any)._searchDivisionComboBox = { value: '10' };
-  (component as any)._searchControlIdComboBox = { value: '100' };
-  (component as any)._searchBranchCdComboBox = { value: 'B1' };
+  (component as any)._searchDivisionComboBox = { value: '20' };
+  (component as any)._searchControlIdComboBox = { value: null };
+  (component as any)._searchBranchCdComboBox = { value: null };
 
   const loadSpy = spyOn(component as any, 'LoadTableRows');
   const warnSpy = spyOn(component as any, 'SetMessageTypeAndValue');
   const genSpy = spyOn(component as any, 'GenerateTableRows');
 
-  // Act
   component.onSearchButtonClick();
 
-  // Assert: only matching row(s) passed to LoadTableRows
   expect(loadSpy).toHaveBeenCalled();
-  const calledArg = loadSpy.calls.mostRecent().args[0];
-  expect(Array.isArray(calledArg)).toBeTrue();
-  expect(calledArg.length).toBe(1);
-  expect(calledArg[0].divisionId).toBe(10);
-  expect(calledArg[0].controlId).toBe(100);
-  expect(calledArg[0].branchCd).toBe('B1');
+  const rows = loadSpy.calls.mostRecent().args[0];
+  expect(rows.length).toBe(1);
+  expect(rows[0].divisionId).toBe(20);
 
-  // Should NOT show warning or call GenerateTableRows fallback
   expect(warnSpy).not.toHaveBeenCalled();
   expect(genSpy).not.toHaveBeenCalled();
 });
