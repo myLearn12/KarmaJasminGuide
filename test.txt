@@ -1,68 +1,58 @@
-it('onAcceptButtonClick(ActionType.update) -> next+complete should regenerate table, show success and call auditLogService.writeAuditLog', fakeAsync(() => {
-  // arrange: prevent early return
-  spyOn(component as any, 'validateFormControls').and.returnValue(false);
+it('onAcceptButtonClick(ActionType.add) -> posts payload, regenerates table, shows success and writes audit log (self-contained)', fakeAsync(() => {
+  // arrange
+  spyOn(component as any, 'validateFormControls').and.returnValue(false); // let method proceed
 
-  // ensure combos / viewchild mocks exist and have string values
-  (component as any)._revenueShareComboBox = { value: '10' };
-  (component as any)._costCenterComboBox = { value: '100' };
+  // Provide combo mocks and a minimal model
+  (component as any)._divisionComboBox = { value: '10' };
+  (component as any)._controlIdComboBox = { value: '200' };
+  (component as any)._branchCdComboBox = { value: 'BR1' };
   (component as any)._actionModal = { hide: () => {}, show: () => {} };
 
-  // model mutated by UI — object to be used in update
-  component.revShrGlAcctmap = {
-    revShareGlAcctId: 42,
-    revShareTypeId: 10,
-    glAccountNumber: 'GL-1',
-    abaNbr: 'ABA-1',
-    costCenterNbr: '100',
-    startDt: '2025-01-01',
-    endDt: '',
-    createdBy: 'orig',
-    createdDt: '2025-01-01',
-    updatedBy: 'u',
-    updatedDt: '2025-01-01'
+  component.divConBraMap = {
+    divConBraId: 5,
+    activeIndic: true,
+    /* ...other fields used by getUpdatedModel if any... */
   } as any;
 
-  // arrays used by getUpdatedModel / getComboValue
-  component.revenueShares = [{ revShareTypeId: 10, revShareTypeDesc: 'R', revShareTypeCd: 'R1' }] as any;
-  component.costCenters   = [{ costCenterNbr: '100', costCenterDesc: 'Cost A', costCenterId: 1 }] as any;
-
-  // utils stubs used by method/getUpdatedModel
+  // utils used by method
   (component as any).utils = {
     ToEstDate: () => '2025-08-25T00:00:00',
     getCurrentUser: () => 'tester',
-    isStringValid: (v: any) => v !== null && v !== undefined && String(v).trim() !== '',
     getDisplayDate: (d: any) => d ? d : '',
-    getFormatedString: (s: any) => s ? s : ''
+    getFormatedString: (s: any) => s
   };
 
-  // stub side-effect helpers so they are called but don't crash
+  // Provide stubbed helpers & spies so the component's side-effects don't crash
   const genSpy = spyOn(component as any, 'GenerateTableRows').and.callFake(() => {});
   const setMsgSpy = spyOn(component as any, 'SetMessageTypeAndValue').and.callFake(() => {});
+  spyOn(component['store'], 'dispatch').and.callFake(() => {}); // LOADINGACTION
   (component as any).displayServiceErrors = (m: any) => {};
-  spyOn(component['store'], 'dispatch').and.callFake(() => {});
   (component as any).clearSelection = () => {};
+  spyOn(component as any, 'clearSelection').and.callThrough();
 
-  // make putRequest succeed (next + complete will run)
-  const putSpy = spyOn(component.feeApiservice, 'putRequest').and.returnValue(of({}));
+  // Make postRequest return success (next + complete will run)
+  const postSpy = spyOn(component.feeApiservice, 'postRequest').and.returnValue(of({}));
 
-  // provide auditLogService and spy it (private -> use bracket)
+  // Provide auditLogService private and spy it
   (component as any).auditLogService = { writeAuditLog: () => {} };
   const auditSpy = spyOn(component['auditLogService'], 'writeAuditLog').and.callFake(() => {});
 
   // Act
-  component.onAcceptButtonClick(ActionType.update);
+  component.onAcceptButtonClick(ActionType.add);
   tick();
 
-  // Assert: http called, table regenerated, success message set, audit log called on complete
-  expect(putSpy).toHaveBeenCalled();
+  // Assert
+  expect(postSpy).toHaveBeenCalled();
   expect(genSpy).toHaveBeenCalled();
-  expect(setMsgSpy).toHaveBeenCalledWith(jasmine.anything(), jasmine.anything()); // success message call
+  expect(setMsgSpy).toHaveBeenCalledWith(jasmine.anything(), jasmine.anything());
   expect(auditSpy).toHaveBeenCalledWith(
-    'revShareGlAcctId',
-    component.revShrGlAcctmap.revShareGlAcctId.toString(),
-    jasmine.any(Object), // selected snapshot or model
-    jasmine.any(Object), // updated model
+    'NA',
+    'NA',
+    jasmine.any(Object),
+    jasmine.any(Object),
     jasmine.anything(),
     jasmine.any(String)
   );
+  // make sure final UI cleanup happened (clearSelection called)
+  expect((component as any).clearSelection).toHaveBeenCalled();
 }));
