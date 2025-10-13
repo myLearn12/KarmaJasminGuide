@@ -1,56 +1,28 @@
-import { of, throwError } from 'rxjs';
 import { fakeAsync, tick } from '@angular/core/testing';
+import { of, throwError } from 'rxjs';
 
-it('ngOnInit() error branch: should call displayServiceErrors, call LoadDefaultComboBox for 404, clear loading and dispatch', fakeAsync(() => {
-  // Arrange - make first request error out (forkJoin will error)
-  const errorResponse = { error: { statusMessage: 'Server problem', statusCode: '404' } };
-  spyOn(component.feeApiservice, 'getRequest').and.returnValues(
-    throwError(() => errorResponse), // divConBraMaps -> errors -> triggers error handler
-    of([]), // divisions (won't be reached but safe)
-    of([]), // controlIds
-    of([])  // branchCds
-  );
-
-  // spies for handlers
-  const displaySpy = spyOn(component as any, 'displayServiceErrors');
-  const loadDefaultSpy = spyOn(component as any, 'LoadDefaultComboBox');
-  const dispatchSpy = spyOn(component['store'], 'dispatch');
-
-  // Act
-  component.ngOnInit();
-  tick();
-
-  // Assert
-  expect(displaySpy).toHaveBeenCalledWith('Server problem');
-  expect(loadDefaultSpy).toHaveBeenCalled();               // 404 path triggers LoadDefaultComboBox
-  expect(component.loading).toBeFalse();                   // loading cleared
-  expect(dispatchSpy).toHaveBeenCalled();                  // LOADINGACTION dispatched (false)
-}));
-
-
-it('ngOnInit() complete branch: should set combo data, set viewchild.options, clear loading and dispatch', fakeAsync(() => {
-  // Arrange - data that forkJoin should return (in the same order used by ngOnInit)
-  const divConBraMaps = [{ id: 1, name: 'map1' }];
+it('LoadDefaultComboBox(): complete -> sets combo data, deep-clones viewchild.options, clears loading and dispatches', fakeAsync(() => {
+  // Arrange: data returned by forkJoin
   const divisions = [{ divisionId: 20, divisionDesc: 'Division A', divisionCd: 'D1' }];
-  const controlIds = [{ conId: 5, controlDesc: 'Ctrl A' }];
+  const controlIds = [{ conId: 5, controlDesc: 'Control A' }];
   const branchCds = [{ branchCode: 'B1', branchDesc: 'Branch One' }];
 
+  // Spy getRequest to return the three observables in the same order used in LoadDefaultComboBox()
   spyOn(component.feeApiservice, 'getRequest').and.returnValues(
-    of(divConBraMaps), // divConBraMaps
-    of(divisions),     // divisions
-    of(controlIds),    // controlIds
-    of(branchCds)      // branchCds
+    of(divisions),   // divisions
+    of(controlIds),  // controlIds
+    of(branchCds)    // branchCds
   );
 
-  // Prevent loadTableRows side-effects; we're testing combo population only
+  // Prevent LoadTableRows or other side-effects if present
   if ((component as any).LoadTableRows) {
     spyOn(component as any, 'LoadTableRows');
   }
 
-  // utils mapping used to populate combo arrays
+  // utils.LoadComboBoxData -> predictable mapped options
   const mappedDivisions = [{ label: 'Division A', value: '20' }];
-  const mappedControls = [{ label: 'Ctrl A', value: '5' }];
-  const mappedBranches = [{ label: 'Branch One', value: 'B1' }];
+  const mappedControls  = [{ label: 'Control A',  value: '5' }];
+  const mappedBranches  = [{ label: 'Branch One',  value: 'B1' }];
   spyOn(component['utils'], 'LoadComboBoxData').and.callFake((arr: any[], label: string) => {
     if (label === 'divisionDesc') return mappedDivisions;
     if (label === 'controlDesc')  return mappedControls;
@@ -58,28 +30,63 @@ it('ngOnInit() complete branch: should set combo data, set viewchild.options, cl
     return [];
   });
 
-  // Provide ViewChild mocks so assignment of .options doesn't throw
-  (component as any)._divisionComboBox = { options: null };
-  (component as any)._controlIdComboBox = { options: null };
-  (component as any)._branchCdComboBox = { options: null };
+  // Provide ViewChild mocks so assignments of .options succeed
+  (component as any)._divisionComboBox   = { options: null };
+  (component as any)._controlidComboBox  = { options: null };
+  (component as any)._branchCdComboBox   = { options: null };
 
   const dispatchSpy = spyOn(component['store'], 'dispatch');
 
   // Act
-  component.ngOnInit();
-  tick(); // flush forkJoin + subscribe next/complete
+  (component as any).LoadDefaultComboBox();
+  tick(); // flush forkJoin subscribe next + complete
 
-  // Assert: combo data arrays built using utils.LoadComboBoxData
+  // Assert: combo arrays built from utils.LoadComboBoxData
   expect(component.divisionComboBoxData).toEqual([{ options: mappedDivisions }]);
   expect(component.controlIdComboBoxData).toEqual([{ options: mappedControls }]);
   expect(component.branchCdComboBoxData).toEqual([{ options: mappedBranches }]);
 
-  // ViewChild.options deep-cloned from originals
+  // Assert: ViewChild.options deep-cloned from the original arrays
   expect((component as any)._divisionComboBox.options).toEqual(JSON.parse(JSON.stringify(divisions)));
-  expect((component as any)._controlIdComboBox.options).toEqual(JSON.parse(JSON.stringify(controlIds)));
+  expect((component as any)._controlidComboBox.options).toEqual(JSON.parse(JSON.stringify(controlIds)));
   expect((component as any)._branchCdComboBox.options).toEqual(JSON.parse(JSON.stringify(branchCds)));
 
-  // loading turned off and LOADINGACTION(false) dispatched
+  // loading false and store.dispatch called (LOADINGACTION false)
+  expect(component.loading).toBeFalse();
+  expect(dispatchSpy).toHaveBeenCalled();
+}));
+
+
+it('LoadDefaultComboBox(): error branch -> displays service error and does NOT set combo data', fakeAsync(() => {
+  // Arrange: make the first getRequest (divisions) throw a server error
+  const errorResponse = { error: { statusMessage: 'Server failed' } };
+  spyOn(component.feeApiservice, 'getRequest').and.returnValues(
+    throwError(() => errorResponse), // divisions -> error
+    of([]),                          // controlIds (unused)
+    of([])                           // branchCds (unused)
+  );
+
+  const displaySpy = spyOn(component as any, 'displayServiceErrors');
+  const dispatchSpy = spyOn(component['store'], 'dispatch');
+
+  // Provide ViewChild mocks to avoid runtime errors (they should remain untouched on error)
+  (component as any)._divisionComboBox   = { options: null };
+  (component as any)._controlidComboBox  = { options: null };
+  (component as any)._branchCdComboBox   = { options: null };
+
+  // Act
+  (component as any).LoadDefaultComboBox();
+  tick();
+
+  // Assert: displayServiceErrors called with the server message
+  expect(displaySpy).toHaveBeenCalledWith('Server failed');
+
+  // Combo data should remain undefined / empty (no complete run)
+  expect(component.divisionComboBoxData).toBeUndefined();
+  expect(component.controlIdComboBoxData).toBeUndefined();
+  expect(component.branchCdComboBoxData).toBeUndefined();
+
+  // loading should be false and dispatch should have been called to clear LOADING state
   expect(component.loading).toBeFalse();
   expect(dispatchSpy).toHaveBeenCalled();
 }));
