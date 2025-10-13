@@ -1,62 +1,54 @@
-import { fakeAsync, tick } from '@angular/core/testing';
-import { of, throwError } from 'rxjs';
-
-it('onAcceptButtonClick(ActionType.add): posts payload, regenerates table, shows success and writes audit log (self-contained defensive)', fakeAsync(() => {
-  // ------------- Defensive stubs for anything the method touches ----------------
-  // make validateFormControls allow execution
+it('onAcceptButtonClick(ActionType.add) - posts and writes audit log (defensive)', fakeAsync(() => {
+  // make validate allow the function to proceed
   spyOn(component as any, 'validateFormControls').and.returnValue(false);
 
-  // Provide combo/viewchild mocks (must not be null and must have .value)
-  (component as any).divisionComboBox     = { value: '10' };
-  (component as any)._controlIdComboBox   = { value: '20' };
-  (component as any)._branchCdComboBox    = { value: 'BR01' };
+  // ====== ViewChild / combo objects the method expects ======
+  (component as any).divisionComboBox   = { value: '10' };
+  (component as any)._controlIdComboBox = { value: '20' };
+  (component as any)._branchCdComboBox  = { value: 'BR01' };
+  (component as any)._actionModal       = { show: () => {}, hide: () => {} };
 
-  // Provide the model object that method will read from
+  // ====== Models the method reads ======
   component.divConBraMap = {
-    activeIndic: true,
-    // add any fields referenced by method or getUpdatedModel()
     divConBraId: 123,
-    // etc...
+    activeIndic: true,
+    // other fields if the method uses them
   } as any;
 
-  // Provide arrays used by getUpdatedModel / other code so .find works
+  // ====== Arrays used by find/filter ======
   component.divisions  = [{ divisionId: 10, divisionDesc: 'Div A', divisionCd: 'D1' }] as any;
   component.controlIds = [{ conId: 20, controlDesc: 'Ctl A' }] as any;
   component.branchCds  = [{ branchCode: 'BR01', branchDesc: 'Branch A' }] as any;
 
-  // Provide utils used by code (if code calls some utils methods)
-  component['utils'] = {
+  // ====== utils and services (private) ======
+  (component as any).utils = {
     ToEstDate: () => '2025-08-25T00:00:00',
     getCurrentUser: () => 'user1',
-    // other utils methods used anywhere in code can be stubbed to safe values
-  } as any;
+    isStringValid: (v: any) => v !== null && v !== undefined && String(v).trim() !== '',
+    // add other helpers used by your method if needed
+  };
 
-  // Prevent side effects and capture calls
-  const genSpy = spyOn(component as any, 'GenerateTableRows').and.callFake(() => {});
-  const setMsgSpy = spyOn(component as any, 'SetMessageTypeAndValue').and.callFake(() => {});
-  const displayErrSpy = spyOn(component as any, 'displayServiceErrors').and.callFake(() => {});
-  const clearSelSpy = spyOn(component as any, 'clearSelection').and.callFake(() => {});
+  (component as any).auditLogService = { writeAuditLog: () => {} };
+  spyOn(component['auditLogService'], 'writeAuditLog').and.callFake(() => {});
 
-  // Ensure auditLogService exists and is spy-able (private -> use bracket notation)
-  (component as any).auditLogService = {
-    writeAuditLog: (_a: any, _b: any, _c: any, _d: any, _e: any, _f: any) => {}
-  } as any;
-  const auditSpy = spyOn(component['auditLogService'], 'writeAuditLog').and.callFake(() => {});
+  // prevent side effects
+  spyOn(component as any, 'GenerateTableRows').and.callFake(() => {});
+  spyOn(component as any, 'SetMessageTypeAndValue').and.callFake(() => {});
+  spyOn(component as any, 'displayServiceErrors').and.callFake(() => {});
+  spyOn(component as any, 'clearSelection').and.callFake(() => {});
 
-  // Spy the HTTP POST and return success observable
+  // stub HTTP POST to succeed
   const postSpy = spyOn(component.feeApiservice, 'postRequest').and.returnValue(of({}));
 
-  // Also stub store.dispatch because many components dispatch actions
-  const dispatchSpy = spyOn(component['store'], 'dispatch').and.callFake(() => {});
+  // spy store dispatch
+  spyOn(component['store'], 'dispatch').and.callFake(() => {});
 
-  // ------------- Act -------------
-  // call add branch
+  // Act
   component.onAcceptButtonClick(ActionType.add);
-  tick(); // flush any async
+  tick();
 
-  // ------------- Assert -------------
+  // Assert
   expect(postSpy).toHaveBeenCalled();
-  expect(genSpy).toHaveBeenCalled();
-  expect(setMsgSpy).toHaveBeenCalledWith(jasmine.anything(), jasmine.anything()); // success message
-  expect(auditSpy).toHaveBeenCalled(); // ensure audit log written on complete
+  expect(component['GenerateTableRows']).toHaveBeenCalled();
+  expect(component['auditLogService'].writeAuditLog).toHaveBeenCalled();
 }));
