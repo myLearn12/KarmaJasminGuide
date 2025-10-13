@@ -1,16 +1,16 @@
-it('getDivisionComboBoxVal(): should set _divisionComboBox.value based on matching divisionId', () => {
+it('getControlIdComboBoxValue(): should set _controlIdComboBox.value based on matching controlId', () => {
   // Arrange
-  component.divisions = [
-    { divisionId: 10, divisionCd: 'D10', divisionDesc: 'Division 10' },
-    { divisionId: 20, divisionCd: 'D20', divisionDesc: 'Division 20' }
+  component.controlIds = [
+    { conId: 100, controlDesc: 'Control A' },
+    { conId: 200, controlDesc: 'Control B' }
   ] as any;
 
-  component.divConBraMap = { divisionId: 20 } as any;
-  (component as any)._divisionComboBox = { value: null };
+  component.divConBraMap = { controlId: 200 } as any;
+  (component as any)._controlIdComboBox = { value: null };
 
   // Act
-  component.getDivisionComboBoxVal();
+  component.getControlIdComboBoxValue();
 
   // Assert
-  expect((component as any)._divisionComboBox.value).toEqual(['20']);
+  expect((component as any)._controlIdComboBox.value).toEqual(['200']);
 });
