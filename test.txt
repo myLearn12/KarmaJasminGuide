@@ -1,118 +1,19 @@
-it('onSearchButtonClick(): when division and control selected -> filters by both division and control', () => {
+it('onClearButtonClick(): should reset search combo values, clear error, and regenerate table rows', () => {
   // Arrange
-  component.initialDivConBraMaps = [
-    { divisionId: 10, controlId: 100, branchCd: 'B1' },
-    { divisionId: 10, controlId: 200, branchCd: 'B2' },
-    { divisionId: 20, controlId: 100, branchCd: 'B3' }
-  ] as any[];
-
+  component.errorBlockMessage = 'Some error';
   (component as any)._searchDivisionComboBox = { value: '10' };
-  (component as any)._searchControlIdComboBox = { value: '100' };
-  (component as any)._searchBranchCdComboBox = { value: null };
+  (component as any)._searchControlIdComboBox = { value: '200' };
+  (component as any)._searchBranchCdComboBox = { value: 'B001' };
 
-  const loadSpy = spyOn(component as any, 'LoadTableRows');
-
-  // Act
-  component.onSearchButtonClick();
-
-  // Assert
-  expect(loadSpy).toHaveBeenCalled();
-  const filtered = loadSpy.calls.mostRecent().args[0];
-  expect(filtered.length).toBe(1);
-  expect(filtered[0]).toEqual(jasmine.objectContaining({ divisionId: 10, controlId: 100 }));
-});
-
-
-it('onSearchButtonClick(): when division and branch selected -> filters by both division and branch', () => {
-  // Arrange
-  component.initialDivConBraMaps = [
-    { divisionId: 10, controlId: 100, branchCd: 'B1' },
-    { divisionId: 10, controlId: 200, branchCd: 'B2' },
-    { divisionId: 20, controlId: 300, branchCd: 'B1' }
-  ] as any[];
-
-  (component as any)._searchDivisionComboBox = { value: '10' };
-  (component as any)._searchControlIdComboBox = { value: null };
-  (component as any)._searchBranchCdComboBox = { value: 'B1' };
-
-  const loadSpy = spyOn(component as any, 'LoadTableRows');
+  const generateSpy = spyOn(component as any, 'GenerateTableRows');
 
   // Act
-  component.onSearchButtonClick();
+  component.onClearButtonClick();
 
   // Assert
-  expect(loadSpy).toHaveBeenCalled();
-  const filtered = loadSpy.calls.mostRecent().args[0];
-  expect(filtered.length).toBe(1);
-  expect(filtered[0]).toEqual(jasmine.objectContaining({ divisionId: 10, branchCd: 'B1' }));
-});
-
-it('onSearchButtonClick(): when only controlId selected -> filters by controlId', () => {
-  // Arrange
-  component.initialDivConBraMaps = [
-    { divisionId: 10, controlId: 100, branchCd: 'B1' },
-    { divisionId: 11, controlId: 200, branchCd: 'B2' },
-    { divisionId: 12, controlId: 100, branchCd: 'B3' }
-  ] as any[];
-
-  (component as any)._searchDivisionComboBox = { value: null };
-  (component as any)._searchControlIdComboBox = { value: '100' };
-  (component as any)._searchBranchCdComboBox = { value: null };
-
-  const loadSpy = spyOn(component as any, 'LoadTableRows');
-
-  // Act
-  component.onSearchButtonClick();
-
-  // Assert
-  expect(loadSpy).toHaveBeenCalled();
-  const result = loadSpy.calls.mostRecent().args[0];
-  expect(result.length).toBe(2);
-  expect(result.every(r => r.controlId === 100)).toBeTrue();
-});
-
-it('onSearchButtonClick(): when only branchCd selected -> filters by branchCd', () => {
-  // Arrange
-  component.initialDivConBraMaps = [
-    { divisionId: 1, controlId: 10, branchCd: 'B1' },
-    { divisionId: 2, controlId: 20, branchCd: 'B2' },
-    { divisionId: 3, controlId: 30, branchCd: 'B1' }
-  ] as any[];
-
-  (component as any)._searchDivisionComboBox = { value: null };
-  (component as any)._searchControlIdComboBox = { value: null };
-  (component as any)._searchBranchCdComboBox = { value: 'B1' };
-
-  const loadSpy = spyOn(component as any, 'LoadTableRows');
-
-  // Act
-  component.onSearchButtonClick();
-
-  // Assert
-  expect(loadSpy).toHaveBeenCalled();
-  const result = loadSpy.calls.mostRecent().args[0];
-  expect(result.length).toBe(2);
-  expect(result.every(r => r.branchCd === 'B1')).toBeTrue();
-});
-
-it('onSearchButtonClick(): when no search filters selected -> returns all records', () => {
-  // Arrange
-  component.initialDivConBraMaps = [
-    { divisionId: 1, controlId: 10, branchCd: 'B1' },
-    { divisionId: 2, controlId: 20, branchCd: 'B2' }
-  ] as any[];
-
-  (component as any)._searchDivisionComboBox = { value: null };
-  (component as any)._searchControlIdComboBox = { value: null };
-  (component as any)._searchBranchCdComboBox = { value: null };
-
-  const loadSpy = spyOn(component as any, 'LoadTableRows');
-
-  // Act
-  component.onSearchButtonClick();
-
-  // Assert
-  expect(loadSpy).toHaveBeenCalledWith(component.initialDivConBraMaps);
-  const result = loadSpy.calls.mostRecent().args[0];
-  expect(result.length).toBe(2);
+  expect(component.errorBlockMessage).toBeNull();
+  expect((component as any)._searchDivisionComboBox.value).toBeNull();
+  expect((component as any)._searchControlIdComboBox.value).toBeNull();
+  expect((component as any)._searchBranchCdComboBox.value).toBeNull();
+  expect(generateSpy).toHaveBeenCalled();
 });
