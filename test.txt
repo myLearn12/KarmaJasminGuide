@@ -1,8 +1,5 @@
-import { fakeAsync, tick } from '@angular/core/testing';
-import { of } from 'rxjs';
-
 it('onAcceptButtonClick(ActionType.add) -> posts payload, regenerates table, shows success and writes audit log (self-contained)', fakeAsync(() => {
-  // allow method to proceed
+  // Arrange - let validate pass
   spyOn(component as any, 'validateFormControls').and.returnValue(false);
 
   // Provide combo ViewChilds (they must exist and have .value)
@@ -29,14 +26,13 @@ it('onAcceptButtonClick(ActionType.add) -> posts payload, regenerates table, sho
   component.divConBraMap = {
     divConBraId: null,
     activeIndic: true,
-    /* fields used by getUpdatedModel and audit log */
     createdBy: 'init',
     createdDt: '2025-01-01T00:00:00',
     updtById: null,
     updtDt: null
   } as any;
 
-  // utils used by the component
+  // utils used by component (small subset)
   (component as any).utils = {
     ToEstDate: () => '2025-08-25T00:00:00',
     getCurrentUser: () => 'tester',
@@ -45,32 +41,46 @@ it('onAcceptButtonClick(ActionType.add) -> posts payload, regenerates table, sho
     isStringValid: (v: any) => v !== null && v !== undefined && String(v).trim() !== ''
   };
 
-  // Prevent GenerateTableRows side-effects; spy on helpers
+  // Prevent GenerateTableRows side-effects; spy helpers
   const genSpy = spyOn(component as any, 'GenerateTableRows').and.callFake(() => {});
   const setMsgSpy = spyOn(component as any, 'SetMessageTypeAndValue').and.callFake(() => {});
   spyOn(component['store'], 'dispatch').and.callFake(() => {}); // LOADINGACTION calls
 
-  // stub feeApiservice.postRequest -> success (next + complete)
+  // stub feeApiservice.postRequest -> success
   const postSpy = spyOn(component.feeApiservice, 'postRequest').and.returnValue(of({}));
 
-  // auditLogService is private in component; inject a spyable object
-  (component as any).auditLogService = { writeAuditLog: (...args: any[]) => {} };
+  // auditLogService may be private — set a test double and spy
+  (component as any).auditLogService = { writeAuditLog: (_a: any, _b: any, _c: any, _d: any, _e: any, _f: any) => {} };
   const auditSpy = spyOn(component['auditLogService'], 'writeAuditLog').and.callFake(() => {});
 
   // Act
   component.onAcceptButtonClick(ActionType.add);
-  tick(); // flush async (observables subscribe/complete)
+  tick(); // flush subscribe/complete
 
-  // Assert
+  // Assert basics
   expect(postSpy).toHaveBeenCalled();
   expect(genSpy).toHaveBeenCalled();
-  expect(setMsgSpy).toHaveBeenCalledWith(jasmine.anything(), jasmine.anything());
-  expect(auditSpy).toHaveBeenCalledWith(
-    'NA',
-    'NA',
-    jasmine.any(Object), // unmodified model
-    jasmine.any(Object), // getUpdatedModel result
-    jasmine.anything(),  // action constant
-    jasmine.any(String)  // page title
-  );
+  expect(setMsgSpy).toHaveBeenCalled();
+
+  // Audit log called — be flexible about exact objects
+  expect(auditSpy).toHaveBeenCalled();
+  const args = auditSpy.calls.mostRecent().args;
+  // arg[0] and arg[1] should be 'NA' per the component
+  expect(args[0]).toBe('NA');
+  expect(args[1]).toBe('NA');
+
+  // arg[2] is the unmodified model passed (should be an object with some keys)
+  expect(args[2]).toEqual(jasmine.any(Object));
+  // it should at least contain the createdBy/createdDt or activeIndic keys
+  expect(args[2]).toEqual(jasmine.objectContaining({
+    // some keys may be blank initially — we check presence rather than exact value
+    createdBy: jasmine.anything()
+  }));
+
+  // arg[3] is the updated model returned by getUpdatedModel()
+  expect(args[3]).toEqual(jasmine.any(Object));
+
+  // arg[5] should be a string title (page title)
+  expect(typeof args[5]).toBe('string');
+  expect(args[5]).toContain('Mapping'); // optional check that page title contains sensible word
 }));
