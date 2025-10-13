@@ -1,75 +1,20 @@
-it('onAcceptButtonClick(ActionType.update) - error: restores model, calls displayServiceErrors and performs cleanup', fakeAsync(() => {
-  // Arrange - allow action to proceed
-  spyOn(component as any, 'validateFormControls').and.returnValue(false);
-
-  // appConfig URL used to build the put URL
-  (component as any).appConfigService = { updateDivConBraMappingUrl: '/api/divconbra/update/' } as any;
-
-  // Provide combo mocks used in payload building
-  (component as any)._divisionComboBox = { value: '10' };
-  (component as any)._controlIdComboBox = { value: '200' };
-  (component as any)._branchCdComboBox = { value: 'B1' };
-
-  // Current mutated model and snapshot (selected) -- snapshot is the original we should restore to
-  component.divConBraMap = { divConBraId: 99, activeIndic: false, someField: 'CHANGED' } as any;
-  component.selectedDivConBraMap = { divConBraId: 99, activeIndic: true, someField: 'ORIGINAL' } as any;
-
-  // Ensure methods/objects used for cleanup exist and are spied
-  const clearSpy = spyOn(component as any, 'clearSelection');
-  const modalHideSpy = spyOn(((component as any)._actionModal = (component as any)._actionModal || { hide() {} }), 'hide');
-
-  // Spy displayServiceErrors
-  const displaySpy = spyOn(component as any, 'displayServiceErrors');
-
-  // Make putRequest emit an error
-  const serverError = { error: { statusMessage: 'server validation failed' } };
-  const putSpy = spyOn(component.feeApiservice, 'putRequest').and.returnValue(throwError(() => serverError));
-
-  // Act
-  component.onAcceptButtonClick(ActionType.update);
-  tick();
-
-  // Assert: HTTP called
-  expect(putSpy).toHaveBeenCalled();
-
-  // The in-error handler should have restored the model from selected snapshot
-  expect(component.divConBraMap).toEqual(component.selectedDivConBraMap);
-
-  // displayServiceErrors called with server message
-  expect(displaySpy).toHaveBeenCalledWith('server validation failed');
-
-  // final cleanup (clear & hide) should have been called
-  expect(clearSpy).toHaveBeenCalled();
-  expect(modalHideSpy).toHaveBeenCalled();
-}));
-
-
-it('onAcceptButtonClick(ActionType.add) - error: postRequest throws -> displayServiceErrors called and cleanup runs', fakeAsync(() => {
+it('GenerateTableRows(): on error should display error, set loading false, and dispatch LOADINGACTION(false)', fakeAsync(() => {
   // Arrange
-  spyOn(component as any, 'validateFormControls').and.returnValue(false);
+  component.loading = true;
 
-  (component as any).appConfigService = { addDivConBraMappingUrl: '/api/divconbra/add' } as any;
-  (component as any)._divisionComboBox = { value: '10' };
-  (component as any)._controlIdComboBox = { value: '200' };
-  (component as any)._branchCdComboBox = { value: 'B1' };
-
-  component.divConBraMap = { divConBraId: null, activeIndic: true } as any;
-
-  const displaySpy = spyOn(component as any, 'displayServiceErrors');
-  const clearSpy = spyOn(component as any, 'clearSelection');
-  const modalHideSpy = spyOn(((component as any)._actionModal = (component as any)._actionModal || { hide() {} }), 'hide');
-
-  // Make postRequest throw
-  const serverError = { error: { statusMessage: 'add failed' } };
-  const postSpy = spyOn(component.feeApiservice, 'postRequest').and.returnValue(throwError(() => serverError));
+  // Mock dependencies
+  const errorResponse = { error: { statusMessage: 'Server failed' } };
+  const getSpy = spyOn(component.feeApiservice, 'getRequest').and.returnValue(throwError(() => errorResponse));
+  const dispSpy = spyOn(component as any, 'displayServiceErrors').and.callFake(() => {});
+  const dispatchSpy = spyOn(component['store'], 'dispatch').and.callFake(() => {});
 
   // Act
-  component.onAcceptButtonClick(ActionType.add);
+  component.GenerateTableRows();
   tick();
 
   // Assert
-  expect(postSpy).toHaveBeenCalled();
-  expect(displaySpy).toHaveBeenCalledWith('add failed');
-  expect(clearSpy).toHaveBeenCalled();
-  expect(modalHideSpy).toHaveBeenCalled();
+  expect(getSpy).toHaveBeenCalledWith(component.appConfigService.getAllDivConBraMappingUrl);
+  expect(dispSpy).toHaveBeenCalledWith('Server failed');
+  expect(component.loading).toBeFalse();
+  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
 }));
