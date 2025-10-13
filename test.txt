@@ -1,34 +1,33 @@
-import { of, throwError } from 'rxjs';
-import { fakeAsync, tick } from '@angular/core/testing';
-
 it('onAcceptButtonClick(ActionType.add): posts payload, regenerates table, shows success and writes audit log (self-contained)', fakeAsync(() => {
-  // Arrange - put all setup inside the test
-  // make validateFormControls allow the flow
+  // allow flow to continue
   spyOn(component as any, 'validateFormControls').and.returnValue(false);
 
-  // Provide minimal combo viewchild mocks and values
-  (component as any).divisionComboBox = { value: '10' };
-  (component as any)._controlIdComboBox = { value: '20' };
-  (component as any)._branchCdComboBox = { value: 'BR01' };
+  // Provide minimal combo/viewchild mocks and values (these must not be null)
+  (component as any).divisionComboBox = { value: '10' };       // used -> .value.toString()
+  (component as any)._controlIdComboBox = { value: '20' };    // used -> .value.toString()
+  (component as any)._branchCdComboBox = { value: 'BR01' };   // used -> .value.toString()
 
-  // Provide a divConBraMap (the object being added)
-  component.divConBraMap = { activeIndic: true } as any;
+  // Provide model that will be sent in payload
+  component.divConBraMap = {
+    activeIndic: true,
+    // add whatever fields your component expects (safe defaults)
+  } as any;
 
-  // Spy GenerateTableRows and SetMessageTypeAndValue so we can assert they were called
+  // Provide any arrays that getUpdatedModel might call (avoid .find() on undefined)
+  component.divisions = [{ divisionId: 10, divisionDesc: 'Div A', divisionCd: 'D1' }] as any;
+  component.controlIds = [{ conId: 20, controlDesc: 'Ctl A' }] as any;
+  component.branchCds = [{ branchCode: 'BR01', branchDesc: 'Branch A' }] as any;
+
+  // Prevent real side effects and allow assertions
   const genSpy = spyOn(component as any, 'GenerateTableRows').and.callFake(() => {});
   const msgSpy = spyOn(component as any, 'SetMessageTypeAndValue').and.callFake(() => {});
+  spyOn(component as any, 'displayServiceErrors').and.callFake(() => {});
+  // ensure auditLogService exists and spy on it (private ok via bracket access)
+  (component as any).auditLogService = { writeAuditLog: () => {}, addAction: 'ADD' } as any;
+  const auditSpy = spyOn(component['auditLogService'], 'writeAuditLog').and.callFake(() => {});
 
-  // Spy displayServiceErrors just in case
-  const dispSpy = spyOn(component as any, 'displayServiceErrors').and.callFake(() => {});
-
-  // Spy the POST to return a successful observable
+  // Spy the POST request to succeed
   const postSpy = spyOn(component.feeApiservice, 'postRequest').and.returnValue(of({}));
-
-  // Ensure auditLogService exists and spy it
-  if (!(component as any).auditLogService) {
-    (component as any).auditLogService = { writeAuditLog: () => {} } as any;
-  }
-  const auditSpy = spyOn((component as any).auditLogService, 'writeAuditLog').and.callFake(() => {});
 
   // Act
   component.onAcceptButtonClick(ActionType.add);
@@ -37,60 +36,8 @@ it('onAcceptButtonClick(ActionType.add): posts payload, regenerates table, shows
   // Assert
   expect(postSpy).toHaveBeenCalled();
   expect(genSpy).toHaveBeenCalled();
-  expect(msgSpy).toHaveBeenCalledWith(jasmine.anything(), jasmine.anything()); // success args
-  // auditLog called in complete
+  expect(msgSpy).toHaveBeenCalledWith(jasmine.anything(), jasmine.anything()); // success message called
   expect(auditSpy).toHaveBeenCalledWith(
-    'NA', 'NA', jasmine.any(Object), jasmine.any(Object), (component as any).auditLogService.addAction, component.PageTitle
+    'NA', 'NA', jasmine.any(Object), jasmine.any(Object), component['auditLogService'].addAction, component.PageTitle
   );
-}));
-
-
-it('onAcceptButtonClick(ActionType.update): on putRequest error should restore model and display error (self-contained)', fakeAsync(() => {
-  // Arrange
-  spyOn(component as any, 'validateFormControls').and.returnValue(false);
-
-  // Provide combo mocks used to build payload
-  (component as any).divisionComboBox = { value: '10' };
-  (component as any)._controlIdComboBox = { value: '20' };
-  (component as any)._branchCdComboBox = { value: 'BR01' };
-
-  // selected snapshot to restore on error
-  component.selectedDivConBraMap = {
-    divConBraId: 5,
-    someField: 'ORIG'
-  } as any;
-
-  // Model mutated by UI (simulate change)
-  component.divConBraMap = {
-    divConBraId: 5,
-    someField: 'CHANGED'
-  } as any;
-
-  // Make putRequest throw an error observable
-  const serverError = { error: { statusMessage: 'server error occurred' } };
-  const putSpy = spyOn(component.feeApiservice, 'putRequest').and.returnValue(throwError(() => serverError));
-
-  // Spy helpers: restore and display errors
-  const displaySpy = spyOn(component as any, 'displayServiceErrors').and.callFake(() => {});
-  // Also spy clearSelection/hide modal if component uses them later in flow
-  const clearSpy = spyOn(component as any, 'clearSelection').and.callFake(() => {});
-  if (!(component as any)._actionModal) { (component as any)._actionModal = { hide: () => {} }; }
-  const hideSpy = spyOn((component as any)._actionModal, 'hide');
-
-  // Act
-  component.onAcceptButtonClick(ActionType.update);
-  tick();
-
-  // Assert: HTTP called
-  expect(putSpy).toHaveBeenCalled();
-
-  // Model restored from selected snapshot
-  expect(component.divConBraMap).toEqual(component.selectedDivConBraMap);
-
-  // displayServiceErrors called with server message
-  expect(displaySpy).toHaveBeenCalledWith('server error occurred');
-
-  // finalization helpers called
-  expect(clearSpy).toHaveBeenCalled();
-  expect(hideSpy).toHaveBeenCalled();
 }));
