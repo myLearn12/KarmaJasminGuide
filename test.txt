@@ -1,86 +1,71 @@
-it('onAcceptButtonClick(ActionType.add) -> posts payload, regenerates table, shows success and writes audit log (self-contained)', fakeAsync(() => {
-  // Arrange - let validate pass
+it('onAcceptButtonClick(ActionType.update): calls putRequest with update payload, regenerates table and writes audit log on complete', fakeAsync(() => {
+  // Arrange: make validateFormControls allow action
   spyOn(component as any, 'validateFormControls').and.returnValue(false);
 
-  // Provide combo ViewChilds (they must exist and have .value)
-  (component as any)._divisionComboBox = { value: '10' };
-  (component as any)._controlIdComboBox = { value: '200' };
-  (component as any)._branchCdComboBox = { value: 'BR1' };
-  (component as any)._actionModal = { hide: () => {}, show: () => {} };
-
-  // Provide arrays used by getUpdatedModel() and other .find() calls
-  component.divisions = [
-    { divisionId: 10, divisionCd: 'D10', divisionDesc: 'Division 10' },
-    { divisionId: 20, divisionCd: 'D20', divisionDesc: 'Division 20' }
-  ] as any;
-
-  component.controlIds = [
-    { conId: 200, controlDesc: 'Control 200' }
-  ] as any;
-
-  component.branchCds = [
-    { branchCode: 'BR1', branchDesc: 'Branch 1' }
-  ] as any;
-
-  // Minimal model used by Add path
-  component.divConBraMap = {
-    divConBraId: null,
-    activeIndic: true,
-    createdBy: 'init',
-    createdDt: '2025-01-01T00:00:00',
-    updtById: null,
-    updtDt: null
+  // Provide appConfigService URL (appConfigService is private on the component)
+  (component as any).appConfigService = {
+    updateDivConBraMappingUrl: '/api/divconbra/update/'
   } as any;
 
-  // utils used by component (small subset)
-  (component as any).utils = {
-    ToEstDate: () => '2025-08-25T00:00:00',
-    getCurrentUser: () => 'tester',
-    getDisplayDate: (d: any) => d ? d : '',
-    getFormatedString: (s: any) => (s == null ? '' : String(s)),
-    isStringValid: (v: any) => v !== null && v !== undefined && String(v).trim() !== ''
-  };
+  // Provide combo ViewChild mocks (values as strings like the real component expects)
+  (component as any)._divisionComboBox = { value: '10' };
+  (component as any)._controlIdComboBox = { value: '200' };
+  (component as any)._branchCdComboBox = { value: 'B1' };
 
-  // Prevent GenerateTableRows side-effects; spy helpers
-  const genSpy = spyOn(component as any, 'GenerateTableRows').and.callFake(() => {});
-  const setMsgSpy = spyOn(component as any, 'SetMessageTypeAndValue').and.callFake(() => {});
-  spyOn(component['store'], 'dispatch').and.callFake(() => {}); // LOADINGACTION calls
+  // Provide the current (mutated) model and the selected snapshot used for restore/audit
+  component.divConBraMap = {
+    divConBraId: 99,
+    activeIndic: true,
+    // other properties may exist but aren't necessary for this test
+  } as any;
 
-  // stub feeApiservice.postRequest -> success
-  const postSpy = spyOn(component.feeApiservice, 'postRequest').and.returnValue(of({}));
+  component.selectedDivConBraMap = JSON.parse(JSON.stringify(component.divConBraMap));
 
-  // auditLogService may be private — set a test double and spy
-  (component as any).auditLogService = { writeAuditLog: (_a: any, _b: any, _c: any, _d: any, _e: any, _f: any) => {} };
-  const auditSpy = spyOn(component['auditLogService'], 'writeAuditLog').and.callFake(() => {});
+  // Provide lookup arrays so getUpdatedModel() / other helpers won't throw
+  component.divisions = [{ divisionId: 10, divisionCd: 'D10', divisionDesc: 'Division 10' }] as any;
+  component.controlIds = [{ conId: 200, controlDesc: 'Control 200' }] as any;
+  component.branchCds = [{ branchCode: 'B1', branchDesc: 'Branch 1' }] as any;
+
+  // Spies for side-effect methods
+  const putSpy = spyOn(component.feeApiservice, 'putRequest').and.returnValue(of({})); // success
+  const genSpy = spyOn(component as any, 'GenerateTableRows');
+  const setMsgSpy = spyOn(component as any, 'SetMessageTypeAndValue');
+  // auditLogService is private; access via bracket notation
+  const auditSpy = spyOn((component as any)['auditLogService'], 'writeAuditLog');
 
   // Act
-  component.onAcceptButtonClick(ActionType.add);
-  tick(); // flush subscribe/complete
+  component.onAcceptButtonClick(ActionType.update);
+  tick(); // flush asynchronous subscription (next + complete)
 
-  // Assert basics
-  expect(postSpy).toHaveBeenCalled();
-  expect(genSpy).toHaveBeenCalled();
-  expect(setMsgSpy).toHaveBeenCalled();
+  // Assert: HTTP called with correct URL + payload containing the combo values
+  expect(putSpy).toHaveBeenCalledTimes(1);
+  const [calledUrl, calledPayload] = putSpy.calls.mostRecent().args as [string, any];
+  expect(calledUrl).toBe('/api/divconbra/update/' + component.divConBraMap.divConBraId);
 
-  // Audit log called — be flexible about exact objects
-  expect(auditSpy).toHaveBeenCalled();
-  const args = auditSpy.calls.mostRecent().args;
-  // arg[0] and arg[1] should be 'NA' per the component
-  expect(args[0]).toBe('NA');
-  expect(args[1]).toBe('NA');
-
-  // arg[2] is the unmodified model passed (should be an object with some keys)
-  expect(args[2]).toEqual(jasmine.any(Object));
-  // it should at least contain the createdBy/createdDt or activeIndic keys
-  expect(args[2]).toEqual(jasmine.objectContaining({
-    // some keys may be blank initially — we check presence rather than exact value
-    createdBy: jasmine.anything()
+  // Payload contains expected fields (strings because .toString() used in code)
+  expect(calledPayload).toEqual(jasmine.objectContaining({
+    divisionId: '10',
+    controlId: '200',
+    branchCd: 'B1',
+    activeIndic: true,
+    updatedBy: jasmine.any(String),
+    updatedDt: jasmine.any(String)
   }));
 
-  // arg[3] is the updated model returned by getUpdatedModel()
-  expect(args[3]).toEqual(jasmine.any(Object));
+  // Next() side effects
+  expect(genSpy).toHaveBeenCalled();
+  expect(setMsgSpy).toHaveBeenCalledWith(BlockMessageType.success, component.updateSuccessMessage);
 
-  // arg[5] should be a string title (page title)
-  expect(typeof args[5]).toBe('string');
-  expect(args[5]).toContain('Mapping'); // optional check that page title contains sensible word
+  // Complete() should call audit log with expected args (flexible matching)
+  expect(auditSpy).toHaveBeenCalled();
+  const auditArgs = auditSpy.calls.mostRecent().args;
+  // first arg is the id key, second arg should be the id as string
+  expect(auditArgs[0]).toBe('divConBraId');
+  expect(auditArgs[1]).toBe(component.divConBraMap.divConBraId.toString());
+  // third and fourth args are objects (selected snapshot and updated model)
+  expect(auditArgs[2]).toEqual(component.selectedDivConBraMap);
+  expect(auditArgs[3]).toEqual(jasmine.any(Object));
+  // last args: action and title
+  expect(auditArgs[4]).toBe((component as any)['auditLogService'].updateAction);
+  expect(auditArgs[5]).toBe(component.PageTitle);
 }));
