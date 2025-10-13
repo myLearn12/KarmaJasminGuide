@@ -1,20 +1,16 @@
-it('GenerateTableRows(): on error should display error, set loading false, and dispatch LOADINGACTION(false)', fakeAsync(() => {
+it('getDivisionComboBoxVal(): should set _divisionComboBox.value based on matching divisionId', () => {
   // Arrange
-  component.loading = true;
+  component.divisions = [
+    { divisionId: 10, divisionCd: 'D10', divisionDesc: 'Division 10' },
+    { divisionId: 20, divisionCd: 'D20', divisionDesc: 'Division 20' }
+  ] as any;
 
-  // Mock dependencies
-  const errorResponse = { error: { statusMessage: 'Server failed' } };
-  const getSpy = spyOn(component.feeApiservice, 'getRequest').and.returnValue(throwError(() => errorResponse));
-  const dispSpy = spyOn(component as any, 'displayServiceErrors').and.callFake(() => {});
-  const dispatchSpy = spyOn(component['store'], 'dispatch').and.callFake(() => {});
+  component.divConBraMap = { divisionId: 20 } as any;
+  (component as any)._divisionComboBox = { value: null };
 
   // Act
-  component.GenerateTableRows();
-  tick();
+  component.getDivisionComboBoxVal();
 
   // Assert
-  expect(getSpy).toHaveBeenCalledWith(component.appConfigService.getAllDivConBraMappingUrl);
-  expect(dispSpy).toHaveBeenCalledWith('Server failed');
-  expect(component.loading).toBeFalse();
-  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
-}));
+  expect((component as any)._divisionComboBox.value).toEqual(['20']);
+});
