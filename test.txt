@@ -1,92 +1,47 @@
-import { fakeAsync, tick } from '@angular/core/testing';
-import { of, throwError } from 'rxjs';
+it('onUpdateModalClick(): else branch should deep clone divConBraMap, call helpers and show modal', () => {
+  // Arrange
+  component.isRowSelected = true;
+  component.divConBraMap = {
+    divConBraId: 99,
+    descr: 'Test Map',
+    someOtherField: 'x'
+  } as any;
 
-it('LoadDefaultComboBox(): complete -> sets combo data, deep-clones viewchild.options, clears loading and dispatches', fakeAsync(() => {
-  // Arrange: data returned by forkJoin
-  const divisions = [{ divisionId: 20, divisionDesc: 'Division A', divisionCd: 'D1' }];
-  const controlIds = [{ conId: 5, controlDesc: 'Control A' }];
-  const branchCds = [{ branchCode: 'B1', branchDesc: 'Branch One' }];
+  // Spy the helper methods that should be called in the else branch
+  const setInitialSpy = spyOn(component as any, 'setIntialvalues');
+  const getDivSpy = spyOn(component as any, 'getDivisionComboBoxVal');
+  const getControlSpy = spyOn(component as any, 'getControlIdComboBoxValue');
+  const getBranchSpy = spyOn(component as any, 'getBranchCdComboBoxValue');
 
-  // Spy getRequest to return the three observables in the same order used in LoadDefaultComboBox()
-  spyOn(component.feeApiservice, 'getRequest').and.returnValues(
-    of(divisions),   // divisions
-    of(controlIds),  // controlIds
-    of(branchCds)    // branchCds
-  );
+  // Spy ActivateFormControls as well (it is called before the if/else)
+  const activateSpy = spyOn(component as any, 'ActivateFormControls');
 
-  // Prevent LoadTableRows or other side-effects if present
-  if ((component as any).LoadTableRows) {
-    spyOn(component as any, 'LoadTableRows');
+  // Defensive modal spy: if _actionModal exists, spy its show(); otherwise create a fake object to spy
+  if (!(component as any)._actionModal) {
+    (component as any)._actionModal = { show: () => {} };
   }
-
-  // utils.LoadComboBoxData -> predictable mapped options
-  const mappedDivisions = [{ label: 'Division A', value: '20' }];
-  const mappedControls  = [{ label: 'Control A',  value: '5' }];
-  const mappedBranches  = [{ label: 'Branch One',  value: 'B1' }];
-  spyOn(component['utils'], 'LoadComboBoxData').and.callFake((arr: any[], label: string) => {
-    if (label === 'divisionDesc') return mappedDivisions;
-    if (label === 'controlDesc')  return mappedControls;
-    if (label === 'branchDesc')   return mappedBranches;
-    return [];
-  });
-
-  // Provide ViewChild mocks so assignments of .options succeed
-  (component as any)._divisionComboBox   = { options: null };
-  (component as any)._controlidComboBox  = { options: null };
-  (component as any)._branchCdComboBox   = { options: null };
-
-  const dispatchSpy = spyOn(component['store'], 'dispatch');
+  const modalShowSpy = spyOn((component as any)._actionModal, 'show');
 
   // Act
-  (component as any).LoadDefaultComboBox();
-  tick(); // flush forkJoin subscribe next + complete
+  component.onUpdateModalClick();
 
-  // Assert: combo arrays built from utils.LoadComboBoxData
-  expect(component.divisionComboBoxData).toEqual([{ options: mappedDivisions }]);
-  expect(component.controlIdComboBoxData).toEqual([{ options: mappedControls }]);
-  expect(component.branchCdComboBoxData).toEqual([{ options: mappedBranches }]);
+  // Assert: deep clone (equal but not same reference)
+  expect(component.selectedDivConBraMap).toEqual(component.divConBraMap);
+  expect(component.selectedDivConBraMap).not.toBe(component.divConBraMap);
 
-  // Assert: ViewChild.options deep-cloned from the original arrays
-  expect((component as any)._divisionComboBox.options).toEqual(JSON.parse(JSON.stringify(divisions)));
-  expect((component as any)._controlidComboBox.options).toEqual(JSON.parse(JSON.stringify(controlIds)));
-  expect((component as any)._branchCdComboBox.options).toEqual(JSON.parse(JSON.stringify(branchCds)));
+  // Assert: helpers were called
+  expect(setInitialSpy).toHaveBeenCalled();
+  expect(getDivSpy).toHaveBeenCalled();
+  expect(getControlSpy).toHaveBeenCalled();
+  expect(getBranchSpy).toHaveBeenCalled();
 
-  // loading false and store.dispatch called (LOADINGACTION false)
-  expect(component.loading).toBeFalse();
-  expect(dispatchSpy).toHaveBeenCalled();
-}));
+  // ActivateFormControls should have been called
+  expect(activateSpy).toHaveBeenCalled();
 
+  // Modal should be shown
+  expect(modalShowSpy).toHaveBeenCalled();
 
-it('LoadDefaultComboBox(): error branch -> displays service error and does NOT set combo data', fakeAsync(() => {
-  // Arrange: make the first getRequest (divisions) throw a server error
-  const errorResponse = { error: { statusMessage: 'Server failed' } };
-  spyOn(component.feeApiservice, 'getRequest').and.returnValues(
-    throwError(() => errorResponse), // divisions -> error
-    of([]),                          // controlIds (unused)
-    of([])                           // branchCds (unused)
-  );
-
-  const displaySpy = spyOn(component as any, 'displayServiceErrors');
-  const dispatchSpy = spyOn(component['store'], 'dispatch');
-
-  // Provide ViewChild mocks to avoid runtime errors (they should remain untouched on error)
-  (component as any)._divisionComboBox   = { options: null };
-  (component as any)._controlidComboBox  = { options: null };
-  (component as any)._branchCdComboBox   = { options: null };
-
-  // Act
-  (component as any).LoadDefaultComboBox();
-  tick();
-
-  // Assert: displayServiceErrors called with the server message
-  expect(displaySpy).toHaveBeenCalledWith('Server failed');
-
-  // Combo data should remain undefined / empty (no complete run)
-  expect(component.divisionComboBoxData).toBeUndefined();
-  expect(component.controlIdComboBoxData).toBeUndefined();
-  expect(component.branchCdComboBoxData).toBeUndefined();
-
-  // loading should be false and dispatch should have been called to clear LOADING state
-  expect(component.loading).toBeFalse();
-  expect(dispatchSpy).toHaveBeenCalled();
-}));
+  // Titles/types set
+  expect(component.actionModalTitle).toBe('Update');
+  expect(component.actionModalType).toBe(ActionType.update);
+});
