@@ -1,68 +1,85 @@
-it('LoadDatatoExport(): when list has items should build mapped export rows', () => {
-  // Arrange - component state used by the method
-  component.divisions = [
-    { divisionId: 10, divisionCd: 'D10', divisionDesc: 'Division Ten' }
-  ] as any[];
-  component.costCenters = [
-    { costCenterNbr: '100', costCenterDesc: 'Cost A', costCenterId: 1 }
-  ] as any[];
+import { of, throwError } from 'rxjs';
+import { fakeAsync, tick } from '@angular/core/testing';
 
-  // spy utils formatting functions used inside method
-  const utils = component['utils'] as any;
-  spyOn(utils, 'getFormatedString').and.callFake((s: any) => (s == null ? '' : 'fmt:' + s));
-  spyOn(utils, 'getDisplayDate').and.callFake((d: any) => (d ? 'DISPLAY:' + d : ''));
+it('ngOnInit() error branch: should call displayServiceErrors, call LoadDefaultComboBox for 404, clear loading and dispatch', fakeAsync(() => {
+  // Arrange - make first request error out (forkJoin will error)
+  const errorResponse = { error: { statusMessage: 'Server problem', statusCode: '404' } };
+  spyOn(component.feeApiservice, 'getRequest').and.returnValues(
+    throwError(() => errorResponse), // divConBraMaps -> errors -> triggers error handler
+    of([]), // divisions (won't be reached but safe)
+    of([]), // controlIds
+    of([])  // branchCds
+  );
 
-  // One alt-div record to export
-  const rows = [{
-    altDivId: 10,
-    abaNbr: 'ABA-123',
-    costCenterNbr: '100',
-    creatById: 'user1',
-    creatDt: '2025-08-01T12:00:00Z',
-    updtById: 'user2',
-    updtDt: '2025-08-02T12:00:00Z'
-  }] as any[];
+  // spies for handlers
+  const displaySpy = spyOn(component as any, 'displayServiceErrors');
+  const loadDefaultSpy = spyOn(component as any, 'LoadDefaultComboBox');
+  const dispatchSpy = spyOn(component['store'], 'dispatch');
 
   // Act
-  (component as any).LoadDatatoExport(rows);
+  component.ngOnInit();
+  tick();
 
   // Assert
-  expect(Array.isArray(component.mappingDatatoExport)).toBeTrue();
-  expect(component.mappingDatatoExport.length).toBe(1);
+  expect(displaySpy).toHaveBeenCalledWith('Server problem');
+  expect(loadDefaultSpy).toHaveBeenCalled();               // 404 path triggers LoadDefaultComboBox
+  expect(component.loading).toBeFalse();                   // loading cleared
+  expect(dispatchSpy).toHaveBeenCalled();                  // LOADINGACTION dispatched (false)
+}));
 
-  const mapped = component.mappingDatatoExport[0];
 
-  // Division mapping (found by divisionId)
-  expect(mapped['Division cd']).toBe('D10');
+it('ngOnInit() complete branch: should set combo data, set viewchild.options, clear loading and dispatch', fakeAsync(() => {
+  // Arrange - data that forkJoin should return (in the same order used by ngOnInit)
+  const divConBraMaps = [{ id: 1, name: 'map1' }];
+  const divisions = [{ divisionId: 20, divisionDesc: 'Division A', divisionCd: 'D1' }];
+  const controlIds = [{ conId: 5, controlDesc: 'Ctrl A' }];
+  const branchCds = [{ branchCode: 'B1', branchDesc: 'Branch One' }];
 
-  // Division Desc should be passed through utils.getFormatedString
-  expect(mapped['Division Desc']).toBe('fmt:Division Ten');
+  spyOn(component.feeApiservice, 'getRequest').and.returnValues(
+    of(divConBraMaps), // divConBraMaps
+    of(divisions),     // divisions
+    of(controlIds),    // controlIds
+    of(branchCds)      // branchCds
+  );
 
-  // ABA Number copied from source
-  expect(mapped['ABA Number']).toBe('ABA-123');
+  // Prevent loadTableRows side-effects; we're testing combo population only
+  if ((component as any).LoadTableRows) {
+    spyOn(component as any, 'LoadTableRows');
+  }
 
-  // Cost center fields
-  expect(mapped['CostCenter Number']).toBe('100');
-  expect(mapped['CostCenter Desc']).toBe('fmt:Cost A');
+  // utils mapping used to populate combo arrays
+  const mappedDivisions = [{ label: 'Division A', value: '20' }];
+  const mappedControls = [{ label: 'Ctrl A', value: '5' }];
+  const mappedBranches = [{ label: 'Branch One', value: 'B1' }];
+  spyOn(component['utils'], 'LoadComboBoxData').and.callFake((arr: any[], label: string) => {
+    if (label === 'divisionDesc') return mappedDivisions;
+    if (label === 'controlDesc')  return mappedControls;
+    if (label === 'branchDesc')   return mappedBranches;
+    return [];
+  });
 
-  // Created/Modified columns formatted via utils.getDisplayDate
-  expect(mapped['Created Date']).toBe('DISPLAY:2025-08-01T12:00:00Z');
-  expect(mapped['Modified Date']).toBe('DISPLAY:2025-08-02T12:00:00Z');
+  // Provide ViewChild mocks so assignment of .options doesn't throw
+  (component as any)._divisionComboBox = { options: null };
+  (component as any)._controlIdComboBox = { options: null };
+  (component as any)._branchCdComboBox = { options: null };
 
-  // ensure formatting helpers were called
-  expect(utils.getFormatedString).toHaveBeenCalled();
-  expect(utils.getDisplayDate).toHaveBeenCalled();
-});
-
-it('LoadDatatoExport(): when list is empty should produce empty mappingDatatoExport', () => {
-  // Arrange
-  component.mappingDatatoExport = ['garbage'];
-  const rows: any[] = [];
+  const dispatchSpy = spyOn(component['store'], 'dispatch');
 
   // Act
-  (component as any).LoadDatatoExport(rows);
+  component.ngOnInit();
+  tick(); // flush forkJoin + subscribe next/complete
 
-  // Assert
-  expect(Array.isArray(component.mappingDatatoExport)).toBeTrue();
-  expect(component.mappingDatatoExport.length).toBe(0);
-});
+  // Assert: combo data arrays built using utils.LoadComboBoxData
+  expect(component.divisionComboBoxData).toEqual([{ options: mappedDivisions }]);
+  expect(component.controlIdComboBoxData).toEqual([{ options: mappedControls }]);
+  expect(component.branchCdComboBoxData).toEqual([{ options: mappedBranches }]);
+
+  // ViewChild.options deep-cloned from originals
+  expect((component as any)._divisionComboBox.options).toEqual(JSON.parse(JSON.stringify(divisions)));
+  expect((component as any)._controlIdComboBox.options).toEqual(JSON.parse(JSON.stringify(controlIds)));
+  expect((component as any)._branchCdComboBox.options).toEqual(JSON.parse(JSON.stringify(branchCds)));
+
+  // loading turned off and LOADINGACTION(false) dispatched
+  expect(component.loading).toBeFalse();
+  expect(dispatchSpy).toHaveBeenCalled();
+}));
