@@ -1,16 +1,16 @@
-it('getControlIdComboBoxValue(): should set _controlIdComboBox.value based on matching controlId', () => {
+it('getBranchCdComboBoxValue(): should set _branchCdComboBox.value based on matching branchCd', () => {
   // Arrange
-  component.controlIds = [
-    { conId: 100, controlDesc: 'Control A' },
-    { conId: 200, controlDesc: 'Control B' }
+  component.branchCds = [
+    { branchCode: 'B001', branchDesc: 'Branch One' },
+    { branchCode: 'B002', branchDesc: 'Branch Two' }
   ] as any;
 
-  component.divConBraMap = { controlId: 200 } as any;
-  (component as any)._controlIdComboBox = { value: null };
+  component.divConBraMap = { branchCd: 'B002' } as any;
+  (component as any)._branchCdComboBox = { value: null };
 
   // Act
-  component.getControlIdComboBoxValue();
+  component.getBranchCdComboBoxValue();
 
   // Assert
-  expect((component as any)._controlIdComboBox.value).toEqual(['200']);
+  expect((component as any)._branchCdComboBox.value).toEqual(['B002']);
 });
