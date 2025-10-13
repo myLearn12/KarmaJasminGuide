@@ -1,20 +1,23 @@
-it('onSearchButtonClick(): when control+branch selected -> loads filtered rows by control+branch', () => {
+it('onSearchButtonClick(): when no matches -> shows warning, clears search combos and calls GenerateTableRows', () => {
   component.initialDivConBraMaps = [
-    { divisionId: 10, controlId: 100, branchCd: 'B1' },
-    { divisionId: 11, controlId: 200, branchCd: 'B2' },
-    { divisionId: 12, controlId: 200, branchCd: 'B2' }
+    { divisionId: 1, controlId: 1, branchCd: 'X' }
   ] as any[];
 
-  (component as any)._searchDivisionComboBox = { value: null };
-  (component as any)._searchControlIdComboBox = { value: '200' };
-  (component as any)._searchBranchCdComboBox = { value: 'B2' };
+  (component as any)._searchDivisionComboBox = { value: '99' };
+  (component as any)._searchControlIdComboBox = { value: '999' };
+  (component as any)._searchBranchCdComboBox = { value: 'ZZ' };
 
-  const loadSpy = spyOn(component as any, 'LoadTableRows');
+  const warnSpy = spyOn(component as any, 'SetMessageTypeAndValue');
+  const genSpy = spyOn(component as any, 'GenerateTableRows');
 
   component.onSearchButtonClick();
 
-  expect(loadSpy).toHaveBeenCalled();
-  const rows = loadSpy.calls.mostRecent().args[0];
-  expect(rows.length).toBe(2);
-  expect(rows.every(r => r.controlId.toString() === '200' && r.branchCd === 'B2')).toBeTrue();
+  // Warn shown with searchOptionMessage and GenerateTableRows called
+  expect(warnSpy).toHaveBeenCalledWith(jasmine.anything(), component.searchOptionMessage);
+  expect(genSpy).toHaveBeenCalled();
+
+  // Search combos reset to null
+  expect((component as any)._searchDivisionComboBox.value).toBeNull();
+  expect((component as any)._searchControlIdComboBox.value).toBeNull();
+  expect((component as any)._searchBranchCdComboBox.value).toBeNull();
 });
