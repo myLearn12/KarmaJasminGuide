@@ -1,16 +1,32 @@
-it('getBranchCdComboBoxValue(): should set _branchCdComboBox.value based on matching branchCd', () => {
+it('onSearchButtonClick(): when division+control+branch selected -> loads filtered rows', () => {
   // Arrange
-  component.branchCds = [
-    { branchCode: 'B001', branchDesc: 'Branch One' },
-    { branchCode: 'B002', branchDesc: 'Branch Two' }
-  ] as any;
+  component.initialDivConBraMaps = [
+    { divisionId: 10, controlId: 100, branchCd: 'B1' },
+    { divisionId: 10, controlId: 100, branchCd: 'B2' },
+    { divisionId: 20, controlId: 200, branchCd: 'B1' }
+  ] as any[];
 
-  component.divConBraMap = { branchCd: 'B002' } as any;
-  (component as any)._branchCdComboBox = { value: null };
+  (component as any)._searchDivisionComboBox = { value: '10' };
+  (component as any)._searchControlIdComboBox = { value: '100' };
+  (component as any)._searchBranchCdComboBox = { value: 'B1' };
+
+  const loadSpy = spyOn(component as any, 'LoadTableRows');
+  const warnSpy = spyOn(component as any, 'SetMessageTypeAndValue');
+  const genSpy = spyOn(component as any, 'GenerateTableRows');
 
   // Act
-  component.getBranchCdComboBoxValue();
+  component.onSearchButtonClick();
 
-  // Assert
-  expect((component as any)._branchCdComboBox.value).toEqual(['B002']);
+  // Assert: only matching row(s) passed to LoadTableRows
+  expect(loadSpy).toHaveBeenCalled();
+  const calledArg = loadSpy.calls.mostRecent().args[0];
+  expect(Array.isArray(calledArg)).toBeTrue();
+  expect(calledArg.length).toBe(1);
+  expect(calledArg[0].divisionId).toBe(10);
+  expect(calledArg[0].controlId).toBe(100);
+  expect(calledArg[0].branchCd).toBe('B1');
+
+  // Should NOT show warning or call GenerateTableRows fallback
+  expect(warnSpy).not.toHaveBeenCalled();
+  expect(genSpy).not.toHaveBeenCalled();
 });
