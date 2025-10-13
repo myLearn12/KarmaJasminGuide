@@ -1,54 +1,35 @@
-it('onAcceptButtonClick(ActionType.add) - posts and writes audit log (defensive)', fakeAsync(() => {
-  // make validate allow the function to proceed
+it('onAcceptButtonClick(ActionType.update) - on putRequest error restores model and displays error', fakeAsync(() => {
   spyOn(component as any, 'validateFormControls').and.returnValue(false);
 
-  // ====== ViewChild / combo objects the method expects ======
-  (component as any).divisionComboBox   = { value: '10' };
-  (component as any)._controlIdComboBox = { value: '20' };
-  (component as any)._branchCdComboBox  = { value: 'BR01' };
-  (component as any)._actionModal       = { show: () => {}, hide: () => {} };
+  // combos & models
+  (component as any)._revenueShareComboBox = { value: '10' };
+  (component as any)._costCenterComboBox = { value: '100' };
 
-  // ====== Models the method reads ======
-  component.divConBraMap = {
-    divConBraId: 123,
-    activeIndic: true,
-    // other fields if the method uses them
+  component.selectedRevShrGlAcctMap = {
+    revShareGlAcctId: 1,
+    glAccountNumber: 'GL-ORIG',
+    // ...
   } as any;
 
-  // ====== Arrays used by find/filter ======
-  component.divisions  = [{ divisionId: 10, divisionDesc: 'Div A', divisionCd: 'D1' }] as any;
-  component.controlIds = [{ conId: 20, controlDesc: 'Ctl A' }] as any;
-  component.branchCds  = [{ branchCode: 'BR01', branchDesc: 'Branch A' }] as any;
+  component.revShrGlAcctmap = { // mutated
+    revShareGlAcctId: 1,
+    glAccountNumber: 'GL-NEW'
+  } as any;
 
-  // ====== utils and services (private) ======
-  (component as any).utils = {
-    ToEstDate: () => '2025-08-25T00:00:00',
-    getCurrentUser: () => 'user1',
-    isStringValid: (v: any) => v !== null && v !== undefined && String(v).trim() !== '',
-    // add other helpers used by your method if needed
-  };
+  // stub putRequest to throw
+  const errorResponse = { error: { statusMessage: 'server error' } };
+  spyOn(component.feeApiservice, 'putRequest').and.returnValue(throwError(() => errorResponse));
 
-  (component as any).auditLogService = { writeAuditLog: () => {} };
-  spyOn(component['auditLogService'], 'writeAuditLog').and.callFake(() => {});
-
-  // prevent side effects
-  spyOn(component as any, 'GenerateTableRows').and.callFake(() => {});
-  spyOn(component as any, 'SetMessageTypeAndValue').and.callFake(() => {});
-  spyOn(component as any, 'displayServiceErrors').and.callFake(() => {});
-  spyOn(component as any, 'clearSelection').and.callFake(() => {});
-
-  // stub HTTP POST to succeed
-  const postSpy = spyOn(component.feeApiservice, 'postRequest').and.returnValue(of({}));
-
-  // spy store dispatch
+  const displaySpy = spyOn(component as any, 'displayServiceErrors').and.callFake(() => {});
+  const clearSpy = spyOn(component as any, 'clearSelection').and.callFake(() => {});
   spyOn(component['store'], 'dispatch').and.callFake(() => {});
 
   // Act
-  component.onAcceptButtonClick(ActionType.add);
+  component.onAcceptButtonClick(ActionType.update);
   tick();
 
   // Assert
-  expect(postSpy).toHaveBeenCalled();
-  expect(component['GenerateTableRows']).toHaveBeenCalled();
-  expect(component['auditLogService'].writeAuditLog).toHaveBeenCalled();
+  expect(displaySpy).toHaveBeenCalledWith('server error');
+  expect(component.revShrGlAcctmap).toEqual(component.selectedRevShrGlAcctMap); // restored
+  expect(clearSpy).toHaveBeenCalled();
 }));
