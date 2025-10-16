@@ -1,83 +1,84 @@
-import { of, throwError } from 'rxjs';
-import { fakeAsync, tick } from '@angular/core/testing';
+it('onAcceptButtonClick(ActionType.update) -> next + complete: regenerates table, shows success, formats desc and writes audit log', fakeAsync(() => {
+  // Arrange - make everything self-contained in this test
 
-it('ngOnInit(): ERROR branch - should call displayServiceErrors, call LoadDefaultComboBox on 404, clear loading and dispatch LOADINGACTION(false)', fakeAsync(() => {
-  // Arrange - make feeApiservice.getRequest return an observable that errors
-  const err = { error: { statusMessage: 'server failed', statusCode: '404' } };
+  // Ensure any form validation allows execution
+  spyOn(component as any, 'validateFormControls').and.returnValue(false);
 
-  spyOn(component.feeApiservice, 'getRequest').and.returnValue(throwError(() => err));
+  // Provide the objects used by the update path
+  (component as any)._categoryComboBox = { value: '7' };
+  (component as any)._minorComboBox    = { value: 'AM1' };
 
-  // Spy displayServiceErrors and LoadDefaultComboBox and store.dispatch
-  const dispSpy = spyOn(component as any, 'displayServiceErrors').and.callThrough();
-  const loadDefaultSpy = spyOn(component as any, 'LoadDefaultComboBox').and.callFake(() => {});
-  const dispatchSpy = spyOn(component['store'], 'dispatch');
+  // selected snapshot (original values to restore from on error path) - used later by audit call
+  component.selectedCatMnrmap = {
+    mnrCatId: 42,
+    acctMnrTypeDesc: 'OLD DESC'
+  } as any;
 
-  // Pre-set loading true to verify it gets cleared
-  component.loading = true;
+  // object being edited (the current model)
+  component.catMnrmap = {
+    mnrCatId: 42,
+    acctMnrTypeCd: 'AM1',
+    acctMnrTypeDesc: 'New Desc'
+  } as any;
 
-  // Act
-  component.ngOnInit();
-  tick(); // flush the subscription error
+  // Provide arrays used by internal find/filter operations so no "find is not a function" errors
+  component.categories = [{ categoryId: 7, categoryDescription: 'Estate', categoryCode: '4' }] as any[];
+  component.accountMinors = [{ acctMnrTypeCode: 'AM1', acctMnrTypeDesc: 'Minor A' }] as any[];
 
-  // Assert
-  expect(dispSpy).toHaveBeenCalledWith('server failed');
-  expect(loadDefaultSpy).toHaveBeenCalled(); // because statusCode === "404"
-  expect(component.loading).toBeFalse();
-  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
-}));
+  // Spy helpers called within next/complete
+  const genSpy = spyOn(component as any, 'GenerateTableRows').and.callFake(() => {});
+  const setMsgSpy = spyOn(component as any, 'SetMessageTypeAndValue').and.callFake(() => {});
 
+  // utils.getFormatedString should be spied so we can assert it's used and return predictable value
+  const utils = component['utils'] as any;
+  if (!utils) { component['utils'] = utils = {} as any; }
+  spyOn(utils, 'getFormatedString').and.callFake((s: string) => `FORMATTED:${s}`);
 
-it('ngOnInit(): COMPLETE branch - should set combo data, deep-clone viewchild.options, clear loading and dispatch LOADINGACTION(false)', fakeAsync(() => {
-  // Arrange - realistic results that forkJoin would return
-  const catMnrmaps = [{ some: 'row' }];
-  const categories = [{ categoryId: 7, categoryDescription: 'Estate', categoryCode: '4' }];
-  const accountMinors = [{ acctMnrTypeCode: 'AM1', acctMnrTypeDesc: 'Minor A' }];
+  // Ensure auditLogService exists and spy its writeAuditLog (private service)
+  if (!component['auditLogService']) {
+    component['auditLogService'] = {
+      writeAuditLog: (_a: any, _b: any, _c: any, _d: any, _e: any, _f: any) => {}
+    } as any;
+  }
+  // provide updateAction & PageTitle if test uses them (defensive)
+  component['auditLogService'].updateAction = 'UPDATE_ACTION';
+  component['PageTitle'] = 'Category Minor Mapping';
+  const auditSpy = spyOn(component['auditLogService'], 'writeAuditLog').and.callFake(() => {});
 
-  // Spy getRequest to return corresponding arrays depending on URL or call order
-  // (robust: use substring matching on URL if you have appConfigService; else return in order)
-  spyOn(component.feeApiservice, 'getRequest').and.callFake((url?: string) => {
-    const u = String(url || '').toLowerCase();
-    if (u.includes('mnr') || u.includes('mnr')) return of(catMnrmaps);
-    if (u.includes('category')) return of(categories);
-    if (u.includes('acctmnr') || u.includes('acctmnrtype')) return of(accountMinors);
-    // fallback so forkJoin still receives values if URL matching fails
-    return of([]);
-  });
+  // Spy the HTTP putRequest to emit next then complete (of({}) does that)
+  spyOn(component.feeApiservice, 'putRequest').and.returnValue(of({}));
 
-  // utils helpers
-  const mappedCategories = [{ label: 'Estate', value: '7' }];
-  const mappedMinors = [{ label: 'Minor A', value: 'AM1' }];
-  spyOn(component['utils'], 'LoadComboBoxData').and.callFake((arr: any[], label: string, _c: string, id: string) => {
-    if (label === 'categoryDescription') return mappedCategories;
-    if (label === 'acctMnrTypeDesc') return mappedMinors;
-    return [];
-  });
+  // Prevent validateFormControls from returning early (already done above).
+  // Also spy clearSelection/hide if used at the end
+  const clearSpy = spyOn(component as any, 'clearSelection').and.callFake(() => {});
+  (component as any)._actionModal = { hide: () => {} };
+  const modalHideSpy = spyOn((component as any)._actionModal, 'hide').and.callFake(() => {});
 
-  // Provide ViewChild mocks so assignments to .options don't throw
-  (component as any)._categoryComboBox = { options: null };
-  (component as any)._minorComboBox = { options: null };
+  // Act - call the method under test for update action
+  component.onAcceptButtonClick(ActionType.update);
+  tick(); // run async microtasks (of() will complete synchronously but tick is safe)
 
-  // Prevent LoadTableRows side effects and spy it (we just want it called with the data)
-  const loadRowsSpy = spyOn(component as any, 'LoadTableRows').and.callFake(() => {});
+  // Assert - next() behavior
+  expect(genSpy).toHaveBeenCalled(); // GenerateTableRows called
+  expect(setMsgSpy).toHaveBeenCalledWith(BlockMessageType.success, component.updateSuccessMessage);
 
-  const dispatchSpy = spyOn(component['store'], 'dispatch');
+  // Assert - complete() behavior: utils.getFormatedString used to set selectedCatMnrmap.acctMnrTypeDesc
+  expect(utils.getFormatedString).toHaveBeenCalledWith(component.catMnrmap.acctMnrTypeDesc);
+  expect(component.selectedCatMnrmap.acctMnrTypeDesc).toBe(`FORMATTED:${component.catMnrmap.acctMnrTypeDesc}`);
 
-  // Act
-  component.ngOnInit();
-  tick(); // flush forkJoin next + complete
+  // Audit log was written with expected identifying args (be flexible for the model objects)
+  expect(auditSpy).toHaveBeenCalled();
+  const auditArgs = auditSpy.calls.mostRecent().args;
+  expect(auditArgs[0]).toBe('mnrCatId'); // first param is the id field name
+  expect(auditArgs[1]).toBe(component.catMnrmap.mnrCatId.toString()); // id as string
+  // third param should be the selected snapshot object
+  expect(auditArgs[2]).toBe(component.selectedCatMnrmap);
+  // fourth param is the updated model object; we assert it is an object
+  expect(typeof auditArgs[3]).toBe('object');
+  // last arg is the page title
+  expect(auditArgs[5]).toBe(component['PageTitle']);
 
-  // Assert: LoadTableRows was called with mapped first arg (catMnrmaps) and accountMinors available
-  expect(loadRowsSpy).toHaveBeenCalledWith(catMnrmaps, accountMinors);
-
-  // Assert: combo data arrays built using utils.LoadComboBoxData
-  expect(component.categoryComboBoxData).toEqual([{ options: mappedCategories }]);
-  expect(component.acctMinorComboBoxData).toEqual([{ options: mappedMinors }]);
-
-  // Assert: viewchild options deep-cloned
-  expect((component as any)._categoryComboBox.options).toEqual(JSON.parse(JSON.stringify(categories)));
-  expect((component as any)._minorComboBox.options).toEqual(JSON.parse(JSON.stringify(accountMinors)));
-
-  // loading turned off and LOADINGACTION(false) dispatched
-  expect(component.loading).toBeFalse();
-  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
+  // final housekeeping calls (clear/hide) should have been executed
+  expect(clearSpy).toHaveBeenCalled();
+  expect(modalHideSpy).toHaveBeenCalled();
 }));
