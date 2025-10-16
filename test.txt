@@ -1,11 +1,16 @@
-onClearButtonClick() {
+it('onClearButtonClick(): should reset search combo values, clear error message, and call GenerateTableRows', () => {
+  // Arrange
+  (component as any).errorBlockMessage = 'Some previous error';
+  (component as any)._searchCategoryComboBox = { value: '7' };
+  (component as any)._searchMinorComboBox = { value: 'AM1' };
+  const generateSpy = spyOn(component as any, 'GenerateTableRows');
 
-this.errorBlockMessage = null;
+  // Act
+  (component as any).onClearButtonClick();
 
-this._searchCategoryComboBox.value = null;
-
-this._searchMinorComboBox.value = null;
-
-this.GenerateTableRows();
-
-}
+  // Assert
+  expect((component as any).errorBlockMessage).toBeNull();
+  expect((component as any)._searchCategoryComboBox.value).toBeNull();
+  expect((component as any)._searchMinorComboBox.value).toBeNull();
+  expect(generateSpy).toHaveBeenCalled();
+});
