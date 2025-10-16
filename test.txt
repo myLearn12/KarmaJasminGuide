@@ -1,49 +1,55 @@
 it('onAcceptButtonClick(ActionType.add) - posts, regenerates table, shows success and writes audit log (self-contained)', fakeAsync(() => {
-  // --- Arrange / setup everything inside this test (no beforeEach reliance)
-  // ensure combobox mocks exist so .value.toString() won't crash
-  (component as any)._categoryComboBox = { value: '7' };
-  (component as any)._minorComboBox = { value: 'AM1' };
+  // Arrange: ensure combo box viewchild mocks exist and have .value
+  (component as any)._categoryComboBox = { value: '7' };    // selected category id string
+  (component as any)._minorComboBox = { value: 'AM1' };     // selected minor code string
+  (component as any)._actionModal = { hide: () => {} };    // modal stub
 
-  // IMPORTANT: the array the component will call .find() on must be an array
+  // IMPORTANT: component.categories must be an array (the cause of "find is not a function")
+  component.categories = [
+    { categoryId: 7, categoryDescription: 'Estate', categoryCode: '4' }
+  ] as any[];
+
+  // Also accountMinors (used for mapping/lookups) must be an array
   component.accountMinors = [
     { acctMnrTypeCode: 'AM1', acctMnrTypeDesc: 'Minor A' }
   ] as any[];
 
-  // set the object that onAcceptButtonClick reads from
+  // The object that will be used to build the payload / getUpdatedModel
   component.catMnrmap = {
     mnrCatId: null,
+    glAcctNbr: 0,
+    activeIndic: true,
     acctMnrTypeCd: 'AM1',
-    acctMnrTypeDesc: 'Minor A',
-    activeIndic: true
+    acctMnrTypeDesc: 'Minor A'
   } as any;
 
-  // make validateFormControls allow code path
-  spyOn(component as any, 'ValidateFormControls').and.returnValue(false);
+  // Make validateFormControls allow execution path
+  spyOn(component as any, 'validateFormControls').and.returnValue(false);
 
-  // stub feeApiservice.postRequest to return success observable
+  // Spy/Stub the API postRequest to succeed
   const postSpy = spyOn(component.feeApiservice, 'postRequest').and.returnValue(of({}));
 
-  // prevent actual GenerateTableRows side effects
-  const generateSpy = spyOn(component as any, 'GenerateTableRows').and.callFake(() => {});
+  // Prevent side effects and observe expected calls
+  const genSpy = spyOn(component as any, 'GenerateTableRows').and.callFake(() => {});
   const setMsgSpy = spyOn(component as any, 'SetMessageTypeAndValue').and.callFake(() => {});
+  const clearSpy = spyOn(component as any, 'clearSelection').and.callFake(() => {});
+  const modalHideSpy = spyOn((component as any)._actionModal, 'hide').and.callFake(() => {});
 
-  // auditLogService might be private; access via bracket notation
-  if (!component['auditLogService']) { component['auditLogService'] = { writeAuditLog: () => {} } as any; }
+  // auditLogService is often private; ensure it exists and spy on method
+  if (!component['auditLogService']) {
+    component['auditLogService'] = { writeAuditLog: (_a: any, _b: any, _c: any, _d: any, _e: any, _f: any) => {} } as any;
+  }
   const auditSpy = spyOn(component['auditLogService'], 'writeAuditLog').and.callFake(() => {});
 
-  // clear/hide spies
-  const clearSpy = spyOn(component as any, 'clearSelection').and.callFake(() => {});
-  const modalHideSpy = spyOn((component as any)._actionModal || {}, 'hide').and.callFake(() => {});
-
-  // --- Act
+  // Act
   component.onAcceptButtonClick(ActionType.add);
-  tick(); // flush async
+  tick(); // run micro/macro tasks
 
-  // --- Assert
-  expect(postSpy).toHaveBeenCalled();                       // API called
-  expect(generateSpy).toHaveBeenCalled();                   // table regenerated on success
+  // Assert
+  expect(postSpy).toHaveBeenCalled(); // API called
+  expect(genSpy).toHaveBeenCalled();  // table regenerated on success
   expect(setMsgSpy).toHaveBeenCalledWith(BlockMessageType.success, component.addSuccessMessage);
-  expect(auditSpy).toHaveBeenCalled();                      // writeAuditLog invoked on complete()
-  expect(clearSpy).toHaveBeenCalled();                      // cleared
-  expect(modalHideSpy).toHaveBeenCalled();                  // modal hidden
+  expect(auditSpy).toHaveBeenCalled(); // audit written in complete
+  expect(clearSpy).toHaveBeenCalled(); // cleared
+  expect(modalHideSpy).toHaveBeenCalled(); // modal hidden
 }));
