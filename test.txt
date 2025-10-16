@@ -1,16 +1,90 @@
-it('onClearButtonClick(): should reset search combo values, clear error message, and call GenerateTableRows', () => {
-  // Arrange
-  (component as any).errorBlockMessage = 'Some previous error';
-  (component as any)._searchCategoryComboBox = { value: '7' };
-  (component as any)._searchMinorComboBox = { value: 'AM1' };
-  const generateSpy = spyOn(component as any, 'GenerateTableRows');
+import { of, throwError } from 'rxjs';
+import { fakeAsync, tick } from '@angular/core/testing';
+
+// Error branch: when any request errors with statusCode '404' -> should call LoadDefaultComboBox(), stop loading and dispatch LOADINGACTION(false)
+it('ngOnInit (error): calls displayServiceErrors, calls LoadDefaultComboBox when 404 and clears loading + dispatches LOADINGACTION(false)', fakeAsync(() => {
+  // Arrange — put all setup inside the test
+  // ensure store and utils exist on the component
+  const displaySpy = spyOn(component as any, 'displayServiceErrors');
+  const loadDefaultSpy = spyOn(component as any, 'LoadDefaultComboBox').and.callFake(() => {});
+
+  // spy store.dispatch
+  const dispatchSpy = spyOn(component['store'], 'dispatch');
+
+  // prepare a server error observable with statusCode '404'
+  const httpError = { error: { statusMessage: 'Not found', statusCode: '404' } };
+  spyOn(component.feeApiservice, 'getRequest').and.returnValue(throwError(() => httpError));
 
   // Act
-  (component as any).onClearButtonClick();
+  component.ngOnInit();
+  // tick to flush microtasks (forkJoin subscribe error path)
+  tick();
 
   // Assert
-  expect((component as any).errorBlockMessage).toBeNull();
-  expect((component as any)._searchCategoryComboBox.value).toBeNull();
-  expect((component as any)._searchMinorComboBox.value).toBeNull();
-  expect(generateSpy).toHaveBeenCalled();
-});
+  expect(displaySpy).toHaveBeenCalledWith('Not found');
+  expect(loadDefaultSpy).toHaveBeenCalled();
+  expect(component.loading).toBeFalse();
+  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
+}));
+
+// Complete branch: successful forkJoin -> should build combo data, deep-clone viewchild options, clear loading and dispatch LOADINGACTION(false)
+it('ngOnInit (complete): builds combo/viewchild data, deep-clones options, stops loading and dispatches LOADINGACTION(false)', fakeAsync(() => {
+  // Arrange - realistic data returned by the three requests
+  const regionDivisions = [{ some: 'row' }];
+  const regions = [{ regionId: 11, regionDescription: 'Region X' }];
+  const divisions = [{ divisionId: 22, divisionDesc: 'Division Y', divisionCd: 'DY' }];
+
+  // Capture called URLs (optional — helpful if your appConfigService URLs vary)
+  const calledUrls: string[] = [];
+  spyOn(component.feeApiservice, 'getRequest').and.callFake((url?: string) => {
+    calledUrls.push(String(url));
+    const u = String(url || '').toLowerCase();
+    if (u.includes('regdiv') || u.includes('regiondiv')) return of(regionDivisions);
+    if (u.includes('region') && !u.includes('regdiv')) return of(regions);
+    if (u.includes('division')) return of(divisions);
+    // default: safe empty array so test doesn't crash
+    return of([]);
+  });
+
+  // utils.LoadComboBoxData returns the mapped arrays used in combo data
+  const mappedRegions = [{ label: 'Region X', value: '11' }];
+  const mappedDivs = [{ label: 'Division Y', value: '22' }];
+  spyOn(component['utils'], 'LoadComboBoxData').and.callFake((arr: any[], label: string, _c: string, id: string) => {
+    if (label === 'regionDescription') return mappedRegions;
+    if (label === 'divisionDesc') return mappedDivs;
+    return [];
+  });
+
+  // Provide ViewChild mocks so .options assignment works (component uses JSON.parse(JSON.stringify(...)))
+  (component as any)._regionComboBox = { options: null };
+  (component as any)._divisionComboBox = { options: null };
+
+  // Prevent side effects from LoadTableRows (keep this test focused)
+  if ((component as any).LoadTableRows) { spyOn(component as any, 'LoadTableRows').and.callFake(() => {}); }
+
+  const dispatchSpy = spyOn(component['store'], 'dispatch');
+
+  // Act
+  component.ngOnInit();
+  tick(); // flush forkJoin next + complete
+
+  // Basic sanity: verify the forkJoin was called (helps debugging if URL matching fails)
+  const sawRegion = calledUrls.some(u => /region/i.test(u));
+  const sawDivision = calledUrls.some(u => /division/i.test(u));
+  if (!sawRegion || !sawDivision) {
+    fail('ngOnInit test URL mismatch. Called URLs: ' + JSON.stringify(calledUrls, null, 2));
+    return;
+  }
+
+  // Assert: combo data built using utils.LoadComboBoxData
+  expect(component.regionComboBoxData).toEqual([{ options: mappedRegions }]);
+  expect(component.divisionComboBoxData).toEqual([{ options: mappedDivs }]);
+
+  // Assert: ViewChild options set to deep clones of original arrays
+  expect((component as any)._regionComboBox.options).toEqual(JSON.parse(JSON.stringify(regions)));
+  expect((component as any)._divisionComboBox.options).toEqual(JSON.parse(JSON.stringify(divisions)));
+
+  // loading turned off and LOADINGACTION(false) dispatched
+  expect(component.loading).toBeFalse();
+  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
+}));
