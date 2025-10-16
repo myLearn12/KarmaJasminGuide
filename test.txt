@@ -1,44 +1,87 @@
-it('onUpdateModalClick(): else branch should deep clone catMnrmap, call helpers, set title/type and show modal', () => {
-  // Arrange: make component behave so the ELSE branch runs (the code does "if (!isRowSelected) { warning } else { ... }")
-  component.isRowSelected = true;
+import { fakeAsync, tick } from '@angular/core/testing';
+import { of, throwError } from 'rxjs';
 
-  // sample model present on component (will be deep-cloned)
-  component.catMnrmap = {
-    categoryMnrMapId: 99,
-    categoryDesc: 'Test Category Minor',
-    someOtherField: 'x'
+// 1) Error path for ActionType.update: should restore selected, call displayServiceErrors and finalize (clear/hide)
+it('onAcceptButtonClick(ActionType.update) - on putRequest error should restore selected, display error and finalize', fakeAsync(() => {
+  // Arrange - build full, self-contained setup
+  (component as any)._categoryComboBox = { value: '7' };
+  (component as any)._minorComboBox = { value: 'AM1' };
+
+  // existing selected snapshot (original)
+  component.selectedCatMnrmap = {
+    mnrCatId: 11,
+    acctMnrTypeCd: 'AM1',
+    acctMnrTypeDesc: 'Minor A',
+    someField: 'orig'
   } as any;
 
-  // Provide/make sure _actionModal exists and spyable
-  (component as any)._actionModal = { show: jasmine.createSpy('show') };
+  // mutated model that update would have changed
+  component.catMnrmap = {
+    mnrCatId: 11,
+    acctMnrTypeCd: 'AM2',
+    acctMnrTypeDesc: 'Minor B',
+    someField: 'changed'
+  } as any;
 
-  // Spy the helpers so we don't execute their inner logic
-  const setInitialSpy = spyOn(component as any, 'setIntialValues').and.callFake(() => {});
-  const getCatSpy = spyOn(component as any, 'getcatMnrmapComboBoxValue').and.callFake(() => {});
-  const getDivSpy = spyOn(component as any, 'getDivisionComboBoxVal').and.callFake(() => {});
+  // spies for helpers & side effects
+  spyOn(component as any, 'validateFormControls').and.returnValue(false); // allow method to proceed
+  const displaySpy = spyOn(component as any, 'displayServiceErrors').and.callFake(() => {});
+  const clearSpy = spyOn(component as any, 'clearSelection').and.callFake(() => {});
+  const modalHideSpy = spyOn((component as any)._actionModal || {}, 'hide').and.callFake(() => {});
 
-  // Spy ActivateFormControls (optional) so it doesn't execute side effects
-  spyOn(component as any, 'ActivateFormControls').and.callFake(() => {});
+  // make putRequest return an error
+  const errorResponse = { error: { statusMessage: 'server failure' } };
+  const putSpy = spyOn(component.feeApiservice, 'putRequest').and.returnValue(throwError(() => errorResponse));
 
   // Act
-  component.onUpdateModalClick();
+  component.onAcceptButtonClick(ActionType.update);
+  tick();
 
   // Assert
-  // action modal title/type set
-  expect(component.actionModalTitle).toBe('Update');
-  expect(component.actionModalType).toBe((<any>component).ActionType ? (<any>component).ActionType.update : component.actionModalType); 
-  // (If ActionType is imported enum, above line simply ensures the property is set to update value;
-  //  you can replace with ActionType.update if ActionType is in scope in your spec.)
+  expect(putSpy).toHaveBeenCalled();
+  // the component.catMnrmap should have been restored from selectedCatMnrmap on error
+  expect(component.catMnrmap).toEqual(component.selectedCatMnrmap);
+  // displayServiceErrors called with the server message
+  expect(displaySpy).toHaveBeenCalledWith('server failure');
+  // cleanup actions
+  expect(clearSpy).toHaveBeenCalled();
+  expect(modalHideSpy).toHaveBeenCalled();
+}));
 
-  // selectedCatMnrmap should be a deep clone equal to original but NOT the same object reference
-  expect(component.selectedCatMnrmap).toEqual(component.catMnrmap);
-  expect(component.selectedCatMnrmap).not.toBe(component.catMnrmap);
+// 2) Success path for ActionType.add: should post, regenerate rows (GenerateTableRows), show success and write audit log on complete
+it('onAcceptButtonClick(ActionType.add) - posts, regenerates table, shows success and writes audit log', fakeAsync(() => {
+  // Arrange
+  (component as any)._categoryComboBox = { value: '7' };
+  (component as any)._minorComboBox = { value: 'AM1' };
 
-  // helper functions called
-  expect(setInitialSpy).toHaveBeenCalled();
-  expect(getCatSpy).toHaveBeenCalled();
-  expect(getDivSpy).toHaveBeenCalled();
+  component.catMnrmap = {
+    mnrCatId: null,
+    acctMnrTypeCd: 'AM1',
+    acctMnrTypeDesc: 'Minor A',
+    activeIndic: true
+  } as any;
 
-  // modal shown
-  expect((component as any)._actionModal.show).toHaveBeenCalled();
-});
+  spyOn(component as any, 'validateFormControls').and.returnValue(false); // allow the call
+  const generateSpy = spyOn(component as any, 'GenerateTableRows').and.callFake(() => {});
+  const setMsgSpy = spyOn(component as any, 'SetMessageTypeAndValue').and.callFake(() => {});
+  const auditSpy = spyOn(component['auditLogService'], 'writeAuditLog').and.callFake(() => {});
+  const postSpy = spyOn(component.feeApiservice, 'postRequest').and.returnValue(of({})); // successful response
+  const clearSpy = spyOn(component as any, 'clearSelection').and.callFake(() => {});
+  const modalHideSpy = spyOn((component as any)._actionModal || {}, 'hide').and.callFake(() => {});
+
+  // Act
+  component.onAcceptButtonClick(ActionType.add);
+  tick();
+
+  // Assert - HTTP called
+  expect(postSpy).toHaveBeenCalled();
+  // GenerateTableRows called on next
+  expect(generateSpy).toHaveBeenCalled();
+  // success message set
+  expect(setMsgSpy).toHaveBeenCalledWith(BlockMessageType.success, component.addSuccessMessage);
+  // complete should call auditLogService.writeAuditLog (arguments are flexible; assert it was called)
+  expect(auditSpy).toHaveBeenCalled();
+  // method should clear/hide at end
+  expect(clearSpy).toHaveBeenCalled();
+  expect(modalHideSpy).toHaveBeenCalled();
+}));
