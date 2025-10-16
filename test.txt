@@ -1,84 +1,49 @@
-it('onAcceptButtonClick(ActionType.update) -> next + complete: regenerates table, shows success, formats desc and writes audit log', fakeAsync(() => {
-  // Arrange - make everything self-contained in this test
+it('GenerateTableRows(): when API errors -> should call displayServiceErrors, clear loading and dispatch LOADINGACTION(false)', fakeAsync(() => {
+  // Arrange - make sure component has the services/props we access
+  // If these are private on the component, access via bracket-notation
+  const feeApiservice = component.feeApiservice;
+  const appConfig = (component as any).appConfigService;
 
-  // Ensure any form validation allows execution
-  spyOn(component as any, 'validateFormControls').and.returnValue(false);
-
-  // Provide the objects used by the update path
-  (component as any)._categoryComboBox = { value: '7' };
-  (component as any)._minorComboBox    = { value: 'AM1' };
-
-  // selected snapshot (original values to restore from on error path) - used later by audit call
-  component.selectedCatMnrmap = {
-    mnrCatId: 42,
-    acctMnrTypeDesc: 'OLD DESC'
-  } as any;
-
-  // object being edited (the current model)
-  component.catMnrmap = {
-    mnrCatId: 42,
-    acctMnrTypeCd: 'AM1',
-    acctMnrTypeDesc: 'New Desc'
-  } as any;
-
-  // Provide arrays used by internal find/filter operations so no "find is not a function" errors
-  component.categories = [{ categoryId: 7, categoryDescription: 'Estate', categoryCode: '4' }] as any[];
-  component.accountMinors = [{ acctMnrTypeCode: 'AM1', acctMnrTypeDesc: 'Minor A' }] as any[];
-
-  // Spy helpers called within next/complete
-  const genSpy = spyOn(component as any, 'GenerateTableRows').and.callFake(() => {});
-  const setMsgSpy = spyOn(component as any, 'SetMessageTypeAndValue').and.callFake(() => {});
-
-  // utils.getFormatedString should be spied so we can assert it's used and return predictable value
-  const utils = component['utils'] as any;
-  if (!utils) { component['utils'] = utils = {} as any; }
-  spyOn(utils, 'getFormatedString').and.callFake((s: string) => `FORMATTED:${s}`);
-
-  // Ensure auditLogService exists and spy its writeAuditLog (private service)
-  if (!component['auditLogService']) {
-    component['auditLogService'] = {
-      writeAuditLog: (_a: any, _b: any, _c: any, _d: any, _e: any, _f: any) => {}
+  // Defensive: provide expected URL properties if test relies on them
+  if (!appConfig) {
+    (component as any).appConfigService = {
+      getGetAllMnrCatMappingUrl: '/api/catmnrmaps',
+      getAllAcctMnrTypeUrl: '/api/accountMinors'
     } as any;
   }
-  // provide updateAction & PageTitle if test uses them (defensive)
-  component['auditLogService'].updateAction = 'UPDATE_ACTION';
-  component['PageTitle'] = 'Category Minor Mapping';
-  const auditSpy = spyOn(component['auditLogService'], 'writeAuditLog').and.callFake(() => {});
 
-  // Spy the HTTP putRequest to emit next then complete (of({}) does that)
-  spyOn(component.feeApiservice, 'putRequest').and.returnValue(of({}));
+  // Spy displayServiceErrors and store.dispatch to verify they get called
+  const displaySpy = spyOn(component as any, 'displayServiceErrors').and.callThrough();
+  const dispatchSpy = spyOn(component['store'], 'dispatch');
 
-  // Prevent validateFormControls from returning early (already done above).
-  // Also spy clearSelection/hide if used at the end
-  const clearSpy = spyOn(component as any, 'clearSelection').and.callFake(() => {});
-  (component as any)._actionModal = { hide: () => {} };
-  const modalHideSpy = spyOn((component as any)._actionModal, 'hide').and.callFake(() => {});
+  // Make getRequest: throw for the cat-mapping URL, return harmless success for the other one
+  spyOn(feeApiservice, 'getRequest').and.callFake((url: string) => {
+    const u = String(url || '').toLowerCase();
+    if (u.includes('mnrcat') || u.includes('mnr') || u.includes('mnr')) {
+      // simulate server error shape used in component: error.error.statusMessage
+      return throwError(() => ({ error: { statusMessage: 'Server failure for cat maps', statusCode: '500' } }));
+    }
+    // other calls succeed (so forkJoin still errors because one observable errors)
+    return of([]);
+  });
 
-  // Act - call the method under test for update action
-  component.onAcceptButtonClick(ActionType.update);
-  tick(); // run async microtasks (of() will complete synchronously but tick is safe)
+  // Pre-set loading true so we can confirm it becomes false after error handler
+  component.loading = true;
 
-  // Assert - next() behavior
-  expect(genSpy).toHaveBeenCalled(); // GenerateTableRows called
-  expect(setMsgSpy).toHaveBeenCalledWith(BlockMessageType.success, component.updateSuccessMessage);
+  // Act
+  component.GenerateTableRows();
+  tick(); // flush async
 
-  // Assert - complete() behavior: utils.getFormatedString used to set selectedCatMnrmap.acctMnrTypeDesc
-  expect(utils.getFormatedString).toHaveBeenCalledWith(component.catMnrmap.acctMnrTypeDesc);
-  expect(component.selectedCatMnrmap.acctMnrTypeDesc).toBe(`FORMATTED:${component.catMnrmap.acctMnrTypeDesc}`);
+  // Assert
+  expect(displaySpy).toHaveBeenCalled(); // called with the server message
+  // If you want exact string:
+  expect(displaySpy).toHaveBeenCalledWith('Server failure for cat maps');
 
-  // Audit log was written with expected identifying args (be flexible for the model objects)
-  expect(auditSpy).toHaveBeenCalled();
-  const auditArgs = auditSpy.calls.mostRecent().args;
-  expect(auditArgs[0]).toBe('mnrCatId'); // first param is the id field name
-  expect(auditArgs[1]).toBe(component.catMnrmap.mnrCatId.toString()); // id as string
-  // third param should be the selected snapshot object
-  expect(auditArgs[2]).toBe(component.selectedCatMnrmap);
-  // fourth param is the updated model object; we assert it is an object
-  expect(typeof auditArgs[3]).toBe('object');
-  // last arg is the page title
-  expect(auditArgs[5]).toBe(component['PageTitle']);
+  // loading should be cleared in error handler
+  expect(component.loading).toBeFalse();
 
-  // final housekeeping calls (clear/hide) should have been executed
-  expect(clearSpy).toHaveBeenCalled();
-  expect(modalHideSpy).toHaveBeenCalled();
+  // LOADINGACTION(false) must have been dispatched
+  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any((component as any).LOADINGACTION || (window as any).LOADINGACTION));
+  // If LOADINGACTION class is in scope, prefer:
+  // expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
 }));
