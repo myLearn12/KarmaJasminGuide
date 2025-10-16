@@ -1,43 +1,15 @@
-it('GenerateTableRows(): when API error -> calls displayServiceErrors, clears loading and dispatches LOADINGACTION(false)', fakeAsync(() => {
-  // Arrange - ensure component has appConfigService urls (private allowed via any)
-  (component as any).appConfigService = (component as any).appConfigService || {};
-  (component as any).appConfigService.getGetAllMnrCatMappingUrl =
-    (component as any).appConfigService.getGetAllMnrCatMappingUrl || '/api/catmnrmaps';
-  (component as any).appConfigService.getAllAcctMnrTypeUrl =
-    (component as any).appConfigService.getAllAcctMnrTypeUrl || '/api/accountMinors';
-
-  // Spy the display error method (may be private)
-  const displaySpy = spyOn(component as any, 'displayServiceErrors').and.callFake(() => { /* no-op */ });
-
-  // Spy store.dispatch
-  const dispatchSpy = spyOn(component['store'], 'dispatch');
-
-  // Make feeApiservice.getRequest return throwError for the cat map URL and harmless value for the other.
-  spyOn(component.feeApiservice, 'getRequest').and.callFake((url?: string) => {
-    const u = String(url || '');
-    if (u.indexOf((component as any).appConfigService.getGetAllMnrCatMappingUrl) !== -1 ||
-        u.toLowerCase().includes('mnrmapping') || u.toLowerCase().includes('catmnrmaps')) {
-      return throwError(() => ({ error: { statusMessage: 'Server failure for cat maps', statusCode: '500' } }));
-    }
-    // return a successful empty array for other calls so forkJoin still subscribes (one throwError is enough to trigger error)
-    return of([]);
-  });
-
-  // Pre-mark loading true so error handler will clear it
-  component.loading = true;
+it('getcatMnrmapComboBoxValue(): sets _categoryComboBox.value when a matching category exists', () => {
+  // Arrange
+  (component as any)._categoryComboBox = { value: null };
+  component.categories = [
+    { categoryId: 7, categoryDescription: 'Estate', categoryCode: '4' },
+    { categoryId: 8, categoryDescription: 'Other',  categoryCode: '7' }
+  ] as any[];
+  component.catMnrmap = { catId: 7 } as any;
 
   // Act
-  component.GenerateTableRows();
-  tick(); // flush microtasks
+  (component as any).getcatMnrmapComboBoxValue();
 
-  // Assert - displayServiceErrors called with the server message
-  expect(displaySpy).toHaveBeenCalled();
-  expect(displaySpy).toHaveBeenCalledWith('Server failure for cat maps');
-
-  // Assert loading cleared and LOADINGACTION dispatched (looser assertion if LOADINGACTION class not in scope)
-  expect(component.loading).toBeFalse();
-  // If LOADINGACTION is available in spec import, prefer exact check:
-  // expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
-  // Otherwise assert dispatch got called at least once:
-  expect(dispatchSpy).toHaveBeenCalled();
-}));
+  // Assert
+  expect((component as any)._categoryComboBox.value).toEqual(['7']);
+});
