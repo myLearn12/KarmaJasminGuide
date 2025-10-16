@@ -1,15 +1,93 @@
-it('getDivisionComboBoxVal(): should set minorComboBox.value when matching acctMnrTypeCode found', () => {
+it('onSearchButtonClick(): when both category and minor selected -> filters and calls LoadTableRows(result, accountMinors)', () => {
   // Arrange
-  (component as any).minorComboBox = { value: null };
-  component.accountMinors = [
-    { acctMnrTypeCode: 'AM1', acctMnrTypeDesc: 'Minor A' },
-    { acctMnrTypeCode: 'AM2', acctMnrTypeDesc: 'Minor B' }
+  (component as any)._searchCategoryComboBox = { value: '7' };
+  (component as any)._searchMinorComboBox = { value: 'AM1' };
+  component.initialCatMnrmaps = [
+    { catId: 7, acctMnrTypeCd: 'AM1', some: 'keep' },
+    { catId: 7, acctMnrTypeCd: 'AM2', some: 'drop' },
+    { catId: 8, acctMnrTypeCd: 'AM1', some: 'drop' }
   ] as any[];
-  component.catMnrmap = { acctMnrTypeCd: 'AM1' } as any;
+  component.accountMinors = [{ acctMnrTypeCode: 'AM1' }] as any[];
+
+  const loadSpy = spyOn(component as any, 'LoadTableRows');
 
   // Act
-  (component as any).getDivisionComboBoxVal();
+  (component as any).onSearchButtonClick();
 
   // Assert
-  expect((component as any).minorComboBox.value).toEqual(['AM1']);
+  expect(loadSpy).toHaveBeenCalledWith(
+    jasmine.any(Array), // result
+    component.accountMinors
+  );
+  const passed = loadSpy.calls.mostRecent().args[0] as any[];
+  expect(passed.length).toBe(1);
+  expect(passed[0].catId).toBe(7);
+  expect(passed[0].acctMnrTypeCd).toBe('AM1');
+});
+
+it('onSearchButtonClick(): when only category selected -> filters by category and calls LoadTableRows', () => {
+  // Arrange
+  (component as any)._searchCategoryComboBox = { value: '7' };
+  (component as any)._searchMinorComboBox = { value: null };
+  component.initialCatMnrmaps = [
+    { catId: 7, acctMnrTypeCd: 'AM1' },
+    { catId: 7, acctMnrTypeCd: 'AM2' },
+    { catId: 8, acctMnrTypeCd: 'AM1' }
+  ] as any[];
+  component.accountMinors = [];
+
+  const loadSpy = spyOn(component as any, 'LoadTableRows');
+
+  // Act
+  (component as any).onSearchButtonClick();
+
+  // Assert
+  expect(loadSpy).toHaveBeenCalledWith(jasmine.any(Array), component.accountMinors);
+  const result = loadSpy.calls.mostRecent().args[0] as any[];
+  expect(result.every(r => r.catId === 7)).toBeTrue();
+  expect(result.length).toBe(2);
+});
+
+it('onSearchButtonClick(): when only minor selected -> filters by minor and calls LoadTableRows', () => {
+  // Arrange
+  (component as any)._searchCategoryComboBox = { value: null };
+  (component as any)._searchMinorComboBox = { value: 'AM2' };
+  component.initialCatMnrmaps = [
+    { catId: 7, acctMnrTypeCd: 'AM1' },
+    { catId: 7, acctMnrTypeCd: 'AM2' },
+    { catId: 8, acctMnrTypeCd: 'AM2' }
+  ] as any[];
+  component.accountMinors = [{ acctMnrTypeCode: 'AM2' }] as any[];
+
+  const loadSpy = spyOn(component as any, 'LoadTableRows');
+
+  // Act
+  (component as any).onSearchButtonClick();
+
+  // Assert
+  expect(loadSpy).toHaveBeenCalledWith(jasmine.any(Array), component.accountMinors);
+  const result = loadSpy.calls.mostRecent().args[0] as any[];
+  expect(result.length).toBe(2);
+  expect(result.every(r => r.acctMnrTypeCd === 'AM2')).toBeTrue();
+});
+
+it('onSearchButtonClick(): when no results -> shows warning, clears search combos and calls GenerateTableRows', () => {
+  // Arrange
+  (component as any)._searchCategoryComboBox = { value: '99' };
+  (component as any)._searchMinorComboBox = { value: 'ZZZ' };
+  component.initialCatMnrmaps = [
+    { catId: 7, acctMnrTypeCd: 'AM1' }
+  ] as any[];
+
+  const warnSpy = spyOn(component as any, 'SetMessageTypeAndValue');
+  const genSpy = spyOn(component as any, 'GenerateTableRows');
+
+  // Act
+  (component as any).onSearchButtonClick();
+
+  // Assert
+  expect(warnSpy).toHaveBeenCalledWith(jasmine.anything(), (component as any).searchOptionMessage);
+  expect((component as any)._searchCategoryComboBox.value).toBeNull();
+  expect((component as any)._searchMinorComboBox.value).toBeNull();
+  expect(genSpy).toHaveBeenCalled();
 });
