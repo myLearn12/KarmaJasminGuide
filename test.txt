@@ -1,15 +1,15 @@
-it('getcatMnrmapComboBoxValue(): sets _categoryComboBox.value when a matching category exists', () => {
+it('getDivisionComboBoxVal(): should set minorComboBox.value when matching acctMnrTypeCode found', () => {
   // Arrange
-  (component as any)._categoryComboBox = { value: null };
-  component.categories = [
-    { categoryId: 7, categoryDescription: 'Estate', categoryCode: '4' },
-    { categoryId: 8, categoryDescription: 'Other',  categoryCode: '7' }
+  (component as any).minorComboBox = { value: null };
+  component.accountMinors = [
+    { acctMnrTypeCode: 'AM1', acctMnrTypeDesc: 'Minor A' },
+    { acctMnrTypeCode: 'AM2', acctMnrTypeDesc: 'Minor B' }
   ] as any[];
-  component.catMnrmap = { catId: 7 } as any;
+  component.catMnrmap = { acctMnrTypeCd: 'AM1' } as any;
 
   // Act
-  (component as any).getcatMnrmapComboBoxValue();
+  (component as any).getDivisionComboBoxVal();
 
   // Assert
-  expect((component as any)._categoryComboBox.value).toEqual(['7']);
+  expect((component as any).minorComboBox.value).toEqual(['AM1']);
 });
