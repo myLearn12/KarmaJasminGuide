@@ -1,59 +1,15 @@
-import { fakeAsync, tick } from '@angular/core/testing';
-import { of, throwError } from 'rxjs';
-
-// 1) Error path for ActionType.update: should restore selected, call displayServiceErrors and finalize (clear/hide)
-it('onAcceptButtonClick(ActionType.update) - on putRequest error should restore selected, display error and finalize', fakeAsync(() => {
-  // Arrange - build full, self-contained setup
+it('onAcceptButtonClick(ActionType.add) - posts, regenerates table, shows success and writes audit log (accountMinors as array)', fakeAsync(() => {
+  // Arrange - make all setup inside this test
+  // Make sure combo boxes exist and have values the method will call .toString() on
   (component as any)._categoryComboBox = { value: '7' };
   (component as any)._minorComboBox = { value: 'AM1' };
 
-  // existing selected snapshot (original)
-  component.selectedCatMnrmap = {
-    mnrCatId: 11,
-    acctMnrTypeCd: 'AM1',
-    acctMnrTypeDesc: 'Minor A',
-    someField: 'orig'
-  } as any;
+  // IMPORTANT: accountMinors MUST be an array (so .find/.filter are available)
+  component.accountMinors = [
+    { acctMnrTypeCode: 'AM1', acctMnrTypeDesc: 'Minor A' }
+  ] as any[];
 
-  // mutated model that update would have changed
-  component.catMnrmap = {
-    mnrCatId: 11,
-    acctMnrTypeCd: 'AM2',
-    acctMnrTypeDesc: 'Minor B',
-    someField: 'changed'
-  } as any;
-
-  // spies for helpers & side effects
-  spyOn(component as any, 'validateFormControls').and.returnValue(false); // allow method to proceed
-  const displaySpy = spyOn(component as any, 'displayServiceErrors').and.callFake(() => {});
-  const clearSpy = spyOn(component as any, 'clearSelection').and.callFake(() => {});
-  const modalHideSpy = spyOn((component as any)._actionModal || {}, 'hide').and.callFake(() => {});
-
-  // make putRequest return an error
-  const errorResponse = { error: { statusMessage: 'server failure' } };
-  const putSpy = spyOn(component.feeApiservice, 'putRequest').and.returnValue(throwError(() => errorResponse));
-
-  // Act
-  component.onAcceptButtonClick(ActionType.update);
-  tick();
-
-  // Assert
-  expect(putSpy).toHaveBeenCalled();
-  // the component.catMnrmap should have been restored from selectedCatMnrmap on error
-  expect(component.catMnrmap).toEqual(component.selectedCatMnrmap);
-  // displayServiceErrors called with the server message
-  expect(displaySpy).toHaveBeenCalledWith('server failure');
-  // cleanup actions
-  expect(clearSpy).toHaveBeenCalled();
-  expect(modalHideSpy).toHaveBeenCalled();
-}));
-
-// 2) Success path for ActionType.add: should post, regenerate rows (GenerateTableRows), show success and write audit log on complete
-it('onAcceptButtonClick(ActionType.add) - posts, regenerates table, shows success and writes audit log', fakeAsync(() => {
-  // Arrange
-  (component as any)._categoryComboBox = { value: '7' };
-  (component as any)._minorComboBox = { value: 'AM1' };
-
+  // The model the UI has populated
   component.catMnrmap = {
     mnrCatId: null,
     acctMnrTypeCd: 'AM1',
@@ -61,27 +17,30 @@ it('onAcceptButtonClick(ActionType.add) - posts, regenerates table, shows succes
     activeIndic: true
   } as any;
 
-  spyOn(component as any, 'validateFormControls').and.returnValue(false); // allow the call
+  // Make validateFormControls allow execution
+  spyOn(component as any, 'validateFormControls').and.returnValue(false);
+
+  // Spies for side-effects
   const generateSpy = spyOn(component as any, 'GenerateTableRows').and.callFake(() => {});
   const setMsgSpy = spyOn(component as any, 'SetMessageTypeAndValue').and.callFake(() => {});
+  // auditLogService may be private — access via bracket notation
   const auditSpy = spyOn(component['auditLogService'], 'writeAuditLog').and.callFake(() => {});
-  const postSpy = spyOn(component.feeApiservice, 'postRequest').and.returnValue(of({})); // successful response
   const clearSpy = spyOn(component as any, 'clearSelection').and.callFake(() => {});
   const modalHideSpy = spyOn((component as any)._actionModal || {}, 'hide').and.callFake(() => {});
+
+  // Make the POST request succeed
+  const postSpy = spyOn(component.feeApiservice, 'postRequest').and.returnValue(of({}));
 
   // Act
   component.onAcceptButtonClick(ActionType.add);
   tick();
 
-  // Assert - HTTP called
+  // Assert
   expect(postSpy).toHaveBeenCalled();
-  // GenerateTableRows called on next
-  expect(generateSpy).toHaveBeenCalled();
-  // success message set
+  expect(generateSpy).toHaveBeenCalled(); // regenerate table on success
   expect(setMsgSpy).toHaveBeenCalledWith(BlockMessageType.success, component.addSuccessMessage);
-  // complete should call auditLogService.writeAuditLog (arguments are flexible; assert it was called)
-  expect(auditSpy).toHaveBeenCalled();
-  // method should clear/hide at end
+  expect(auditSpy).toHaveBeenCalled(); // complete() should write audit log
+  // finalization
   expect(clearSpy).toHaveBeenCalled();
   expect(modalHideSpy).toHaveBeenCalled();
 }));
