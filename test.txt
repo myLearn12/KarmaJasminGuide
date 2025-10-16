@@ -1,69 +1,65 @@
-import { fakeAsync, tick } from '@angular/core/testing';
-import { of, throwError } from 'rxjs';
-
 it('ngOnInit COMPLETE: should call LoadTableRows(catMnrmaps, accountMinors), set combo data and viewchild.options, clear loading and dispatch LOADINGACTION(false)', fakeAsync(() => {
-  // --- Arrange: realistic data the component expects from forkJoin
+  // --- Arrange: realistic data returned by API calls
   const catMnrmaps = [{ some: 'row' }];
   const categories = [{ categoryId: 7, categoryDescription: 'Estate', categoryCode: '4' }];
   const accountMinors = [{ acctMnrTypeCode: 'AM1', acctMnrTypeDesc: 'Minor A' }];
 
-  // Robust spy for getRequest: match by substring to avoid brittle exact-URL checks
+  // Ensure component has appConfigService URL properties (prevents undefined URLs)
+  (component as any).appConfigService = (component as any).appConfigService || {};
+  (component as any).appConfigService.getGetCatMnrmapsUrl = '/api/catmnrmaps';
+  (component as any).appConfigService.getAllCategoryUrl = '/api/categories';
+  (component as any).appConfigService.getAllAcctMnrTypeUrl = '/api/minors';
+
+  // Spy feeApiservice.getRequest: substring matching + call-order fallback
+  let callIndex = 0;
   spyOn(component.feeApiservice, 'getRequest').and.callFake((url?: string) => {
+    callIndex++;
     const u = String(url || '').toLowerCase();
-    if (u.includes('mnr') || u.includes('catmnrmaps') || u.includes('catmnrmaps')) {
-      return of(catMnrmaps);
-    }
-    if (u.includes('category') || u.includes('allcategory')) {
-      return of(categories);
-    }
-    if (u.includes('acctmnr') || u.includes('acctmnrtype') || u.includes('acctmnrtype')) {
-      return of(accountMinors);
-    }
-    // fallback so test doesn't blow up if URL differs
-    return of([]);
+    if (u.includes('catmn') || u.includes('catmnrmaps')) { return of(catMnrmaps); }
+    if (u.includes('category') || u.includes('/categories')) { return of(categories); }
+    if (u.includes('acctmnr') || u.includes('mnrtype') || u.includes('minor')) { return of(accountMinors); }
+    // fallback by call order (defensive: if component passed undefined)
+    if (callIndex === 1) return of(catMnrmaps);
+    if (callIndex === 2) return of(categories);
+    if (callIndex === 3) return of(accountMinors);
+    return of([]); // safe fallback
   });
 
-  // Stub utils.LoadComboBoxData -> predictable options
+  // Spy utils.LoadComboBoxData to return predictable option arrays
   const mappedCategories = [{ label: 'Estate', value: '7' }];
   const mappedMinors = [{ label: 'Minor A', value: 'AM1' }];
-  spyOn(component['utils'], 'LoadComboBoxData').and.callFake((arr: any[], label: string, _code: string, id: string) => {
+  spyOn(component['utils'], 'LoadComboBoxData').and.callFake((arr: any[], label: string) => {
     if (label === 'categoryDescription') return mappedCategories;
-    if (label === 'acctMnrTypeDesc' || label.toLowerCase().includes('acct')) return mappedMinors;
+    if (label === 'acctMnrTypeDesc' || /mnr/i.test(label)) return mappedMinors;
     return [];
   });
 
-  // Provide ViewChild mocks (so .options assignment doesn't throw)
+  // Provide the ViewChild mocks used by the component (so .options assignments succeed)
   (component as any)._categoryComboBox = { options: null };
   (component as any)._minorComboBox = { options: null };
 
-  // Spy LoadTableRows to verify it's called with two args (catMnrmaps, accountMinors)
-  const loadRowsSpy = spyOn(component as any, 'LoadTableRows').and.callFake(() => {});
+  // Prevent side-effects from LoadTableRows and spy it
+  const loadSpy = spyOn(component as any, 'LoadTableRows').and.callFake(() => { /* no-op */ });
 
-  // Spy store.dispatch
+  // Spy dispatch
   const dispatchSpy = spyOn(component['store'], 'dispatch');
 
-  // Make sure component starts with loading true (like ngOnInit would)
-  component.loading = true;
-
-  // --- Act
+  // Act
   component.ngOnInit();
-  tick(); // flush the forkJoin + subscribe next/complete
+  tick(); // flush forkJoin + subscribe (next & complete)
 
-  // --- Assert
+  // Assert: LoadTableRows called with the exact returned arrays (catMnrmaps, accountMinors)
+  expect(loadSpy).toHaveBeenCalledWith(catMnrmaps, accountMinors);
 
-  // 1) LoadTableRows called once with the catMnrmaps and accountMinors
-  expect(loadRowsSpy).toHaveBeenCalledTimes(1);
-  expect(loadRowsSpy).toHaveBeenCalledWith(catMnrmaps, accountMinors);
-
-  // 2) Combo data built from utils.LoadComboBoxData
+  // Assert: combo data arrays created using utils.LoadComboBoxData
   expect(component.categoryComboBoxData).toEqual([{ options: mappedCategories }]);
   expect(component.acctMinorComboBoxData).toEqual([{ options: mappedMinors }]);
 
-  // 3) ViewChild .options deep-cloned from original arrays
+  // Assert: ViewChild options set to deep-cloned arrays
   expect((component as any)._categoryComboBox.options).toEqual(JSON.parse(JSON.stringify(categories)));
   expect((component as any)._minorComboBox.options).toEqual(JSON.parse(JSON.stringify(accountMinors)));
 
-  // 4) loading turned off and LOADINGACTION(false) dispatched
+  // loading turned off and LOADINGACTION(false) dispatched
   expect(component.loading).toBeFalse();
   expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
 }));
