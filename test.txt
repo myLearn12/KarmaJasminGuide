@@ -1,42 +1,42 @@
-it('onUpdateModalClick(): else branch should deep-clone model, call helpers and show modal', () => {
-  // Arrange: mark a row selected and provide the model to clone
-  component.isRowSelected = true;
-  component.regdivmap = {
-    regionId: 11,
-    regionDescription: 'North',
-    divisionId: 21,
-    divisionDesc: 'Div 21'
+it('onAcceptButtonClick(ActionType.update) - on put error should restore selected, call displayServiceErrors and still clear/hide', fakeAsync(() => {
+  // Arrange - put all setup inside test
+  (component as any)._regionComboBox = { value: '1' };
+  (component as any)._divisionComboBox = { value: '2' };
+
+  // original snapshot (should be restored on error)
+  component.selectedRegDivMap = {
+    regDivId: 99,
+    regionId: 1,
+    divisionId: 2,
+    activeIndic: true
   } as any;
 
-  // Prevent side-effects from ActivateFormControls (if it exists)
-  if ((component as any).ActivateFormControls) {
-    spyOn(component as any, 'ActivateFormControls').and.callFake(() => {});
-  }
+  // mutated model simulating user edits
+  component.regdivmap = {
+    regDivId: 99,
+    regionId: 11,
+    divisionId: 22,
+    activeIndic: false
+  } as any;
 
-  // Spies for helper functions that should be called
-  const setInitialSpy = spyOn(component as any, 'setIntialvalues').and.callFake(() => {});
-  const getRegionSpy = spyOn(component as any, 'getRegionComboBoxValue').and.callFake(() => {});
-  const getDivisionSpy = spyOn(component as any, 'getDivisionComboBoxVal').and.callFake(() => {});
+  // spies
+  const displaySpy = spyOn(component as any, 'displayServiceErrors');
+  const clearSpy = spyOn(component as any, 'clearselection');
+  const modalHideSpy = spyOn((component as any)._actionModal || {}, 'hide').and.callFake(() => {});
+  spyOn(component as any, 'validateFormControls').and.returnValue(false); // allow method to proceed
 
-  // Provide a minimal mock for the modal so .show() exists and can be spied on
-  (component as any)._actionModal = { show: () => {} };
-  const modalShowSpy = spyOn((component as any)._actionModal, 'show').and.callFake(() => {});
+  // make putRequest return an error
+  const errorResponse = { error: { statusMessage: 'server failed' } };
+  const putSpy = spyOn(component.feeApiservice, 'putRequest').and.returnValue(throwError(() => errorResponse));
 
   // Act
-  component.onUpdateModalClick();
+  component.onAcceptButtonClick(ActionType.update);
+  tick();
 
-  // Assert: selectedRegDivMap created and deep-cloned (equals but not same reference)
-  expect((component as any).selectedRegDivMap).toEqual(component.regdivmap);
-  expect((component as any).selectedRegDivMap).not.toBe(component.regdivmap);
-
-  // Assert: helper functions were called
-  expect(setInitialSpy).toHaveBeenCalled();
-  expect(getRegionSpy).toHaveBeenCalled();
-  expect(getDivisionSpy).toHaveBeenCalled();
-
-  // Assert: modal shown and action modal metadata set
-  expect(modalShowSpy).toHaveBeenCalled();
-  expect(component.actionModalTitle).toBe('Update');
-  // If you have ActionType imported in the spec file, assert exact enum:
-  expect(component.actionModalType).toBe(ActionType.update);
-});
+  // Assert HTTP invoked and model restored
+  expect(putSpy).toHaveBeenCalled();
+  expect(component.regdivmap).toEqual(component.selectedRegDivMap, 'regdivmap should be restored to snapshot on error');
+  expect(displaySpy).toHaveBeenCalledWith('server failed');
+  expect(clearSpy).toHaveBeenCalled();
+  expect(modalHideSpy).toHaveBeenCalled();
+}));
