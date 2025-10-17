@@ -1,76 +1,16 @@
-it('onSearchButtonClick(): both region+division selected -> filters initialRegdivmaps, sets p=1 and calls LoadTableRows', () => {
+it('onClearButtonClick(): should clear error message, reset search combo values, and call GenerateTableRows', () => {
   // Arrange
-  const row = { regionId: 10, divisionId: 20, some: 'row' } as any;
-  component.initialRegdivmaps = [row];
-
-  // simulate selected search combo values (protected members)
+  component.errorBlockMessage = 'Some error';
   (component as any)._searchRegionComboBox = { value: '10' };
   (component as any)._searchDivisionComboBox = { value: '20' };
 
-  const loadSpy = spyOn(component as any, 'LoadTableRows');
-
-  // Act
-  component.onSearchButtonClick();
-
-  // Assert
-  expect(component.p).toBe(1);
-  expect(loadSpy).toHaveBeenCalledWith([row]);
-});
-
-it('onSearchButtonClick(): only region selected -> filters by region and calls LoadTableRows', () => {
-  // Arrange
-  const a = { regionId: 1, divisionId: 2 } as any;
-  const b = { regionId: 1, divisionId: 3 } as any;
-  component.initialRegdivmaps = [a, b];
-
-  (component as any)._searchRegionComboBox = { value: '1' };
-  (component as any)._searchDivisionComboBox = { value: null };
-
-  const loadSpy = spyOn(component as any, 'LoadTableRows');
-
-  // Act
-  component.onSearchButtonClick();
-
-  // Assert
-  expect(component.p).toBe(1);
-  // both rows match regionId === 1
-  expect(loadSpy).toHaveBeenCalledWith([a, b]);
-});
-
-it('onSearchButtonClick(): only division selected -> filters by division and calls LoadTableRows', () => {
-  // Arrange
-  const a = { regionId: 5, divisionId: 100 } as any;
-  const b = { regionId: 6, divisionId: 100 } as any;
-  component.initialRegdivmaps = [a, b];
-
-  (component as any)._searchRegionComboBox = { value: null };
-  (component as any)._searchDivisionComboBox = { value: '100' };
-
-  const loadSpy = spyOn(component as any, 'LoadTableRows');
-
-  // Act
-  component.onSearchButtonClick();
-
-  // Assert
-  expect(component.p).toBe(1);
-  expect(loadSpy).toHaveBeenCalledWith([a, b]);
-});
-
-it('onSearchButtonClick(): no search values or no results -> shows warning, clears combos and calls GenerateTableRows', () => {
-  // Arrange
-  component.initialRegdivmaps = []; // no data -> result length 0
-
-  (component as any)._searchRegionComboBox = { value: null };
-  (component as any)._searchDivisionComboBox = { value: null };
-
-  const warnSpy = spyOn(component as any, 'SetMessageTypeAndValue');
   const genSpy = spyOn(component as any, 'GenerateTableRows');
 
   // Act
-  component.onSearchButtonClick();
+  component.onClearButtonClick();
 
   // Assert
-  expect(warnSpy).toHaveBeenCalledWith(jasmine.anything(), component.searchOptionMessage);
+  expect(component.errorBlockMessage).toBeNull();
   expect((component as any)._searchRegionComboBox.value).toBeNull();
   expect((component as any)._searchDivisionComboBox.value).toBeNull();
   expect(genSpy).toHaveBeenCalled();
