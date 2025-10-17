@@ -1,49 +1,9 @@
-it('onAcceptButtonClick(ActionType.update) - on success should regenerate table, show success and write audit log on complete', fakeAsync(() => {
-  // Arrange
-  (component as any)._regionComboBox = { value: '1' };
-  (component as any)._divisionComboBox = { value: '2' };
+const auditSpy = spyOn<any>(component['auditLogService'], 'writeAuditLog').and.callFake(() => {});
 
-  component.regdivmap = {
-    regDivId: 55,
-    regionId: 1,
-    divisionId: 2,
-    activeIndic: true,
-    createdBy: 'c1',
-    createdDt: '2020-01-01'
-  } as any;
 
-  // Keep a snapshot that the code might use (selected)
-  component.selectedRegDivMap = JSON.parse(JSON.stringify(component.regdivmap));
+(component as any).auditLogService = {
+  writeAuditLog: jasmine.createSpy('writeAuditLog')
+};
+const auditSpy = (component as any).auditLogService.writeAuditLog;
 
-  // spies
-  const genSpy = spyOn(component as any, 'GenerateTableRows').and.callFake(() => {});
-  const setMsgSpy = spyOn(component as any, 'SetMessageTypeAndValue').and.callFake(() => {});
-  const auditSpy = spyOn(component['auditLogService'] || {}, 'writeAuditLog').and.callFake(() => {});
-  spyOn(component as any, 'validateFormControls').and.returnValue(false); // allow method to proceed
-
-  // putRequest returns a successful observable (next then complete)
-  const putSpy = spyOn(component.feeApiservice, 'putRequest').and.returnValue(of({}));
-
-  // Act
-  component.onAcceptButtonClick(ActionType.update);
-  tick(); // flush next
-  flush(); // ensure complete and any timers are flushed
-
-  // Assertions
-  expect(putSpy).toHaveBeenCalled();
-  expect(genSpy).toHaveBeenCalled(); // next() handler invoked
-  expect(setMsgSpy).toHaveBeenCalledWith(jasmine.anything(), jasmine.any(String)); // success message called
-  // complete handler should call audit log; allow flexible assertion on parameters
-  expect(auditSpy).toHaveBeenCalledWith(
-    'regDivid',
-    component.regdivmap.regDivId.toString(),
-    component.selectedRegDivMap,
-    jasmine.any(Object),
-    component['auditLogService']?.updateAction,
-    component.PageTitle
-  );
-
-  // final cleanup: modal hidden and selection cleared
-  expect((component as any)._actionModal).toBeDefined();
-  // The method calls clearselection() and hides modal at the end — assert they exist (if you spy them earlier you can assert called)
-}));
+const auditSpy = spyOn<any>(component['auditLogService'], 'writeAuditLog').and.callFake(() => {});
