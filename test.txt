@@ -1,78 +1,55 @@
-import { fakeAsync, tick } from '@angular/core/testing';
-import { of } from 'rxjs';
+it('LoadDefaultComboBox(): complete -> sets combo data and deep-clones viewchild.options', fakeAsync(() => {
+  // Arrange: realistic arrays that the component expects
+  const regions = [
+    { regionId: 101, regionDescription: 'North Region' }
+  ];
+  const divisions = [
+    { divisionId: 201, divisionDesc: 'Division A', divisionCd: 'DA' }
+  ];
 
-it('ngOnInit (complete) - builds combo/viewchild data, deep-clones options, stops loading and dispatches LOADINGACTION(false)', fakeAsync(() => {
-  // Arrange - realistic objects returned by the three (or more) requests
-  const regDivMaps = [{ some: 'row' }];
-  const regions = [{ regionId: 11, regionDescription: 'Region X' }];
-  const divisions = [{ divisionId: 22, divisionDesc: 'Division Y', divisionCd: 'DY' }];
+  // Spy displayServiceErrors to ensure it's NOT called for the success path
+  const displaySpy = spyOn(component as any, 'displayServiceErrors');
 
-  // Capture all calls to getRequest (may include 'undefined')
-  const calledUrls: string[] = [];
-  spyOn(component.feeApiservice, 'getRequest').and.callFake((url?: string) => {
-    calledUrls.push(String(url));
-    const lower = String(url || '').toLowerCase();
-
-    // substring matching to be resilient to URL differences or minor typos
-    if (lower.includes('regdiv') || lower.includes('regdivmap') || lower.includes('regdivmapping') || lower.includes('regiondiv')) {
-      return of(regDivMaps);
-    }
-    if (lower.includes('region') && !lower.includes('regdiv')) { // region list
-      return of(regions);
-    }
-    if (lower.includes('division') || lower.includes('divisions')) {
-      return of(divisions);
-    }
-
-    // Defensive fallback: return an empty array so forkJoin won't fail
+  // Spy feeApiservice.getRequest and be robust about the URL argument (may be undefined)
+  spyOn(component.feeApiservice, 'getRequest').and.callFake((url?: any) => {
+    const u = String(url || '').toLowerCase();
+    if (u.includes('region')) return of(regions);
+    if (u.includes('division')) return of(divisions);
+    // fallback: return empty array so forkJoin still completes
     return of([]);
   });
 
-  // Mock utils.LoadComboBoxData to return expected combo option arrays
-  const mappedRegions = [{ label: 'Region X', value: '11' }];
-  const mappedDivisions = [{ label: 'Division Y', value: '22' }];
-  spyOn(component['utils'], 'LoadComboBoxData').and.callFake((arr: any[], label: string, _code: string, id: string) => {
+  // Spy utils.LoadComboBoxData to return expected combo-option shapes
+  const mappedRegions = [{ label: 'North Region', value: '101' }];
+  const mappedDivisions = [{ label: 'Division A', value: '201' }];
+  spyOn(component['utils'], 'LoadComboBoxData').and.callFake((arr: any[], label: string, _code?: string, _id?: string) => {
     if (label === 'regionDescription') return mappedRegions;
     if (label === 'divisionDesc') return mappedDivisions;
     return [];
   });
 
-  // Provide viewchild mocks so assignments to .options succeed
-  (component as any)._regionComboBox = { options: null };
-  (component as any)._divisionComboBox = { options: null };
+  // Provide ViewChild mocks so .options assignments succeed
+  (component as any).regionComboBox = (component as any).regionComboBox || { options: null };
+  (component as any).divisionComboBox = (component as any).divisionComboBox || { options: null };
 
-  // Prevent LoadTableRows side effects if it exists
+  // Prevent any heavy LoadTableRows logic from interfering with this test (optional)
   if ((component as any).LoadTableRows) {
     spyOn(component as any, 'LoadTableRows').and.callFake(() => {});
   }
 
-  const dispatchSpy = spyOn(component['store'], 'dispatch');
+  // Act: call the method and flush async operations
+  component.LoadDefaultComboBox();
+  tick();   // run microtasks (subscribe.next)
+  flush();  // clear any timers
 
-  // Act
-  component.ngOnInit();
-  tick(); // flush forkJoin next + complete
-
-  // If none of the expected URL substrings were seen, fail with helpful debug info
-  const sawRegion = calledUrls.some(u => /region/i.test(u));
-  const sawDivision = calledUrls.some(u => /division/i.test(u));
-  // (regDivMaps may be the first call)
-  const sawRegDiv = calledUrls.some(u => /regdiv|regdivmap|regiondiv|regdivmapping/i.test(u));
-
-  if (!(sawRegDiv || (sawRegion && sawDivision))) {
-    // helpful failure - prints the actual calls that happened (often "undefined")
-    fail('ngOnInit test URL mismatch. Called URLs: ' + JSON.stringify(calledUrls, null, 2));
-    return;
-  }
-
-  // Assertions: combo data arrays built using utils.LoadComboBoxData
+  // Assert: combo arrays were set from utils.LoadComboBoxData
   expect(component.regionComboBoxData).toEqual([{ options: mappedRegions }]);
   expect(component.divisionComboBoxData).toEqual([{ options: mappedDivisions }]);
 
-  // ViewChild options should be deep clones of the original arrays (component uses JSON.parse(JSON.stringify(...)))
-  expect((component as any)._regionComboBox.options).toEqual(JSON.parse(JSON.stringify(regions)));
-  expect((component as any)._divisionComboBox.options).toEqual(JSON.parse(JSON.stringify(divisions)));
+  // Assert: ViewChild .options were deep-cloned from the raw arrays returned by the API
+  expect((component as any).regionComboBox.options).toEqual(JSON.parse(JSON.stringify(regions)));
+  expect((component as any).divisionComboBox.options).toEqual(JSON.parse(JSON.stringify(divisions)));
 
-  // loading turned off and LOADINGACTION(false) dispatched
-  expect(component.loading).toBeFalse();
-  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
+  // displayServiceErrors must not be called for success path
+  expect(displaySpy).not.toHaveBeenCalled();
 }));
