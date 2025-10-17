@@ -1,61 +1,34 @@
-it('onAcceptButtonClick(ActionType.add): should regenerate table, show success, handle error, and write audit log on complete', fakeAsync(() => {
+it('GenerateTableRows(): when API errors -> should call displayServiceErrors, clear loading and dispatch LOADINGACTION(false)', fakeAsync(() => {
   // Arrange
-  (component as any)._regionComboBox = { value: '1' };
-  (component as any)._divisionComboBox = { value: '10' };
-
-  component.regdivmap = {
-    regDivId: 0,
-    regionId: 1,
-    divisionId: 10,
-    activeIndic: true
+  // make sure appConfigService URL exists (appConfigService may be private on component)
+  (component as any).appConfigService = {
+    getAllRegDivMappingUrl: '/api/regdivmaps'
   } as any;
 
-  // ✅ Provide mock arrays so no .find() errors occur
-  component.regions = [{ regionId: 1, regionDescription: 'Region A' }] as any;
-  component.divisions = [{ divisionId: 10, divisionDesc: 'Division X', divisionCd: 'DX' }] as any;
+  // Ensure initial state like real component
+  component.loading = true;
 
-  // ✅ Mock services and utilities
-  spyOn<any>(component, 'validateFormControls').and.returnValue(false);
-  const genSpy = spyOn<any>(component, 'GenerateTableRows').and.callFake(() => {});
-  const setMsgSpy = spyOn<any>(component, 'SetMessageTypeAndValue').and.callFake(() => {});
-  const errSpy = spyOn<any>(component, 'displayServiceErrors').and.callFake(() => {});
-  const auditSpy = spyOn<any>(component['auditLogService'], 'writeAuditLog').and.callFake(() => {});
+  // Spy LoadTableRows so we can assert it's NOT called in error path
+  const loadSpy = spyOn(component as any, 'LoadTableRows').and.callFake(() => {});
 
-  // ✅ Mock URL config
-  (component as any).appConfigService = {
-    addRegDivMappingUrl: '/api/addRegDiv'
-  };
+  // Spy displayServiceErrors
+  const displaySpy = spyOn(component as any, 'displayServiceErrors').and.callFake(() => {});
 
-  // ✅ Simulate success, then error, then complete (via Observable.of and Subject)
-  const fake$ = of({}); // simulate successful HTTP observable
-  const postSpy = spyOn(component.feeApiservice, 'postRequest').and.returnValue(fake$);
+  // Spy store.dispatch
+  const dispatchSpy = spyOn(component['store'], 'dispatch').and.callFake(() => {});
+
+  // Make feeApiservice.getRequest return an observable that errors
+  const serverError = { error: { statusMessage: 'Server failure for reg div maps' } };
+  spyOn(component.feeApiservice, 'getRequest').and.returnValue(throwError(() => serverError));
 
   // Act
-  component.onAcceptButtonClick(ActionType.add);
-  tick();
+  component.GenerateTableRows();
+  tick(); // flush subscription
 
-  // Assert — success (next)
-  expect(postSpy).toHaveBeenCalledWith('/api/addRegDiv', jasmine.any(Object));
-  expect(genSpy).toHaveBeenCalled();
-  expect(setMsgSpy).toHaveBeenCalledWith(BlockMessageType.success, component.addSuccessMessage);
-
-  // ✅ Simulate error flow
-  postSpy.and.returnValue(throwError(() => ({ error: { statusMessage: 'Server crash' } })));
-  component.onAcceptButtonClick(ActionType.add);
-  tick();
-  expect(errSpy).toHaveBeenCalledWith('Server crash');
-
-  // ✅ Simulate complete flow
-  postSpy.and.returnValue(of({})); // success again
-  component.onAcceptButtonClick(ActionType.add);
-  tick();
-
-  expect(auditSpy).toHaveBeenCalledWith(
-    'NA',
-    'NA',
-    jasmine.any(RegionDivisionMapping),
-    jasmine.any(Object),
-    component['auditLogService'].addAction,
-    component.PageTitle
-  );
+  // Assert
+  expect(component.feeApiservice.getRequest).toHaveBeenCalledWith('/api/regdivmaps');
+  expect(displaySpy).toHaveBeenCalledWith('Server failure for reg div maps');
+  expect(component.loading).toBeFalse();
+  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
+  expect(loadSpy).not.toHaveBeenCalled();
 }));
