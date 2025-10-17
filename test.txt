@@ -1,54 +1,61 @@
-it('onAcceptButtonClick(ActionType.update) -> next+complete: regenerates table, shows success and writes audit log', fakeAsync(() => {
-  // Arrange: make sure component has the things the method will read
-  (component as any)._regionComboBox = { value: '10' };   // selected region id string
-  (component as any)._divisionComboBox = { value: '200' };// selected division id string
+it('onAcceptButtonClick(ActionType.add): should regenerate table, show success, handle error, and write audit log on complete', fakeAsync(() => {
+  // Arrange
+  (component as any)._regionComboBox = { value: '1' };
+  (component as any)._divisionComboBox = { value: '10' };
 
   component.regdivmap = {
-    regDivId: 555,
-    /* other fields used by getUpdatedModel() / audit */
+    regDivId: 0,
+    regionId: 1,
+    divisionId: 10,
+    activeIndic: true
   } as any;
 
-  // Provide arrays so .find(...) works
-  component.regions = [
-    { regionId: 10, regionDescription: 'Region 10' }
-  ] as any;
-  component.divisions = [
-    { divisionId: 200, divisionDesc: 'Division 200', divisionCd: 'D200' }
-  ] as any;
+  // ✅ Provide mock arrays so no .find() errors occur
+  component.regions = [{ regionId: 1, regionDescription: 'Region A' }] as any;
+  component.divisions = [{ divisionId: 10, divisionDesc: 'Division X', divisionCd: 'DX' }] as any;
 
-  // Spies for side-effect helpers
-  const genSpy = spyOn(component as any, 'GenerateTableRows').and.callFake(() => {});
-  const setMsgSpy = spyOn(component as any, 'SetMessageTypeAndValue').and.callFake(() => {});
-  // spy store.dispatch so code that dispatches won't fail
-  const dispatchSpy = spyOn(component['store'], 'dispatch').and.callFake(() => {});
-  // spy displayServiceErrors to avoid noise if error path used elsewhere
-  spyOn(component as any, 'displayServiceErrors').and.callFake(() => {});
-
-  // Make putRequest succeed (next + complete will run)
-  const putSpy = spyOn(component.feeApiservice, 'putRequest').and.returnValue(of({}));
-
-  // Spy auditLogService.writeAuditLog (private typed) — cast to any
+  // ✅ Mock services and utilities
+  spyOn<any>(component, 'validateFormControls').and.returnValue(false);
+  const genSpy = spyOn<any>(component, 'GenerateTableRows').and.callFake(() => {});
+  const setMsgSpy = spyOn<any>(component, 'SetMessageTypeAndValue').and.callFake(() => {});
+  const errSpy = spyOn<any>(component, 'displayServiceErrors').and.callFake(() => {});
   const auditSpy = spyOn<any>(component['auditLogService'], 'writeAuditLog').and.callFake(() => {});
 
-  // Ensure validateFormControls allows execution (return false => not blocked)
-  spyOn<any>(component, 'ValidateFormControls').and.returnValue(false);
+  // ✅ Mock URL config
+  (component as any).appConfigService = {
+    addRegDivMappingUrl: '/api/addRegDiv'
+  };
+
+  // ✅ Simulate success, then error, then complete (via Observable.of and Subject)
+  const fake$ = of({}); // simulate successful HTTP observable
+  const postSpy = spyOn(component.feeApiservice, 'postRequest').and.returnValue(fake$);
 
   // Act
-  component.onAcceptButtonClick(ActionType.update);
-  tick(); // flush async
+  component.onAcceptButtonClick(ActionType.add);
+  tick();
 
-  // Assert: http call happened
-  expect(putSpy).toHaveBeenCalled();
-
-  // next() expected behavior: regenerate table and show success
+  // Assert — success (next)
+  expect(postSpy).toHaveBeenCalledWith('/api/addRegDiv', jasmine.any(Object));
   expect(genSpy).toHaveBeenCalled();
-  expect(setMsgSpy).toHaveBeenCalledWith(jasmine.anything(), jasmine.anything()); // you can tighten this
+  expect(setMsgSpy).toHaveBeenCalledWith(BlockMessageType.success, component.addSuccessMessage);
 
-  // complete() expected behavior: auditLogService.writeAuditLog called
-  expect(auditSpy).toHaveBeenCalled();
-  // optionally assert audit args (use jasmine.any for flexible matching)
-  expect(auditSpy.calls.mostRecent().args.length).toBeGreaterThan(0);
+  // ✅ Simulate error flow
+  postSpy.and.returnValue(throwError(() => ({ error: { statusMessage: 'Server crash' } })));
+  component.onAcceptButtonClick(ActionType.add);
+  tick();
+  expect(errSpy).toHaveBeenCalledWith('Server crash');
 
-  // ensure dispatch toggles exist and loading cleared (optional)
-  expect(dispatchSpy).toHaveBeenCalled();
+  // ✅ Simulate complete flow
+  postSpy.and.returnValue(of({})); // success again
+  component.onAcceptButtonClick(ActionType.add);
+  tick();
+
+  expect(auditSpy).toHaveBeenCalledWith(
+    'NA',
+    'NA',
+    jasmine.any(RegionDivisionMapping),
+    jasmine.any(Object),
+    component['auditLogService'].addAction,
+    component.PageTitle
+  );
 }));
