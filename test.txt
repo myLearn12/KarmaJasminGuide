@@ -1,44 +1,42 @@
-import { of, throwError } from 'rxjs';
-import { fakeAsync, tick } from '@angular/core/testing';
-
-it('LoadDefaultComboBox (error): should call displayServiceErrors when API fails', fakeAsync(() => {
-  // Arrange: make sure component has the appConfig properties the method reads
-  (component as any).appConfigService = {
-    getAllDivisionUrl: '/api/divisions',
-    getAllCostCenterUrl: '/api/costcenters'
+it('onUpdateModalClick(): else branch should deep-clone model, call helpers and show modal', () => {
+  // Arrange: mark a row selected and provide the model to clone
+  component.isRowSelected = true;
+  component.regdivmap = {
+    regionId: 11,
+    regionDescription: 'North',
+    divisionId: 21,
+    divisionDesc: 'Div 21'
   } as any;
 
-  // Make feeApiservice.getRequest throw for divisions API so forkJoin goes to error path
-  const serverError = { error: { statusMessage: 'Server failure for divisions' } };
-  spyOn(component.feeApiservice, 'getRequest').and.callFake((url: string) => {
-    if (String(url).toLowerCase().includes('division')) {
-      return throwError(() => serverError);
-    }
-    // safe fallback
-    return of([]);
-  });
+  // Prevent side-effects from ActivateFormControls (if it exists)
+  if ((component as any).ActivateFormControls) {
+    spyOn(component as any, 'ActivateFormControls').and.callFake(() => {});
+  }
 
-  // Spy the displayServiceErrors method and store.dispatch so we can assert they were used
-  const displaySpy = spyOn(component as any, 'displayServiceErrors').and.callThrough();
-  const dispatchSpy = spyOn(component['store'], 'dispatch');
+  // Spies for helper functions that should be called
+  const setInitialSpy = spyOn(component as any, 'setIntialvalues').and.callFake(() => {});
+  const getRegionSpy = spyOn(component as any, 'getRegionComboBoxValue').and.callFake(() => {});
+  const getDivisionSpy = spyOn(component as any, 'getDivisionComboBoxVal').and.callFake(() => {});
 
-  // Ensure viewchild placeholders exist so method won't crash if it attempts assignments
-  (component as any)._divisionComboBox = { options: null };
-  (component as any)._costCenterComboBox = { options: null };
+  // Provide a minimal mock for the modal so .show() exists and can be spied on
+  (component as any)._actionModal = { show: () => {} };
+  const modalShowSpy = spyOn((component as any)._actionModal, 'show').and.callFake(() => {});
 
-  // Act: call the method (it's protected; invoke via (component as any).LoadDefaultComboBox())
-  (component as any).LoadDefaultComboBox();
-  tick(); // advance microtasks / observables
+  // Act
+  component.onUpdateModalClick();
 
-  // Assert: displayServiceErrors called with server message
-  expect(displaySpy).toHaveBeenCalledWith('Server failure for divisions');
+  // Assert: selectedRegDivMap created and deep-cloned (equals but not same reference)
+  expect((component as any).selectedRegDivMap).toEqual(component.regdivmap);
+  expect((component as any).selectedRegDivMap).not.toBe(component.regdivmap);
 
-  // The error handler in LoadDefaultComboBox doesn't set combo arrays on error,
-  // so the combo data should still be undefined or empty - assert viewchild.options remain unchanged (null)
-  expect((component as any)._divisionComboBox.options).toBeNull();
-  expect((component as any)._costCenterComboBox.options).toBeNull();
+  // Assert: helper functions were called
+  expect(setInitialSpy).toHaveBeenCalled();
+  expect(getRegionSpy).toHaveBeenCalled();
+  expect(getDivisionSpy).toHaveBeenCalled();
 
-  // Optionally: ensure we did not dispatch LOADINGACTION(false) from this error path (depends on your implementation)
-  // If your error handler does dispatch LOADINGACTION(false), change this expectation accordingly.
-  expect(dispatchSpy).not.toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
-}));
+  // Assert: modal shown and action modal metadata set
+  expect(modalShowSpy).toHaveBeenCalled();
+  expect(component.actionModalTitle).toBe('Update');
+  // If you have ActionType imported in the spec file, assert exact enum:
+  expect(component.actionModalType).toBe(ActionType.update);
+});
