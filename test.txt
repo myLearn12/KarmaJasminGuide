@@ -1,34 +1,35 @@
-it('GenerateTableRows(): when API errors -> should call displayServiceErrors, clear loading and dispatch LOADINGACTION(false)', fakeAsync(() => {
+it('getRegionComboBoxValue(): should set regionComboBox.value based on matching regionId', () => {
   // Arrange
-  // make sure appConfigService URL exists (appConfigService may be private on component)
-  (component as any).appConfigService = {
-    getAllRegDivMappingUrl: '/api/regdivmaps'
-  } as any;
+  component.regions = [
+    { regionId: 10, regionDescription: 'East' },
+    { regionId: 20, regionDescription: 'West' }
+  ] as any;
 
-  // Ensure initial state like real component
-  component.loading = true;
+  component.regdivmap = { regionId: 20 } as any;
 
-  // Spy LoadTableRows so we can assert it's NOT called in error path
-  const loadSpy = spyOn(component as any, 'LoadTableRows').and.callFake(() => {});
-
-  // Spy displayServiceErrors
-  const displaySpy = spyOn(component as any, 'displayServiceErrors').and.callFake(() => {});
-
-  // Spy store.dispatch
-  const dispatchSpy = spyOn(component['store'], 'dispatch').and.callFake(() => {});
-
-  // Make feeApiservice.getRequest return an observable that errors
-  const serverError = { error: { statusMessage: 'Server failure for reg div maps' } };
-  spyOn(component.feeApiservice, 'getRequest').and.returnValue(throwError(() => serverError));
+  component.regionComboBox = { value: null } as any;
 
   // Act
-  component.GenerateTableRows();
-  tick(); // flush subscription
+  component.getRegionComboBoxValue();
 
   // Assert
-  expect(component.feeApiservice.getRequest).toHaveBeenCalledWith('/api/regdivmaps');
-  expect(displaySpy).toHaveBeenCalledWith('Server failure for reg div maps');
-  expect(component.loading).toBeFalse();
-  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
-  expect(loadSpy).not.toHaveBeenCalled();
-}));
+  expect(component.regionComboBox.value).toEqual(['20']);
+});
+
+it('getDivisionComboBoxVal(): should set divisionComboBox.value based on matching divisionId', () => {
+  // Arrange
+  component.divisions = [
+    { divisionId: 1, divisionDesc: 'Finance' },
+    { divisionId: 2, divisionDesc: 'Operations' }
+  ] as any;
+
+  component.regdivmap = { divisionId: 2 } as any;
+
+  component.divisionComboBox = { value: null } as any;
+
+  // Act
+  component.getDivisionComboBoxVal();
+
+  // Assert
+  expect(component.divisionComboBox.value).toEqual(['2']);
+});
