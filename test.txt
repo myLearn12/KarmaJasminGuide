@@ -1,71 +1,44 @@
-it('ngOnInit (complete): builds combo & viewchild data, deep-clones options, stops loading and dispatches LOADINGACTION(false)', fakeAsync(() => {
-  // ---- Arrange ----
-  // Provide the exact config values the component will read
+import { of, throwError } from 'rxjs';
+import { fakeAsync, tick } from '@angular/core/testing';
+
+it('LoadDefaultComboBox (error): should call displayServiceErrors when API fails', fakeAsync(() => {
+  // Arrange: make sure component has the appConfig properties the method reads
   (component as any).appConfigService = {
-    getAllRegDivMappingUrl: '/api/regdivmaps',
-    getAllRegionUrl: '/api/regions',
-    getAllDivisionUrl: '/api/divisions'
+    getAllDivisionUrl: '/api/divisions',
+    getAllCostCenterUrl: '/api/costcenters'
   } as any;
 
-  // API results the component expects
-  const regDivMaps: any[] = []; // used by LoadTableRows; keep empty or stub LoadTableRows
-  const regions = [{ regionId: 11, regionDescription: 'Region X' }];
-  const divisions = [{ divisionId: 21, divisionDesc: 'Division Y', divisionCd: 'DY' }];
-
-  // Make feeApiservice.getRequest robust by matching the actual URLs we set above
-  const calledUrls: string[] = [];
-  spyOn(component.feeApiservice, 'getRequest').and.callFake((url?: string) => {
-    calledUrls.push(String(url));
-    const u = String(url || '').toLowerCase();
-    if (u.includes('/regdivmaps')) return of(regDivMaps);
-    if (u.includes('/regions')) return of(regions);
-    if (u.includes('/divisions')) return of(divisions);
-    // fallback - return empty array so forkJoin completes
+  // Make feeApiservice.getRequest throw for divisions API so forkJoin goes to error path
+  const serverError = { error: { statusMessage: 'Server failure for divisions' } };
+  spyOn(component.feeApiservice, 'getRequest').and.callFake((url: string) => {
+    if (String(url).toLowerCase().includes('division')) {
+      return throwError(() => serverError);
+    }
+    // safe fallback
     return of([]);
   });
 
-  // Prevent LoadTableRows doing heavy work (optional but recommended)
-  if ((component as any).LoadTableRows) {
-    spyOn(component as any, 'LoadTableRows').and.callFake(() => {});
-  }
-
-  // utils.LoadComboBoxData stub (returns combo-style options)
-  const mappedRegions = [{ label: 'Region X', value: '11' }];
-  const mappedDivisions = [{ label: 'Division Y', value: '21' }];
-  spyOn(component['utils'], 'LoadComboBoxData').and.callFake((arr: any[], label: string, _code: string, id: string) => {
-    if (label === 'regionDescription') return mappedRegions;
-    if (label === 'divisionDesc') return mappedDivisions;
-    return [];
-  });
-
-  // Ensure viewchild objects exist so .options assignment won't throw
-  (component as any)._regionComboBox = { options: null };
-  (component as any)._divisionComboBox = { options: null };
-
-  // spy store.dispatch to verify LOADINGACTION(false)
+  // Spy the displayServiceErrors method and store.dispatch so we can assert they were used
+  const displaySpy = spyOn(component as any, 'displayServiceErrors').and.callThrough();
   const dispatchSpy = spyOn(component['store'], 'dispatch');
 
-  // ---- Act ----
-  component.ngOnInit();
-  tick();   // process forkJoin next + complete
-  flush();  // clear timers (if any)
+  // Ensure viewchild placeholders exist so method won't crash if it attempts assignments
+  (component as any)._divisionComboBox = { options: null };
+  (component as any)._costCenterComboBox = { options: null };
 
-  // ---- Debug helpful failure if URLs are unexpected ----
-  const sawRegions = calledUrls.some(u => /regions/i.test(u));
-  const sawDivisions = calledUrls.some(u => /divisions/i.test(u));
-  if (!sawRegions || !sawDivisions) {
-    fail('ngOnInit test URL mismatch. Calls made: ' + JSON.stringify(calledUrls, null, 2));
-    return;
-  }
+  // Act: call the method (it's protected; invoke via (component as any).LoadDefaultComboBox())
+  (component as any).LoadDefaultComboBox();
+  tick(); // advance microtasks / observables
 
-  // ---- Assert ----
-  expect(component.regionComboBoxData).toEqual([{ options: mappedRegions }]);
-  expect(component.divisionComboBoxData).toEqual([{ options: mappedDivisions }]);
+  // Assert: displayServiceErrors called with server message
+  expect(displaySpy).toHaveBeenCalledWith('Server failure for divisions');
 
-  // viewchild options deep-cloned from API arrays
-  expect((component as any)._regionComboBox.options).toEqual(JSON.parse(JSON.stringify(regions)));
-  expect((component as any)._divisionComboBox.options).toEqual(JSON.parse(JSON.stringify(divisions)));
+  // The error handler in LoadDefaultComboBox doesn't set combo arrays on error,
+  // so the combo data should still be undefined or empty - assert viewchild.options remain unchanged (null)
+  expect((component as any)._divisionComboBox.options).toBeNull();
+  expect((component as any)._costCenterComboBox.options).toBeNull();
 
-  expect(component.loading).toBeFalse();
-  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
+  // Optionally: ensure we did not dispatch LOADINGACTION(false) from this error path (depends on your implementation)
+  // If your error handler does dispatch LOADINGACTION(false), change this expectation accordingly.
+  expect(dispatchSpy).not.toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
 }));
