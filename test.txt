@@ -1,9 +1,54 @@
-const auditSpy = spyOn<any>(component['auditLogService'], 'writeAuditLog').and.callFake(() => {});
+it('onAcceptButtonClick(ActionType.update) -> next+complete: regenerates table, shows success and writes audit log', fakeAsync(() => {
+  // Arrange: make sure component has the things the method will read
+  (component as any)._regionComboBox = { value: '10' };   // selected region id string
+  (component as any)._divisionComboBox = { value: '200' };// selected division id string
 
+  component.regdivmap = {
+    regDivId: 555,
+    /* other fields used by getUpdatedModel() / audit */
+  } as any;
 
-(component as any).auditLogService = {
-  writeAuditLog: jasmine.createSpy('writeAuditLog')
-};
-const auditSpy = (component as any).auditLogService.writeAuditLog;
+  // Provide arrays so .find(...) works
+  component.regions = [
+    { regionId: 10, regionDescription: 'Region 10' }
+  ] as any;
+  component.divisions = [
+    { divisionId: 200, divisionDesc: 'Division 200', divisionCd: 'D200' }
+  ] as any;
 
-const auditSpy = spyOn<any>(component['auditLogService'], 'writeAuditLog').and.callFake(() => {});
+  // Spies for side-effect helpers
+  const genSpy = spyOn(component as any, 'GenerateTableRows').and.callFake(() => {});
+  const setMsgSpy = spyOn(component as any, 'SetMessageTypeAndValue').and.callFake(() => {});
+  // spy store.dispatch so code that dispatches won't fail
+  const dispatchSpy = spyOn(component['store'], 'dispatch').and.callFake(() => {});
+  // spy displayServiceErrors to avoid noise if error path used elsewhere
+  spyOn(component as any, 'displayServiceErrors').and.callFake(() => {});
+
+  // Make putRequest succeed (next + complete will run)
+  const putSpy = spyOn(component.feeApiservice, 'putRequest').and.returnValue(of({}));
+
+  // Spy auditLogService.writeAuditLog (private typed) — cast to any
+  const auditSpy = spyOn<any>(component['auditLogService'], 'writeAuditLog').and.callFake(() => {});
+
+  // Ensure validateFormControls allows execution (return false => not blocked)
+  spyOn<any>(component, 'ValidateFormControls').and.returnValue(false);
+
+  // Act
+  component.onAcceptButtonClick(ActionType.update);
+  tick(); // flush async
+
+  // Assert: http call happened
+  expect(putSpy).toHaveBeenCalled();
+
+  // next() expected behavior: regenerate table and show success
+  expect(genSpy).toHaveBeenCalled();
+  expect(setMsgSpy).toHaveBeenCalledWith(jasmine.anything(), jasmine.anything()); // you can tighten this
+
+  // complete() expected behavior: auditLogService.writeAuditLog called
+  expect(auditSpy).toHaveBeenCalled();
+  // optionally assert audit args (use jasmine.any for flexible matching)
+  expect(auditSpy.calls.mostRecent().args.length).toBeGreaterThan(0);
+
+  // ensure dispatch toggles exist and loading cleared (optional)
+  expect(dispatchSpy).toHaveBeenCalled();
+}));
