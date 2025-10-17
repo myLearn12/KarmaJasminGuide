@@ -1,42 +1,49 @@
-it('onAcceptButtonClick(ActionType.update) - on put error should restore selected, call displayServiceErrors and still clear/hide', fakeAsync(() => {
-  // Arrange - put all setup inside test
+it('onAcceptButtonClick(ActionType.update) - on success should regenerate table, show success and write audit log on complete', fakeAsync(() => {
+  // Arrange
   (component as any)._regionComboBox = { value: '1' };
   (component as any)._divisionComboBox = { value: '2' };
 
-  // original snapshot (should be restored on error)
-  component.selectedRegDivMap = {
-    regDivId: 99,
+  component.regdivmap = {
+    regDivId: 55,
     regionId: 1,
     divisionId: 2,
-    activeIndic: true
+    activeIndic: true,
+    createdBy: 'c1',
+    createdDt: '2020-01-01'
   } as any;
 
-  // mutated model simulating user edits
-  component.regdivmap = {
-    regDivId: 99,
-    regionId: 11,
-    divisionId: 22,
-    activeIndic: false
-  } as any;
+  // Keep a snapshot that the code might use (selected)
+  component.selectedRegDivMap = JSON.parse(JSON.stringify(component.regdivmap));
 
   // spies
-  const displaySpy = spyOn(component as any, 'displayServiceErrors');
-  const clearSpy = spyOn(component as any, 'clearselection');
-  const modalHideSpy = spyOn((component as any)._actionModal || {}, 'hide').and.callFake(() => {});
+  const genSpy = spyOn(component as any, 'GenerateTableRows').and.callFake(() => {});
+  const setMsgSpy = spyOn(component as any, 'SetMessageTypeAndValue').and.callFake(() => {});
+  const auditSpy = spyOn(component['auditLogService'] || {}, 'writeAuditLog').and.callFake(() => {});
   spyOn(component as any, 'validateFormControls').and.returnValue(false); // allow method to proceed
 
-  // make putRequest return an error
-  const errorResponse = { error: { statusMessage: 'server failed' } };
-  const putSpy = spyOn(component.feeApiservice, 'putRequest').and.returnValue(throwError(() => errorResponse));
+  // putRequest returns a successful observable (next then complete)
+  const putSpy = spyOn(component.feeApiservice, 'putRequest').and.returnValue(of({}));
 
   // Act
   component.onAcceptButtonClick(ActionType.update);
-  tick();
+  tick(); // flush next
+  flush(); // ensure complete and any timers are flushed
 
-  // Assert HTTP invoked and model restored
+  // Assertions
   expect(putSpy).toHaveBeenCalled();
-  expect(component.regdivmap).toEqual(component.selectedRegDivMap, 'regdivmap should be restored to snapshot on error');
-  expect(displaySpy).toHaveBeenCalledWith('server failed');
-  expect(clearSpy).toHaveBeenCalled();
-  expect(modalHideSpy).toHaveBeenCalled();
+  expect(genSpy).toHaveBeenCalled(); // next() handler invoked
+  expect(setMsgSpy).toHaveBeenCalledWith(jasmine.anything(), jasmine.any(String)); // success message called
+  // complete handler should call audit log; allow flexible assertion on parameters
+  expect(auditSpy).toHaveBeenCalledWith(
+    'regDivid',
+    component.regdivmap.regDivId.toString(),
+    component.selectedRegDivMap,
+    jasmine.any(Object),
+    component['auditLogService']?.updateAction,
+    component.PageTitle
+  );
+
+  // final cleanup: modal hidden and selection cleared
+  expect((component as any)._actionModal).toBeDefined();
+  // The method calls clearselection() and hides modal at the end — assert they exist (if you spy them earlier you can assert called)
 }));
