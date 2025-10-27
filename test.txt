@@ -1,57 +1,124 @@
-it('onAcceptButtonClick(ActionType.add) - posts payload, regenerates table, shows success and calls auditLog on complete', fakeAsync(() => {
-  // Arrange
-  // ensure appConfigService.url is available (appConfigService is private on component)
+import { of, throwError } from 'rxjs';
+import { fakeAsync, tick } from '@angular/core/testing';
+
+it('onAcceptButtonClick(ActionType.update) - next+complete: regenerates table, shows success and writes audit log', fakeAsync(() => {
+  // Arrange - put all setup inside the test
   (component as any).appConfigService = {
-    addDivisionUrl: '/api/divisions/add'
+    updateDivisionUrl: '/api/divisions/update/'
   } as any;
 
-  // Prepare division model and cost center combo so payload fields are populated
+  // current (mutated) division in UI
   component.division = {
-    divisionCd: 'D100',
-    divisionDesc: 'Division 100',
-    regDesc: 'Region 1',
-    divisionShortNm: 'Div100',
-    abaNbr: '111222333',
-    typeCd: 'T1',
+    divisionId: 123,
+    divisionCd: 'D123',
+    divisionDesc: 'Desc',
     activeIndic: true
   } as any;
-  (component as any)._costCenterComboBox = { value: '500' };
+
+  // snapshot saved before edit (selectedDivision) to be used for audit or restore on error
+  component.selectedDivision = {
+    divisionId: 123,
+    divisionCd: 'D123-ORIG',
+    divisionDesc: 'Orig Desc',
+    activeIndic: false
+  } as any;
+
+  // Prevent validateFormControls from blocking the call
+  spyOn(component as any, 'ValidateFormControls').and.returnValue(false);
+
+  // Spy side effects
+  const genSpy = spyOn(component as any, 'GenerateTableRows').and.callFake(() => {});
+  const setMsgSpy = spyOn(component as any, 'SetMessageTypeAndValue').and.callFake(() => {});
+  // ensure getUpdatedModel returns something stable for the audit call
+  spyOn(component as any, 'getUpdatedModel').and.returnValue({ some: 'model' });
+
+  // Provide auditLogService if private
+  (component as any).auditLogService = (component as any).auditLogService || { writeAuditLog: () => {} };
+  const auditSpy = spyOn(component['auditLogService'] as any, 'writeAuditLog').and.callFake(() => {});
+
+  // Ensure clearSelection/_actionModal exist so final lines don't crash
+  const clearSpy = spyOn(component as any, 'clearSelection').and.callFake(() => {});
+  (component as any)._actionModal = (component as any)._actionModal || { hide: () => {} };
+  const modalHideSpy = spyOn((component as any)._actionModal, 'hide').and.callFake(() => {});
+
+  // Spy putRequest to return success (emits next then complete)
+  const putSpy = spyOn(component.feeApiservice, 'putRequest').and.returnValue(of({}));
+
+  // Act
+  component.onAcceptButtonClick(ActionType.update);
+  tick(); // flush the Observable (of) so next + complete run
+
+  // Assert - network called with expected URL
+  expect(putSpy).toHaveBeenCalledTimes(1);
+  const [calledUrl] = putSpy.calls.mostRecent().args as [string, any];
+  expect(calledUrl).toBe((component as any).appConfigService.updateDivisionUrl + component.division.divisionId);
+
+  // next() side-effects
+  expect(genSpy).toHaveBeenCalled();
+  expect(setMsgSpy).toHaveBeenCalledWith(BlockMessageType.success, component.updateSuccessMessage);
+
+  // complete() => audit log should be called with expected args
+  expect(auditSpy).toHaveBeenCalledWith(
+    'divisionCd',
+    component.division.divisionCd.toString(),
+    component.selectedDivision,
+    jasmine.any(Object), // getUpdatedModel returned object
+    (component as any).auditLogService.updateAction,
+    component.PageTitle
+  );
+
+  // final cleanup calls (clear/hide)
+  expect(clearSpy).toHaveBeenCalled();
+  expect(modalHideSpy).toHaveBeenCalled();
+}));
+
+
+it('onAcceptButtonClick(ActionType.update) - error: restores model and displays service error', fakeAsync(() => {
+  // Arrange
+  (component as any).appConfigService = {
+    updateDivisionUrl: '/api/divisions/update/'
+  } as any;
+
+  // mutated division
+  component.division = {
+    divisionId: 555,
+    divisionCd: 'D-NEW',
+    divisionDesc: 'New Desc'
+  } as any;
+
+  // original snapshot to restore on error
+  component.selectedDivision = {
+    divisionId: 555,
+    divisionCd: 'D-ORIG',
+    divisionDesc: 'Orig Desc'
+  } as any;
 
   // Prevent validateFormControls from blocking
   spyOn(component as any, 'ValidateFormControls').and.returnValue(false);
 
-  // Spy side-effect helpers so we can assert they're called
-  const genSpy = spyOn(component as any, 'GenerateTableRows').and.callFake(() => {});
-  const setMsgSpy = spyOn(component as any, 'SetMessageTypeAndValue').and.callFake(() => {});
+  // Spy display service errors
+  const displaySpy = spyOn(component as any, 'displayServiceErrors').and.callFake(() => {});
+
+  // Spy putRequest to return an error observable
+  const serverError = { error: { statusMessage: 'Server failure updating division' } };
+  spyOn(component.feeApiservice, 'putRequest').and.returnValue(throwError(() => serverError));
+
+  // Ensure clearSelection/_actionModal mocks so function reaches end without crash
   const clearSpy = spyOn(component as any, 'clearSelection').and.callFake(() => {});
-  const modalHideSpy = spyOn((component as any)._actionModal || {}, 'hide').and.callFake(() => {});
-
-  // Spy audit log service (private) — use bracket access to avoid TS errors
-  const auditSpy = spyOn(component['auditLogService'] as any, 'writeAuditLog').and.callFake(() => {});
-
-  // Spy postRequest and make it return a success observable that completes
-  const postSpy = spyOn(component.feeApiservice, 'postRequest').and.returnValue(of({}));
+  (component as any)._actionModal = (component as any)._actionModal || { hide: () => {} };
+  const modalHideSpy = spyOn((component as any)._actionModal, 'hide').and.callFake(() => {});
 
   // Act
-  component.onAcceptButtonClick(ActionType.add);
-  tick(); // flush the of({}) and allow subscribe.complete to run
+  component.onAcceptButtonClick(ActionType.update);
+  tick(); // flush throwError
 
-  // Assert: API called once with configured URL and a payload containing expected keys
-  expect(postSpy).toHaveBeenCalledTimes(1);
-  const [calledUrl, calledPayload] = postSpy.calls.mostRecent().args as [string, any];
-  expect(calledUrl).toBe((component as any).appConfigService.addDivisionUrl);
-  // payload should include some properties we expect (flexible check)
-  expect(calledPayload).toBeDefined();
-  expect(calledPayload.divisionCd).toBe('D100');
-  expect(calledPayload.costCenterId).toBe('500');
-  expect(calledPayload.abaNbr).toBe('111222333');
+  // Assert: displayServiceErrors called with message
+  expect(displaySpy).toHaveBeenCalledWith('Server failure updating division');
 
-  // side-effects should have run
-  expect(genSpy).toHaveBeenCalled();
-  expect(setMsgSpy).toHaveBeenCalledWith(BlockMessageType.success, component.addSuccessMessage);
-  expect(auditSpy).toHaveBeenCalled();
+  // division should have been restored from selectedDivision
+  expect(component.division).toEqual(jasmine.objectContaining(component.selectedDivision));
 
-  // modal should be hidden and selection cleared
+  // final cleanup called
   expect(clearSpy).toHaveBeenCalled();
   expect(modalHideSpy).toHaveBeenCalled();
 }));
