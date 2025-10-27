@@ -1,63 +1,129 @@
-it('onAcceptButtonClick(ActionType.update) - next+complete: regenerates table, shows success and writes audit log', fakeAsync(() => {
-  // Arrange
-  (component as any).appConfigService = { updateDivisionUrl: '/api/divisions/' } as any;
+import { fakeAsync, tick } from '@angular/core/testing';
+import { of, throwError } from 'rxjs';
+import { ActionType } from '...'; // import ActionType the same way your spec does
+// (assume `component` is created in beforeEach as usual)
 
+it('getUpdatedModel(): builds model correctly when all lookup data present', () => {
+  // Arrange - provide all data that getUpdatedModel expects
   component.division = {
-    divisionId: 321,
-    divisionCd: 'D321',
-    divisionDesc: 'Division 321',
+    divisionId: 10,
+    divisionCd: 'D10',
+    divisionDesc: 'Division 10',
+    divisionShortNm: 'Div10',
+    abaNbr: '111222333',
+    typeCd: 'T1',
+    createdBy: 'u1',
+    createdDt: '2025-01-01T00:00:00',
+    updatedBy: 'u2',
+    updatedDt: '2025-02-02T00:00:00',
     activeIndic: true
   } as any;
 
   component.selectedDivision = {
-    divisionId: 321,
-    divisionCd: 'D321-ORIG',
-    divisionDesc: 'Orig 321',
-    activeIndic: false
+    revShareDivId: 5,
+    revShareTypeId: 20,
+    revShareTypeCd: 'R20'
   } as any;
 
-  // ensure arrays used by getUpdatedModel() exist (or stub getUpdatedModel)
-  component.divisions = [{ divisionId: 321, divisionCd: 'D321', divisionDesc: 'Division 321' }];
-  component.costCenters = [{ costCenterId: 1, costCenterNbr: '100', costCenterDesc: 'Cost A' }];
+  // revShareDivMappingList used by .find(...)
+  component.revShareDivMappingList = [
+    { revShareTypeId: 20, revShareDesc: 'Revenue Desc 20' },
+    { revShareTypeId: 21, revShareDesc: 'Revenue Desc 21' }
+  ] as any[];
 
-  // viewchild mocks
-  (component as any)._costCenterComboBox = { value: '100' };
+  // cost center combo value and lookup lists
+  (component as any)._costCenterComboBox = { value: '1' };
+  component.costCentersList = [{ costCenterId: 1, costCenterNbr: '100' }] as any[];
+  // NOTE: your method uses costCenterfibr (typo) for costCenterNbr — set both names defensively:
+  component.costCenters = [
+    { costCenterId: 1, costCenterNbr: '100', costCenterDesc: 'Cost A', costCenterfibr: '100' }
+  ] as any[];
 
-  // Prevent validateFormControls from blocking
+  // Act
+  const updated = (component as any).getUpdatedModel();
+
+  // Assert - key fields mapped correctly
+  expect(updated.divisionId).toBe(10);
+  expect(updated.divisionCd).toBe('D10');
+  expect(updated.revShareDivId).toBe(5);
+  expect(updated.revShareTypeId).toBe(20);
+  expect(updated.revShareDesc).toBe('Revenue Desc 20'); // found via revShareDivMappingList
+  expect(updated.costCenterId).toBe(1); // parsed from combo value
+  // costCenterNbr property in method comes from costCentersList.find(...).costCenterfibr
+  expect(updated.costCenterNbr).toBe('100');
+  expect(updated.costCenterDesc).toBe('Cost A');
+  expect(updated.abaNbr).toBe('111222333');
+  expect(updated.typeCd).toBe('T1');
+  expect(updated.activeIndic).toBe(true);
+});
+
+it('onAcceptButtonClick(ActionType.update) - success path: regenerates table, shows success and writes audit log (self-contained)', fakeAsync(() => {
+  // Arrange: put everything in this test so it's self-contained
+  (component as any).appConfigService = { updateDivisionUrl: '/api/divisions/' } as any;
+
+  // model to be updated
+  component.division = {
+    divisionId: 77,
+    divisionCd: 'D77',
+    divisionDesc: 'Division 77',
+    divisionShortNm: 'D77',
+    abaNbr: '999888777',
+    typeCd: 'T2',
+    createdBy: 'u1',
+    createdDt: '2025-01-01T00:00:00',
+    updatedBy: 'u2',
+    updatedDt: '2025-02-02T00:00:00',
+    activeIndic: true
+  } as any;
+
+  component.selectedDivision = {
+    revShareDivId: 3,
+    revShareTypeId: 30,
+    revShareTypeCd: 'R30'
+  } as any;
+
+  // provide arrays used in getUpdatedModel() if it runs in complete()
+  component.revShareDivMappingList = [{ revShareTypeId: 30, revShareDesc: 'Revenue 30' }] as any[];
+  component.costCentersList = [{ costCenterId: 2, costCenterNbr: '200', costCenterfibr: '200' }] as any[];
+  component.costCenters = [{ costCenterId: 2, costCenterNbr: '200', costCenterDesc: 'Cost 200' }] as any[];
+
+  // combo viewchild values expected by code
+  (component as any)._costCenterComboBox = { value: '2' };
+
+  // Prevent form validation from short-circuiting
   spyOn(component as any, 'ValidateFormControls').and.returnValue(false);
 
-  // spy GenerateTableRows and SetMessageTypeAndValue
+  // spies for next/complete effects
   const genSpy = spyOn(component as any, 'GenerateTableRows').and.callFake(() => {});
   const setMsgSpy = spyOn(component as any, 'SetMessageTypeAndValue').and.callFake(() => {});
-
-  // Provide auditLogService if private and give updateAction token
+  // provide auditLogService (private) and spy on it
   (component as any).auditLogService = {
     writeAuditLog: () => {},
-    updateAction: 'UPDATE',
-    addAction: 'ADD'
+    updateAction: 'U',
+    addAction: 'A'
   } as any;
-  const auditSpy = spyOn(component['auditLogService'] as any, 'writeAuditLog').and.callFake(() => {});
+  const auditSpy = spyOn((component as any).auditLogService, 'writeAuditLog').and.callFake(() => {});
 
-  // stub getUpdatedModel to avoid any .find complexity
+  // stub getUpdatedModel to return a harmless object (so complete() can use it)
   spyOn(component as any, 'getUpdatedModel').and.returnValue({ some: 'model' });
 
-  // make putRequest return success (next then complete)
+  // make putRequest succeed
   spyOn(component.feeApiservice, 'putRequest').and.returnValue(of({}));
 
-  // ensure clearSelection/_actionModal exist
+  // ensure clearSelection and action modal hide exist and are spied (component clears/hides at end)
   const clearSpy = spyOn(component as any, 'clearSelection').and.callFake(() => {});
   (component as any)._actionModal = (component as any)._actionModal || { hide: () => {} };
-  const modalHideSpy = spyOn((component as any)._actionModal, 'hide').and.callFake(() => {});
+  const hideSpy = spyOn((component as any)._actionModal, 'hide').and.callFake(() => {});
 
   // Act
   component.onAcceptButtonClick(ActionType.update);
   tick();
 
-  // Assert next() side-effects
+  // Assert - subscribe next() side-effects:
   expect(genSpy).toHaveBeenCalled();
   expect(setMsgSpy).toHaveBeenCalledWith(BlockMessageType.success, component.updateSuccessMessage);
 
-  // complete() -> audit log
+  // complete() should cause audit log to be written
   expect(auditSpy).toHaveBeenCalledWith(
     'divisionCd',
     component.division.divisionCd.toString(),
@@ -67,6 +133,7 @@ it('onAcceptButtonClick(ActionType.update) - next+complete: regenerates table, s
     component.PageTitle
   );
 
+  // and component finalizers should run
   expect(clearSpy).toHaveBeenCalled();
-  expect(modalHideSpy).toHaveBeenCalled();
+  expect(hideSpy).toHaveBeenCalled();
 }));
