@@ -1,19 +1,29 @@
-import { throwError } from 'rxjs';
 import { fakeAsync, tick } from '@angular/core/testing';
+import { throwError, of } from 'rxjs';
+
+// Make sure LOADINGACTION is imported in your spec file (same symbol used by the component)
+import { LOADINGACTION } from 'path/to/your/actions';
 
 it('GenerateTableRows(): when API errors -> should call displayServiceErrors, clear loading, and dispatch LOADINGACTION(false)', fakeAsync(() => {
   // Arrange
-  const mockError = { error: { statusMessage: 'Server failure during GenerateTableRows' } };
 
-  // Spy on dependent methods
+  // Ensure private store is a spy object
+  (component as any).store = jasmine.createSpyObj('store', ['dispatch']);
+
+  // Ensure feeApiservice exists and getRequest will throw
+  (component as any).feeApiservice = (component as any).feeApiservice || {};
+  spyOn((component as any).feeApiservice, 'getRequest').and.returnValue(throwError(() => ({ error: { statusMessage: 'Server failure during GenerateTableRows' } })));
+
+  // If component.displayServiceErrors is a private method, cast and spy it
   const displaySpy = spyOn(component as any, 'displayServiceErrors').and.callFake(() => {});
-  const dispatchSpy = spyOn(component.store, 'dispatch').and.callFake(() => {});
 
-  // Mock feeApiservice.getRequest to throw error for forkJoin
-  spyOn(component.feeApiservice, 'getRequest').and.returnValue(throwError(() => mockError));
+  // Prevent LoadTableRows from running (we only assert error path)
+  if ((component as any).LoadTableRows) {
+    spyOn(component as any, 'LoadTableRows').and.callFake(() => {});
+  }
 
-  // Prevent LoadTableRows or success logic from executing (we only test error path)
-  spyOn(component as any, 'LoadTableRows').and.callFake(() => {});
+  // Initialize loading to true to assert it becomes false after error
+  component.loading = true;
 
   // Act
   (component as any).GenerateTableRows();
@@ -22,5 +32,5 @@ it('GenerateTableRows(): when API errors -> should call displayServiceErrors, cl
   // Assert
   expect(displaySpy).toHaveBeenCalledWith('Server failure during GenerateTableRows');
   expect(component.loading).toBeFalse();
-  expect(dispatchSpy).toHaveBeenCalledWith(new LOADINGACTION(false));
+  expect((component as any).store.dispatch).toHaveBeenCalledWith(new LOADINGACTION(false));
 }));
