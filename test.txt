@@ -1,77 +1,34 @@
-import { of, throwError } from 'rxjs';
-import { fakeAsync, tick } from '@angular/core/testing';
+it('getRegionComboBoxValue(): should set _regionComboBox.value based on matching regionId', () => {
+  // Arrange
+  component.regions = [
+    { regionId: 10, regionDescription: 'North' },
+    { regionId: 20, regionDescription: 'South' }
+  ];
+  component.autocom = { regId: 20 } as any;
 
-it('LoadDefaultComboBox(): when APIs error -> should call displayServiceErrors and not set viewchild options', fakeAsync(() => {
-  // Arrange - ensure viewchild mocks so assignments won't throw
-  (component as any)._regionComboBox = { options: null };
-  (component as any)._controlIdComboBox = { options: null };
-
-  // Spy displayServiceErrors to assert it was called
-  const displaySpy = spyOn(component as any, 'displayServiceErrors');
-
-  // Make feeApiservice.getRequest return an error observable for any URL
-  spyOn(component.feeApiservice, 'getRequest').and.callFake((url: string) => {
-    // emulate server error shape used in your code: error.error.statusMessage
-    return throwError(() => ({ error: { statusMessage: 'Server failure for combos' } }));
-  });
+  (component as any)._regionComboBox = { value: null };
 
   // Act
-  (component as any).LoadDefaultComboBox();
-  tick(); // let forkJoin subscribe callbacks run
+  component.getRegionComboBoxValue();
 
   // Assert
-  expect(displaySpy).toHaveBeenCalledWith('Server failure for combos');
-
-  // Ensure no options were populated (remain null)
-  expect((component as any)._regionComboBox.options).toBeNull();
-  expect((component as any)._controlIdComboBox.options).toBeNull();
-}));
+  expect((component as any)._regionComboBox.value).toEqual(['20']);
+});
 
 
-it('LoadDefaultComboBox(): on complete should build combo data, deep-clone viewchild.options and clear loading + dispatch LOADINGACTION(false)', fakeAsync(() => {
+it('getControlIdComboBoxValue(): should set _controlIdComboBox.value based on matching controlId', () => {
   // Arrange
-  (component as any)._regionComboBox = { options: null };
-  (component as any)._controlIdComboBox = { options: null };
+  component.controlIds = [
+    { conId: 100, controlDesc: 'Control A' },
+    { conId: 200, controlDesc: 'Control B' }
+  ];
+  component.autocom = { controlId: 100 } as any;
 
-  // realistic data returned by the two API calls
-  const regions = [{ regionId: 11, regionDescription: 'Region X' }];
-  const controlIds = [{ conId: 200, controlDesc: 'Control 200' }];
-
-  // capture called urls (optional debug)
-  const calledUrls: string[] = [];
-  spyOn(component.feeApiservice, 'getRequest').and.callFake((url: string) => {
-    calledUrls.push(String(url));
-    const u = String(url || '').toLowerCase();
-    if (u.includes('region')) return of(regions);
-    if (u.includes('control') || u.includes('conid')) return of(controlIds);
-    return of([]); // fallback
-  });
-
-  // Make utils.LoadComboBoxData return a predictable options array
-  const mappedRegions = [{ label: 'Region X', value: '11' }];
-  const mappedControlIds = [{ label: 'Control 200', value: '200' }];
-  spyOn(component['utils'], 'LoadComboBoxData').and.callFake((arr: any[], label: string, _code: string, id: string) => {
-    if (label === 'regionDescription') return mappedRegions;
-    if (label === 'controlDesc') return mappedControlIds;
-    return [];
-  });
-
-  // Spy store.dispatch so we can assert LOADINGACTION dispatched
-  const dispatchSpy = spyOn(component['store'], 'dispatch');
+  (component as any)._controlIdComboBox = { value: null };
 
   // Act
-  (component as any).LoadDefaultComboBox();
-  tick(); // flush forkJoin subscribe next/complete
+  component.getControlIdComboBoxValue();
 
-  // Assert: combo data arrays built using utils.LoadComboBoxData
-  expect(component.regionComboBoxData).toEqual([{ options: mappedRegions }]);
-  expect(component.controlIdComboBoxData).toEqual([{ options: mappedControlIds }]);
-
-  // Assert: ViewChild options set to deep-cloned arrays (component uses JSON.parse(JSON.stringify(...)))
-  expect((component as any)._regionComboBox.options).toEqual(JSON.parse(JSON.stringify(regions)));
-  expect((component as any)._controlIdComboBox.options).toEqual(JSON.parse(JSON.stringify(controlIds)));
-
-  // loading turned off and LOADINGACTION(false) dispatched
-  expect(component.loading).toBeFalse();
-  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
-}));
+  // Assert
+  expect((component as any)._controlIdComboBox.value).toEqual(['100']);
+});
