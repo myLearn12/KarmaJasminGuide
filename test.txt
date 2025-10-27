@@ -1,16 +1,12 @@
-import { fakeAsync, tick } from '@angular/core/testing';
-import { of, throwError } from 'rxjs';
-import { ActionType } from '...'; // adjust path if needed
-
-it('onAcceptButtonClick(ActionType.add) - success: posts, regenerates table, shows success and writes audit log', fakeAsync(() => {
-  // Arrange: make validateFormControls allow execution
+it('onAcceptButtonClick(ActionType.update) - success: should put, regenerate table and call auditLog on complete', fakeAsync(() => {
+  // Arrange: allow form validation to pass
   spyOn(component as any, 'validateFormControls').and.returnValue(false);
 
-  // Provide the combo viewchild mocks the component expects (they are protected/private in class)
+  // Provide viewchild combo mocks so .value.toString() is safe
   (component as any)._controlIdComboBox = { value: '200' };
   (component as any)._regionComboBox = { value: '10' };
 
-  // Provide the arrays that getUpdatedModel() will read and call .find() on
+  // Provide arrays that getUpdatedModel() will call .find() on
   component.controlIds = [
     { conId: 200, controlDesc: 'Control 200' }
   ] as any;
@@ -18,34 +14,48 @@ it('onAcceptButtonClick(ActionType.add) - success: posts, regenerates table, sho
     { regionId: 10, regionDescription: 'Region 10' }
   ] as any;
 
-  // Minimal autocom object the method uses
+  // Provide an autocom object that has an id (update needs it)
   component.autocom = {
+    autocomId: 5,
     autocomAcctNbr: 'ACCT-123',
     activeIndic: true,
-    // other fields not strictly required by this test...
+    // other fields used by getUpdatedModel() if any...
   } as any;
 
-  // Spies for side-effects & HTTP
-  const postSpy = spyOn(component.feeApiservice, 'postRequest').and.returnValue(of({}));
+  // Ensure appConfigService has the update URL (private property can be set via indexer)
+  (component as any).appConfigService = { updateAutocomUrl: '/api/autocom/update/' } as any;
 
-  // Prevent real side-effects
+  // Spy the HTTP put to succeed (complete() will run)
+  const putSpy = spyOn(component.feeApiservice, 'putRequest').and.returnValue(of({}));
+
+  // Stub/spy side-effects so we can assert they were called
   const genSpy = spyOn(component as any, 'GenerateTableRows').and.callFake(() => {});
   const setMsgSpy = spyOn(component as any, 'SetMessageTypeAndValue').and.callFake(() => {});
-  // auditLogService is private, access via indexer
+
+  // auditLogService is private — access via bracket and spy
   const auditSpy = spyOn(component['auditLogService'] as any, 'writeAuditLog').and.callFake(() => {});
 
-  // If _actionModal.hide/show might be called later, provide a stub so no undefined errors
-  (component as any)._actionModal = (component as any)._actionModal || { show: () => {}, hide: () => {} };
-  spyOn((component as any)._actionModal, 'show').and.callThrough();
+  // guard modal hide so no undefined errors later
+  (component as any)._actionModal = (component as any)._actionModal || { hide: () => {}, show: () => {} };
   spyOn((component as any)._actionModal, 'hide').and.callThrough();
 
   // Act
-  component.onAcceptButtonClick(ActionType.add);
-  tick(); // flush the postRequest observable and subscribe complete()
+  component.onAcceptButtonClick(ActionType.update);
+  tick(); // flush putRequest observable and allow complete() body to run
 
-  // Assert
-  expect(postSpy).toHaveBeenCalled();
+  // Assert: HTTP called with expected url (contains autocomId)
+  expect(putSpy).toHaveBeenCalled();
+  const [calledUrl] = putSpy.calls.mostRecent().args;
+  expect(String(calledUrl)).toContain('/api/autocom/update/');
+  expect(String(calledUrl)).toContain(component.autocom.autocomId.toString());
+
+  // Assert: table regenerated and success message set
   expect(genSpy).toHaveBeenCalled();
-  expect(setMsgSpy).toHaveBeenCalledWith(jasmine.anything(), component.addSuccessMessage);
-  expect(auditSpy).toHaveBeenCalled(); // complete() should have executed and called auditLogService.writeAuditLog()
+  expect(setMsgSpy).toHaveBeenCalledWith(jasmine.anything(), component.updateSuccessMessage);
+
+  // Assert: audit log called during complete()
+  expect(auditSpy).toHaveBeenCalled();
+
+  // And the modal should be hidden and selection cleared (final cleanup behavior)
+  expect((component as any)._actionModal.hide).toHaveBeenCalled();
 }));
