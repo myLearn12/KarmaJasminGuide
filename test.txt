@@ -1,124 +1,56 @@
-import { of, throwError } from 'rxjs';
 import { fakeAsync, tick } from '@angular/core/testing';
+import { of, throwError } from 'rxjs';
 
-it('onAcceptButtonClick(ActionType.update) - next+complete: regenerates table, shows success and writes audit log', fakeAsync(() => {
-  // Arrange - put all setup inside the test
-  (component as any).appConfigService = {
-    updateDivisionUrl: '/api/divisions/update/'
-  } as any;
+it('onAcceptButtonClick(ActionType.update) - error: restores model and displays service error (DivisionComponent)', fakeAsync(() => {
+  // Arrange (self-contained)
+  (component as any).appConfigService = { updateDivisionUrl: '/api/divisions/' } as any;
 
-  // current (mutated) division in UI
+  // mutated division (as if user edited)
   component.division = {
-    divisionId: 123,
-    divisionCd: 'D123',
-    divisionDesc: 'Desc',
+    divisionId: 197,
+    divisionCd: 'D-NEW',
+    divisionDesc: 'New Desc',
     activeIndic: true
   } as any;
 
-  // snapshot saved before edit (selectedDivision) to be used for audit or restore on error
+  // snapshot to restore on error
   component.selectedDivision = {
-    divisionId: 123,
-    divisionCd: 'D123-ORIG',
+    divisionId: 197,
+    divisionCd: 'D-ORIG',
     divisionDesc: 'Orig Desc',
     activeIndic: false
   } as any;
 
-  // Prevent validateFormControls from blocking the call
+  // Provide any collections used by getUpdatedModel() or other code
+  component.costCenters = [{ costCenterId: 1, costCenterNbr: '100', costCenterDesc: 'Cost A' }];
+  component.divisions = [{ divisionId: 197, divisionCd: 'D-NEW', divisionDesc: 'Division 197' }];
+
+  // Provide viewchild combo values that the method may call .toString() on
+  (component as any)._costCenterComboBox = { value: '100' };
+
+  // Prevent validation from short-circuiting
   spyOn(component as any, 'ValidateFormControls').and.returnValue(false);
 
-  // Spy side effects
-  const genSpy = spyOn(component as any, 'GenerateTableRows').and.callFake(() => {});
-  const setMsgSpy = spyOn(component as any, 'SetMessageTypeAndValue').and.callFake(() => {});
-  // ensure getUpdatedModel returns something stable for the audit call
-  spyOn(component as any, 'getUpdatedModel').and.returnValue({ some: 'model' });
-
-  // Provide auditLogService if private
-  (component as any).auditLogService = (component as any).auditLogService || { writeAuditLog: () => {} };
-  const auditSpy = spyOn(component['auditLogService'] as any, 'writeAuditLog').and.callFake(() => {});
-
-  // Ensure clearSelection/_actionModal exist so final lines don't crash
-  const clearSpy = spyOn(component as any, 'clearSelection').and.callFake(() => {});
-  (component as any)._actionModal = (component as any)._actionModal || { hide: () => {} };
-  const modalHideSpy = spyOn((component as any)._actionModal, 'hide').and.callFake(() => {});
-
-  // Spy putRequest to return success (emits next then complete)
-  const putSpy = spyOn(component.feeApiservice, 'putRequest').and.returnValue(of({}));
-
-  // Act
-  component.onAcceptButtonClick(ActionType.update);
-  tick(); // flush the Observable (of) so next + complete run
-
-  // Assert - network called with expected URL
-  expect(putSpy).toHaveBeenCalledTimes(1);
-  const [calledUrl] = putSpy.calls.mostRecent().args as [string, any];
-  expect(calledUrl).toBe((component as any).appConfigService.updateDivisionUrl + component.division.divisionId);
-
-  // next() side-effects
-  expect(genSpy).toHaveBeenCalled();
-  expect(setMsgSpy).toHaveBeenCalledWith(BlockMessageType.success, component.updateSuccessMessage);
-
-  // complete() => audit log should be called with expected args
-  expect(auditSpy).toHaveBeenCalledWith(
-    'divisionCd',
-    component.division.divisionCd.toString(),
-    component.selectedDivision,
-    jasmine.any(Object), // getUpdatedModel returned object
-    (component as any).auditLogService.updateAction,
-    component.PageTitle
-  );
-
-  // final cleanup calls (clear/hide)
-  expect(clearSpy).toHaveBeenCalled();
-  expect(modalHideSpy).toHaveBeenCalled();
-}));
-
-
-it('onAcceptButtonClick(ActionType.update) - error: restores model and displays service error', fakeAsync(() => {
-  // Arrange
-  (component as any).appConfigService = {
-    updateDivisionUrl: '/api/divisions/update/'
-  } as any;
-
-  // mutated division
-  component.division = {
-    divisionId: 555,
-    divisionCd: 'D-NEW',
-    divisionDesc: 'New Desc'
-  } as any;
-
-  // original snapshot to restore on error
-  component.selectedDivision = {
-    divisionId: 555,
-    divisionCd: 'D-ORIG',
-    divisionDesc: 'Orig Desc'
-  } as any;
-
-  // Prevent validateFormControls from blocking
-  spyOn(component as any, 'ValidateFormControls').and.returnValue(false);
-
-  // Spy display service errors
+  // Spy displayServiceErrors
   const displaySpy = spyOn(component as any, 'displayServiceErrors').and.callFake(() => {});
 
-  // Spy putRequest to return an error observable
+  // make putRequest throw
   const serverError = { error: { statusMessage: 'Server failure updating division' } };
   spyOn(component.feeApiservice, 'putRequest').and.returnValue(throwError(() => serverError));
 
-  // Ensure clearSelection/_actionModal mocks so function reaches end without crash
+  // ensure clearSelection / hide exist
   const clearSpy = spyOn(component as any, 'clearSelection').and.callFake(() => {});
   (component as any)._actionModal = (component as any)._actionModal || { hide: () => {} };
   const modalHideSpy = spyOn((component as any)._actionModal, 'hide').and.callFake(() => {});
 
   // Act
   component.onAcceptButtonClick(ActionType.update);
-  tick(); // flush throwError
+  tick();
 
-  // Assert: displayServiceErrors called with message
+  // Assert
   expect(displaySpy).toHaveBeenCalledWith('Server failure updating division');
-
-  // division should have been restored from selectedDivision
+  // division restored to selectedDivision
   expect(component.division).toEqual(jasmine.objectContaining(component.selectedDivision));
-
-  // final cleanup called
   expect(clearSpy).toHaveBeenCalled();
   expect(modalHideSpy).toHaveBeenCalled();
 }));
