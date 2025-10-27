@@ -1,17 +1,60 @@
-it('onClearButtonClick(): should clear error message, reset search combo values, and call GenerateTableRows', () => {
+it('ngOnInit(): on error should call displayServiceErrors, handle 404 via LoadDefaultComboBox, clear loading, and dispatch LOADINGACTION(false)', fakeAsync(() => {
   // Arrange
-  component.errorBlockMessage = 'Some error';
-  (component as any)._searchRegionComboBox = { value: '10' };
-  (component as any)._searchDivisionComboBox = { value: '20' };
+  const errorResponse = { error: { statusMessage: 'Server failure', statusCode: '404' } };
+  const getSpy = spyOn(component.feeApiservice, 'getRequest').and.returnValue(throwError(() => errorResponse));
+  const displaySpy = spyOn(component as any, 'displayServiceErrors');
+  const loadDefaultSpy = spyOn(component as any, 'LoadDefaultComboBox');
+  const dispatchSpy = spyOn(component['store'], 'dispatch');
 
-  const genSpy = spyOn(component as any, 'GenerateTableRows');
+  spyOn(component.authService, 'canHideActionControls').and.returnValue(false);
 
   // Act
-  component.onClearButtonClick();
+  component.ngOnInit();
+  tick();
 
   // Assert
-  expect(component.errorBlockMessage).toBeNull();
-  expect((component as any)._searchRegionComboBox.value).toBeNull();
-  expect((component as any)._searchDivisionComboBox.value).toBeNull();
-  expect(genSpy).toHaveBeenCalled();
-});
+  expect(getSpy).toHaveBeenCalledTimes(3);
+  expect(displaySpy).toHaveBeenCalledWith('Server failure');
+  expect(loadDefaultSpy).toHaveBeenCalled();
+  expect(component.loading).toBeFalse();
+  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
+}));
+
+it('ngOnInit(): on complete should build combo data, deep-clone options, clear loading, and dispatch LOADINGACTION(false)', fakeAsync(() => {
+  // Arrange
+  const regions = [{ regionId: 1, regionDescription: 'North' }];
+  const controlIds = [{ conId: 5, controlDesc: 'Audit' }];
+  const autocoms = [{ id: 10, some: 'map' }];
+
+  spyOn(component.feeApiservice, 'getRequest').and.callFake((url: string) => {
+    if (url.includes('Autocom')) return of(autocoms);
+    if (url.includes('Region')) return of(regions);
+    if (url.includes('Control')) return of(controlIds);
+    return of([]);
+  });
+
+  const loadSpy = spyOn(component as any, 'LoadTableRows');
+  const dispatchSpy = spyOn(component['store'], 'dispatch');
+
+  spyOn(component.utils, 'LoadComboBoxData').and.callFake((arr: any[], label: string) => {
+    return arr.map(x => ({ label: x[label], value: Object.values(x)[0].toString() }));
+  });
+
+  (component as any)._regionComboBox = { options: null };
+  (component as any)._controlIdComboBox = { options: null };
+
+  spyOn(component.authService, 'canHideActionControls').and.returnValue(false);
+
+  // Act
+  component.ngOnInit();
+  tick();
+
+  // Assert
+  expect(loadSpy).toHaveBeenCalledWith(autocoms);
+  expect(component.regionComboBoxData[0].options.length).toBe(1);
+  expect(component.controlIdComboBoxData[0].options.length).toBe(1);
+  expect((component as any)._regionComboBox.options).toEqual(JSON.parse(JSON.stringify(regions)));
+  expect((component as any)._controlIdComboBox.options).toEqual(JSON.parse(JSON.stringify(controlIds)));
+  expect(component.loading).toBeFalse();
+  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
+}));
