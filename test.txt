@@ -1,31 +1,57 @@
-lit('GenerateTableRows(): when API errors -> should call displayServiceErrors, clear loading and dispatch LOADINGACTION(false)', fakeAsync(() => {
-  // Arrange: ensure component has appConfigService with the expected url
+it('onAcceptButtonClick(ActionType.add) - posts payload, regenerates table, shows success and calls auditLog on complete', fakeAsync(() => {
+  // Arrange
+  // ensure appConfigService.url is available (appConfigService is private on component)
   (component as any).appConfigService = {
-    getAutocomByIdUrl: '/api/autocom/byid'
+    addDivisionUrl: '/api/divisions/add'
   } as any;
 
-  // Make getRequest throw an error shaped like the component expects
-  const serverMessage = 'Server failure for autocom';
-  spyOn(component.feeApiservice, 'getRequest').and.callFake((url: string) => {
-    // confirm the URL passed to getRequest is the expected one (optional)
-    expect(String(url)).toContain('/api/autocom/byid');
-    return throwError(() => ({ error: { statusMessage: serverMessage } }));
-  });
+  // Prepare division model and cost center combo so payload fields are populated
+  component.division = {
+    divisionCd: 'D100',
+    divisionDesc: 'Division 100',
+    regDesc: 'Region 1',
+    divisionShortNm: 'Div100',
+    abaNbr: '111222333',
+    typeCd: 'T1',
+    activeIndic: true
+  } as any;
+  (component as any)._costCenterComboBox = { value: '500' };
 
-  // Spy the error display helper and the store.dispatch
-  const displaySpy = spyOn(component as any, 'displayServiceErrors').and.callFake(() => {});
-  const dispatchSpy = spyOn(component['store'], 'dispatch').and.callFake(() => {});
+  // Prevent validateFormControls from blocking
+  spyOn(component as any, 'ValidateFormControls').and.returnValue(false);
 
-  // Precondition: loading becomes true at start of method
-  component.loading = false;
+  // Spy side-effect helpers so we can assert they're called
+  const genSpy = spyOn(component as any, 'GenerateTableRows').and.callFake(() => {});
+  const setMsgSpy = spyOn(component as any, 'SetMessageTypeAndValue').and.callFake(() => {});
+  const clearSpy = spyOn(component as any, 'clearSelection').and.callFake(() => {});
+  const modalHideSpy = spyOn((component as any)._actionModal || {}, 'hide').and.callFake(() => {});
+
+  // Spy audit log service (private) — use bracket access to avoid TS errors
+  const auditSpy = spyOn(component['auditLogService'] as any, 'writeAuditLog').and.callFake(() => {});
+
+  // Spy postRequest and make it return a success observable that completes
+  const postSpy = spyOn(component.feeApiservice, 'postRequest').and.returnValue(of({}));
 
   // Act
-  component.GenerateTableRows();
-  tick(); // flush the thrown error through subscription
+  component.onAcceptButtonClick(ActionType.add);
+  tick(); // flush the of({}) and allow subscribe.complete to run
 
-  // Assert
-  expect(displaySpy).toHaveBeenCalledWith(serverMessage);
-  expect(component.loading).toBeFalse();
-  // LOADINGACTION(false) should be dispatched (we check a call with any LOADINGACTION)
-  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
+  // Assert: API called once with configured URL and a payload containing expected keys
+  expect(postSpy).toHaveBeenCalledTimes(1);
+  const [calledUrl, calledPayload] = postSpy.calls.mostRecent().args as [string, any];
+  expect(calledUrl).toBe((component as any).appConfigService.addDivisionUrl);
+  // payload should include some properties we expect (flexible check)
+  expect(calledPayload).toBeDefined();
+  expect(calledPayload.divisionCd).toBe('D100');
+  expect(calledPayload.costCenterId).toBe('500');
+  expect(calledPayload.abaNbr).toBe('111222333');
+
+  // side-effects should have run
+  expect(genSpy).toHaveBeenCalled();
+  expect(setMsgSpy).toHaveBeenCalledWith(BlockMessageType.success, component.addSuccessMessage);
+  expect(auditSpy).toHaveBeenCalled();
+
+  // modal should be hidden and selection cleared
+  expect(clearSpy).toHaveBeenCalled();
+  expect(modalHideSpy).toHaveBeenCalled();
 }));
