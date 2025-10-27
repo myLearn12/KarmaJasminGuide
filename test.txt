@@ -1,36 +1,82 @@
 import { fakeAsync, tick } from '@angular/core/testing';
-import { throwError, of } from 'rxjs';
+import { of, throwError } from 'rxjs';
+import { LOADINGACTION } from 'path/to/your/actions'; // adjust import if you assert dispatch
 
-// Make sure LOADINGACTION is imported in your spec file (same symbol used by the component)
-import { LOADINGACTION } from 'path/to/your/actions';
+describe('LoadCostCenterComboBox', () => {
 
-it('GenerateTableRows(): when API errors -> should call displayServiceErrors, clear loading, and dispatch LOADINGACTION(false)', fakeAsync(() => {
-  // Arrange
+  // SUCCESS / COMPLETE branch
+  it('should populate costCenterComboBoxData, set viewchild.options and set selected value when isSelected=true', fakeAsync(() => {
+    // arrange
+    // replace private viewchild and combo references so assignments won't throw
+    (component as any)._costCenterComboBox = { options: null, value: null };
+    (component as any).costCenterComboBox = { value: 'old' };
 
-  // Ensure private store is a spy object
-  (component as any).store = jasmine.createSpyObj('store', ['dispatch']);
+    // ensure division exists and has costCenterId we want to match
+    component.division = { costCenterId: 100 } as any;
 
-  // Ensure feeApiservice exists and getRequest will throw
-  (component as any).feeApiservice = (component as any).feeApiservice || {};
-  spyOn((component as any).feeApiservice, 'getRequest').and.returnValue(throwError(() => ({ error: { statusMessage: 'Server failure during GenerateTableRows' } })));
+    // mock response from API
+    const costCenters = [
+      { costCenterId: 99, costCenterNbr: '099', costCenterDesc: 'Cost X' },
+      { costCenterId: 100, costCenterNbr: '100', costCenterDesc: 'Cost Y' }
+    ];
 
-  // If component.displayServiceErrors is a private method, cast and spy it
-  const displaySpy = spyOn(component as any, 'displayServiceErrors').and.callFake(() => {});
+    // Spy feeApiservice.getRequest to return success observable
+    (component as any).feeApiservice = (component as any).feeApiservice || {};
+    spyOn((component as any).feeApiservice, 'getRequest').and.returnValue(of(costCenters));
 
-  // Prevent LoadTableRows from running (we only assert error path)
-  if ((component as any).LoadTableRows) {
-    spyOn(component as any, 'LoadTableRows').and.callFake(() => {});
-  }
+    // ensure displayServiceErrors exists and spy it (should not be called in success)
+    const displaySpy = spyOn(component as any, 'displayServiceErrors').and.callFake(() => {});
 
-  // Initialize loading to true to assert it becomes false after error
-  component.loading = true;
+    // Act - call method with isSelected = true
+    (component as any).LoadCostCenterComboBox(true);
+    tick(); // flush subscribe
 
-  // Act
-  (component as any).GenerateTableRows();
-  tick();
+    // Assert: costCenterComboBoxData built with mapped options
+    const expectedOptions = [
+      { label: `099 Cost X`, value: 99 },
+      { label: `100 Cost Y`, value: 100 }
+    ];
+    expect(component.costCenterComboBoxData).toEqual([{ options: expectedOptions }]);
 
-  // Assert
-  expect(displaySpy).toHaveBeenCalledWith('Server failure during GenerateTableRows');
-  expect(component.loading).toBeFalse();
-  expect((component as any).store.dispatch).toHaveBeenCalledWith(new LOADINGACTION(false));
-}));
+    // Assert: ViewChild options deep-cloned and value set to matched item
+    expect((component as any)._costCenterComboBox.options).toEqual(JSON.parse(JSON.stringify(component.costCenterComboBoxData)));
+    // value mapping returns `.map(x => x.value)` -> number array
+    expect((component as any)._costCenterComboBox.value).toEqual([100]);
+
+    // showRequiredError was set false and original combo value reset to null
+    expect((component as any).showRequiredError).toBeFalse();
+    expect((component as any).costCenterComboBox.value).toBeNull();
+
+    // displayServiceErrors must NOT have been called
+    expect(displaySpy).not.toHaveBeenCalled();
+  }));
+
+  // ERROR branch
+  it('should call displayServiceErrors when API errors', fakeAsync(() => {
+    // arrange
+    (component as any)._costCenterComboBox = { options: null, value: null };
+    (component as any).costCenterComboBox = { value: 'old' };
+
+    // make feeApiservice.getRequest throw
+    (component as any).feeApiservice = (component as any).feeApiservice || {};
+    const serverErr = { error: { statusMessage: 'Server failure when loading cost centers' } };
+    spyOn((component as any).feeApiservice, 'getRequest').and.returnValue(throwError(() => serverErr));
+
+    // Spy displayServiceErrors
+    const displaySpy = spyOn(component as any, 'displayServiceErrors').and.callFake(() => {});
+
+    // Act
+    (component as any).LoadCostCenterComboBox(false);
+    tick();
+
+    // Assert
+    expect(displaySpy).toHaveBeenCalledWith('Server failure when loading cost centers');
+
+    // No combo data produced on error
+    expect(component.costCenterComboBoxData).toEqual([]); // method initializes to [] on complete; error leaves it []
+    // viewchild options should remain untouched (still null)
+    expect((component as any)._costCenterComboBox.options).toBeNull();
+    // ensure showRequiredError was set false (method sets this at start)
+    expect((component as any).showRequiredError).toBeFalse();
+  }));
+});
