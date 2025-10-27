@@ -1,78 +1,26 @@
-it('LoadTableRows(divisions) - should map input divisions -> component.divisions and set isData true', () => {
-  // Arrange: provide utils & lookups the method needs
-  // minimal utils stubs
-  (component as any).utils = (component as any).utils || {} as any;
-  spyOn((component as any).utils, 'getFormatedString').and.callFake((v: any) => v ? String(v) : '');
-  spyOn((component as any).utils, 'getDisplayDate').and.callFake((d: any) => d ? '01/02/2025' : null);
+import { throwError } from 'rxjs';
+import { fakeAsync, tick } from '@angular/core/testing';
 
-  // cost center lookup that LoadTableRows expects
-  component.costcentersList = [
-    { costCenterId: 11, costCenterNbr: 'CC-11' }
-  ] as any[];
+it('GenerateTableRows(): when API errors -> should call displayServiceErrors, clear loading, and dispatch LOADINGACTION(false)', fakeAsync(() => {
+  // Arrange
+  const mockError = { error: { statusMessage: 'Server failure during GenerateTableRows' } };
 
-  // revShareDivMappingList used by getrevShare* helpers
-  component.revShareDivMappingList = [
-    { divisionId: 100, revShareDivId: 500, revShareTypeId: 700, revShareTypeCd: 'R700', revShareDesc: 'Rev700' }
-  ] as any[];
+  // Spy on dependent methods
+  const displaySpy = spyOn(component as any, 'displayServiceErrors').and.callFake(() => {});
+  const dispatchSpy = spyOn(component.store, 'dispatch').and.callFake(() => {});
 
-  // input "divisions" payload (the raw server objects)
-  const input = [{
-    divisionId: 100,
-    divisionCd: 'D100',
-    divisionDesc: 'Division 100',
-    regDesc: 'Region X',
-    divisionShortNm: 'Div100',
-    costCenterId: 11,
-    costCenterDesc: 'Cost Center 11',
-    abaNbr: '111222333',
-    typeCd: 'T1',
-    createdBy: 'creator',
-    createdDt: '2025-01-01T00:00:00',
-    updatedBy: 'updater',
-    updatedDt: '2025-02-02T00:00:00',
-    activeIndic: true
-  }];
+  // Mock feeApiservice.getRequest to throw error for forkJoin
+  spyOn(component.feeApiservice, 'getRequest').and.returnValue(throwError(() => mockError));
+
+  // Prevent LoadTableRows or success logic from executing (we only test error path)
+  spyOn(component as any, 'LoadTableRows').and.callFake(() => {});
 
   // Act
-  (component as any).divisions = [];               // reset internal array (method does that but keep safe)
-  (component as any).LoadTableRows(input);
+  (component as any).GenerateTableRows();
+  tick();
 
   // Assert
-  expect(component.isData).toBeTrue();
-  expect(component.divisions.length).toBe(1);
-
-  const row = component.divisions[0];
-  expect(row.divisionId).toBe(100);
-  expect(row.divisionCd).toBe('D100');             // mapped directly
-  expect(row.divisionDesc).toBe('Division 100');   // utils.getFormatedString returned same string
-  expect(row.regDesc).toBe('Region X');
-  expect(row.divisionShortNm).toBe('Div100');
-  expect(row.costCenterId).toBe(11);
-  // costCenterNbr comes from costcentersList.find(...).costCenterNbr
-  expect(row.costCenterNbr).toBe('CC-11');
-  expect(row.costCenterDesc).toBe('Cost Center 11');
-  expect(row.abaNbr).toBe('111222333');
-  expect(row.typeCd).toBe('T1');
-  expect(row.createdBy).toBe('creator');
-  // createdDt/updatedDt were passed through utils.getDisplayDate in your code:
-  expect(row.createdDt).toBe('01/02/2025');
-  expect(row.updatedDt).toBe('01/02/2025');
-  // rev-share mapping fields come from revShareDivMappingList:
-  expect(row.revShareDivId).toBe(500);
-  expect(row.revShareTypeId).toBe(700);
-  expect(row.revshareDesc).toBe('Rev700');
-});
-
-it('LoadTableRows(divisions) - when divisions empty should set isData false and not push any rows', () => {
-  // Arrange: ensure lookups exist (method shouldn't use them for empty input but safe)
-  component.costcentersList = [];
-  component.revShareDivMappingList = [];
-
-  // Act
-  (component as any).divisions = [];
-  (component as any).LoadTableRows([]);
-
-  // Assert
-  expect(component.isData).toBeFalse();
-  expect(component.divisions.length).toBe(0);
-});
+  expect(displaySpy).toHaveBeenCalledWith('Server failure during GenerateTableRows');
+  expect(component.loading).toBeFalse();
+  expect(dispatchSpy).toHaveBeenCalledWith(new LOADINGACTION(false));
+}));
