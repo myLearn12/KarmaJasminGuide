@@ -1,61 +1,31 @@
-it('onAcceptButtonClick(ActionType.update) - success: should put, regenerate table and call auditLog on complete', fakeAsync(() => {
-  // Arrange: allow form validation to pass
-  spyOn(component as any, 'validateFormControls').and.returnValue(false);
-
-  // Provide viewchild combo mocks so .value.toString() is safe
-  (component as any)._controlIdComboBox = { value: '200' };
-  (component as any)._regionComboBox = { value: '10' };
-
-  // Provide arrays that getUpdatedModel() will call .find() on
-  component.controlIds = [
-    { conId: 200, controlDesc: 'Control 200' }
-  ] as any;
-  component.regions = [
-    { regionId: 10, regionDescription: 'Region 10' }
-  ] as any;
-
-  // Provide an autocom object that has an id (update needs it)
-  component.autocom = {
-    autocomId: 5,
-    autocomAcctNbr: 'ACCT-123',
-    activeIndic: true,
-    // other fields used by getUpdatedModel() if any...
+lit('GenerateTableRows(): when API errors -> should call displayServiceErrors, clear loading and dispatch LOADINGACTION(false)', fakeAsync(() => {
+  // Arrange: ensure component has appConfigService with the expected url
+  (component as any).appConfigService = {
+    getAutocomByIdUrl: '/api/autocom/byid'
   } as any;
 
-  // Ensure appConfigService has the update URL (private property can be set via indexer)
-  (component as any).appConfigService = { updateAutocomUrl: '/api/autocom/update/' } as any;
+  // Make getRequest throw an error shaped like the component expects
+  const serverMessage = 'Server failure for autocom';
+  spyOn(component.feeApiservice, 'getRequest').and.callFake((url: string) => {
+    // confirm the URL passed to getRequest is the expected one (optional)
+    expect(String(url)).toContain('/api/autocom/byid');
+    return throwError(() => ({ error: { statusMessage: serverMessage } }));
+  });
 
-  // Spy the HTTP put to succeed (complete() will run)
-  const putSpy = spyOn(component.feeApiservice, 'putRequest').and.returnValue(of({}));
+  // Spy the error display helper and the store.dispatch
+  const displaySpy = spyOn(component as any, 'displayServiceErrors').and.callFake(() => {});
+  const dispatchSpy = spyOn(component['store'], 'dispatch').and.callFake(() => {});
 
-  // Stub/spy side-effects so we can assert they were called
-  const genSpy = spyOn(component as any, 'GenerateTableRows').and.callFake(() => {});
-  const setMsgSpy = spyOn(component as any, 'SetMessageTypeAndValue').and.callFake(() => {});
-
-  // auditLogService is private — access via bracket and spy
-  const auditSpy = spyOn(component['auditLogService'] as any, 'writeAuditLog').and.callFake(() => {});
-
-  // guard modal hide so no undefined errors later
-  (component as any)._actionModal = (component as any)._actionModal || { hide: () => {}, show: () => {} };
-  spyOn((component as any)._actionModal, 'hide').and.callThrough();
+  // Precondition: loading becomes true at start of method
+  component.loading = false;
 
   // Act
-  component.onAcceptButtonClick(ActionType.update);
-  tick(); // flush putRequest observable and allow complete() body to run
+  component.GenerateTableRows();
+  tick(); // flush the thrown error through subscription
 
-  // Assert: HTTP called with expected url (contains autocomId)
-  expect(putSpy).toHaveBeenCalled();
-  const [calledUrl] = putSpy.calls.mostRecent().args;
-  expect(String(calledUrl)).toContain('/api/autocom/update/');
-  expect(String(calledUrl)).toContain(component.autocom.autocomId.toString());
-
-  // Assert: table regenerated and success message set
-  expect(genSpy).toHaveBeenCalled();
-  expect(setMsgSpy).toHaveBeenCalledWith(jasmine.anything(), component.updateSuccessMessage);
-
-  // Assert: audit log called during complete()
-  expect(auditSpy).toHaveBeenCalled();
-
-  // And the modal should be hidden and selection cleared (final cleanup behavior)
-  expect((component as any)._actionModal.hide).toHaveBeenCalled();
+  // Assert
+  expect(displaySpy).toHaveBeenCalledWith(serverMessage);
+  expect(component.loading).toBeFalse();
+  // LOADINGACTION(false) should be dispatched (we check a call with any LOADINGACTION)
+  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
 }));
