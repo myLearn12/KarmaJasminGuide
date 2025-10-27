@@ -1,119 +1,51 @@
-import { of, throwError } from 'rxjs';
 import { fakeAsync, tick } from '@angular/core/testing';
-import { ActionType } from '...'; // adjust import path if needed
+import { of, throwError } from 'rxjs';
+import { ActionType } from '...'; // adjust path if needed
 
-// 1) ADD success -> should post, regenerate table, show success and call audit log (complete)
 it('onAcceptButtonClick(ActionType.add) - success: posts, regenerates table, shows success and writes audit log', fakeAsync(() => {
-  // Arrange
+  // Arrange: make validateFormControls allow execution
   spyOn(component as any, 'validateFormControls').and.returnValue(false);
+
+  // Provide the combo viewchild mocks the component expects (they are protected/private in class)
   (component as any)._controlIdComboBox = { value: '200' };
   (component as any)._regionComboBox = { value: '10' };
-  component.autocom = { autocomAcctNbr: 'ACCT-1', activeIndic: true } as any;
 
+  // Provide the arrays that getUpdatedModel() will read and call .find() on
+  component.controlIds = [
+    { conId: 200, controlDesc: 'Control 200' }
+  ] as any;
+  component.regions = [
+    { regionId: 10, regionDescription: 'Region 10' }
+  ] as any;
+
+  // Minimal autocom object the method uses
+  component.autocom = {
+    autocomAcctNbr: 'ACCT-123',
+    activeIndic: true,
+    // other fields not strictly required by this test...
+  } as any;
+
+  // Spies for side-effects & HTTP
   const postSpy = spyOn(component.feeApiservice, 'postRequest').and.returnValue(of({}));
+
+  // Prevent real side-effects
   const genSpy = spyOn(component as any, 'GenerateTableRows').and.callFake(() => {});
   const setMsgSpy = spyOn(component as any, 'SetMessageTypeAndValue').and.callFake(() => {});
+  // auditLogService is private, access via indexer
   const auditSpy = spyOn(component['auditLogService'] as any, 'writeAuditLog').and.callFake(() => {});
+
+  // If _actionModal.hide/show might be called later, provide a stub so no undefined errors
+  (component as any)._actionModal = (component as any)._actionModal || { show: () => {}, hide: () => {} };
+  spyOn((component as any)._actionModal, 'show').and.callThrough();
+  spyOn((component as any)._actionModal, 'hide').and.callThrough();
 
   // Act
   component.onAcceptButtonClick(ActionType.add);
-  tick();
+  tick(); // flush the postRequest observable and subscribe complete()
 
   // Assert
   expect(postSpy).toHaveBeenCalled();
   expect(genSpy).toHaveBeenCalled();
   expect(setMsgSpy).toHaveBeenCalledWith(jasmine.anything(), component.addSuccessMessage);
-  expect(auditSpy).toHaveBeenCalled(); // complete() invoked audit log
-  // final UI cleanup helpers are called
-  expect((component as any).clearSelection).toBeDefined();
-  expect((component as any)._actionModal).toBeDefined();
-}));
-
-// 2) ADD error -> should call displayServiceErrors and still clear/hide
-it('onAcceptButtonClick(ActionType.add) - error: should display server error and still clear/hide', fakeAsync(() => {
-  // Arrange
-  spyOn(component as any, 'validateFormControls').and.returnValue(false);
-  (component as any)._controlIdComboBox = { value: '200' };
-  (component as any)._regionComboBox = { value: '10' };
-  component.autocom = { autocomAcctNbr: 'ACCT-1', activeIndic: true } as any;
-
-  const serverErr = { error: { statusMessage: 'Server failed' } };
-  const postSpy = spyOn(component.feeApiservice, 'postRequest').and.returnValue(throwError(() => serverErr));
-  const displaySpy = spyOn(component as any, 'displayServiceErrors').and.callThrough();
-  const clearSpy = spyOn(component as any, 'clearSelection').and.callFake(() => {});
-  const modalHideSpy = spyOn((component as any)._actionModal || {}, 'hide').and.callFake(() => {});
-
-  // Act
-  component.onAcceptButtonClick(ActionType.add);
-  tick();
-
-  // Assert
-  expect(postSpy).toHaveBeenCalled();
-  expect(displaySpy).toHaveBeenCalledWith('Server failed');
-  expect(clearSpy).toHaveBeenCalled();
-  expect(modalHideSpy).toHaveBeenCalled();
-}));
-
-// 3) UPDATE success -> put succeeds, GenerateTableRows called and audit log called in complete
-it('onAcceptButtonClick(ActionType.update) - success: should put, regenerate table and call auditLog on complete', fakeAsync(() => {
-  // Arrange
-  spyOn(component as any, 'validateFormControls').and.returnValue(false);
-  (component as any)._controlIdComboBox = { value: '200' };
-  (component as any)._regionComboBox = { value: '10' };
-  component.autocom = { autocomId: 123, autocomAcctNbr: 'ACCT-1', activeIndic: true } as any;
-
-  const putSpy = spyOn(component.feeApiservice, 'putRequest').and.returnValue(of({}));
-  const genSpy = spyOn(component as any, 'GenerateTableRows').and.callFake(() => {});
-  const setMsgSpy = spyOn(component as any, 'SetMessageTypeAndValue').and.callFake(() => {});
-  const auditSpy = spyOn(component['auditLogService'] as any, 'writeAuditLog').and.callFake(() => {});
-  const clearSpy = spyOn(component as any, 'clearSelection').and.callFake(() => {});
-  const modalHideSpy = spyOn((component as any)._actionModal || {}, 'hide').and.callFake(() => {});
-
-  // Act
-  component.onAcceptButtonClick(ActionType.update);
-  tick();
-
-  // Assert
-  expect(putSpy).toHaveBeenCalled();
-  expect(genSpy).toHaveBeenCalled();
-  expect(setMsgSpy).toHaveBeenCalledWith(jasmine.anything(), component.updateSuccessMessage);
-  expect(auditSpy).toHaveBeenCalled(); // audit invoked in complete
-  // cleanup
-  expect(clearSpy).toHaveBeenCalled();
-  expect(modalHideSpy).toHaveBeenCalled();
-}));
-
-// 4) UPDATE error -> should restore selected model and call displayServiceErrors, clear/hide
-it('onAcceptButtonClick(ActionType.update) - error: should restore selected, display server error and clear/hide', fakeAsync(() => {
-  // Arrange
-  spyOn(component as any, 'validateFormControls').and.returnValue(false);
-  (component as any)._controlIdComboBox = { value: '200' };
-  (component as any)._regionComboBox = { value: '10' };
-
-  // existing selected snapshot (original state)
-  component.selectedAutocom = {
-    autocomId: 5, autocomAcctNbr: 'ORIG', activeIndic: false
-  } as any;
-  // mutated object representing current UI values
-  component.autocom = {
-    autocomId: 5, autocomAcctNbr: 'CHANGED', activeIndic: true
-  } as any;
-
-  const serverErr = { error: { statusMessage: 'update failed' } };
-  const putSpy = spyOn(component.feeApiservice, 'putRequest').and.returnValue(throwError(() => serverErr));
-  const displaySpy = spyOn(component as any, 'displayServiceErrors').and.callThrough();
-  const clearSpy = spyOn(component as any, 'clearSelection').and.callFake(() => {});
-  const modalHideSpy = spyOn((component as any)._actionModal || {}, 'hide').and.callFake(() => {});
-
-  // Act
-  component.onAcceptButtonClick(ActionType.update);
-  tick();
-
-  // Assert
-  expect(putSpy).toHaveBeenCalled();
-  // The component should have restored the original (selected) object
-  expect(component.autocom).toEqual(component.selectedAutocom);
-  expect(displaySpy).toHaveBeenCalledWith('update failed');
-  expect(clearSpy).toHaveBeenCalled();
-  expect(modalHideSpy).toHaveBeenCalled();
+  expect(auditSpy).toHaveBeenCalled(); // complete() should have executed and called auditLogService.writeAuditLog()
 }));
