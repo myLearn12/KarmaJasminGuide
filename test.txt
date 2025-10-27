@@ -1,139 +1,78 @@
-import { fakeAsync, tick } from '@angular/core/testing';
-import { of, throwError } from 'rxjs';
-import { ActionType } from '...'; // import ActionType the same way your spec does
-// (assume `component` is created in beforeEach as usual)
+it('LoadTableRows(divisions) - should map input divisions -> component.divisions and set isData true', () => {
+  // Arrange: provide utils & lookups the method needs
+  // minimal utils stubs
+  (component as any).utils = (component as any).utils || {} as any;
+  spyOn((component as any).utils, 'getFormatedString').and.callFake((v: any) => v ? String(v) : '');
+  spyOn((component as any).utils, 'getDisplayDate').and.callFake((d: any) => d ? '01/02/2025' : null);
 
-it('getUpdatedModel(): builds model correctly when all lookup data present', () => {
-  // Arrange - provide all data that getUpdatedModel expects
-  component.division = {
-    divisionId: 10,
-    divisionCd: 'D10',
-    divisionDesc: 'Division 10',
-    divisionShortNm: 'Div10',
+  // cost center lookup that LoadTableRows expects
+  component.costcentersList = [
+    { costCenterId: 11, costCenterNbr: 'CC-11' }
+  ] as any[];
+
+  // revShareDivMappingList used by getrevShare* helpers
+  component.revShareDivMappingList = [
+    { divisionId: 100, revShareDivId: 500, revShareTypeId: 700, revShareTypeCd: 'R700', revShareDesc: 'Rev700' }
+  ] as any[];
+
+  // input "divisions" payload (the raw server objects)
+  const input = [{
+    divisionId: 100,
+    divisionCd: 'D100',
+    divisionDesc: 'Division 100',
+    regDesc: 'Region X',
+    divisionShortNm: 'Div100',
+    costCenterId: 11,
+    costCenterDesc: 'Cost Center 11',
     abaNbr: '111222333',
     typeCd: 'T1',
-    createdBy: 'u1',
+    createdBy: 'creator',
     createdDt: '2025-01-01T00:00:00',
-    updatedBy: 'u2',
+    updatedBy: 'updater',
     updatedDt: '2025-02-02T00:00:00',
     activeIndic: true
-  } as any;
-
-  component.selectedDivision = {
-    revShareDivId: 5,
-    revShareTypeId: 20,
-    revShareTypeCd: 'R20'
-  } as any;
-
-  // revShareDivMappingList used by .find(...)
-  component.revShareDivMappingList = [
-    { revShareTypeId: 20, revShareDesc: 'Revenue Desc 20' },
-    { revShareTypeId: 21, revShareDesc: 'Revenue Desc 21' }
-  ] as any[];
-
-  // cost center combo value and lookup lists
-  (component as any)._costCenterComboBox = { value: '1' };
-  component.costCentersList = [{ costCenterId: 1, costCenterNbr: '100' }] as any[];
-  // NOTE: your method uses costCenterfibr (typo) for costCenterNbr — set both names defensively:
-  component.costCenters = [
-    { costCenterId: 1, costCenterNbr: '100', costCenterDesc: 'Cost A', costCenterfibr: '100' }
-  ] as any[];
+  }];
 
   // Act
-  const updated = (component as any).getUpdatedModel();
+  (component as any).divisions = [];               // reset internal array (method does that but keep safe)
+  (component as any).LoadTableRows(input);
 
-  // Assert - key fields mapped correctly
-  expect(updated.divisionId).toBe(10);
-  expect(updated.divisionCd).toBe('D10');
-  expect(updated.revShareDivId).toBe(5);
-  expect(updated.revShareTypeId).toBe(20);
-  expect(updated.revShareDesc).toBe('Revenue Desc 20'); // found via revShareDivMappingList
-  expect(updated.costCenterId).toBe(1); // parsed from combo value
-  // costCenterNbr property in method comes from costCentersList.find(...).costCenterfibr
-  expect(updated.costCenterNbr).toBe('100');
-  expect(updated.costCenterDesc).toBe('Cost A');
-  expect(updated.abaNbr).toBe('111222333');
-  expect(updated.typeCd).toBe('T1');
-  expect(updated.activeIndic).toBe(true);
+  // Assert
+  expect(component.isData).toBeTrue();
+  expect(component.divisions.length).toBe(1);
+
+  const row = component.divisions[0];
+  expect(row.divisionId).toBe(100);
+  expect(row.divisionCd).toBe('D100');             // mapped directly
+  expect(row.divisionDesc).toBe('Division 100');   // utils.getFormatedString returned same string
+  expect(row.regDesc).toBe('Region X');
+  expect(row.divisionShortNm).toBe('Div100');
+  expect(row.costCenterId).toBe(11);
+  // costCenterNbr comes from costcentersList.find(...).costCenterNbr
+  expect(row.costCenterNbr).toBe('CC-11');
+  expect(row.costCenterDesc).toBe('Cost Center 11');
+  expect(row.abaNbr).toBe('111222333');
+  expect(row.typeCd).toBe('T1');
+  expect(row.createdBy).toBe('creator');
+  // createdDt/updatedDt were passed through utils.getDisplayDate in your code:
+  expect(row.createdDt).toBe('01/02/2025');
+  expect(row.updatedDt).toBe('01/02/2025');
+  // rev-share mapping fields come from revShareDivMappingList:
+  expect(row.revShareDivId).toBe(500);
+  expect(row.revShareTypeId).toBe(700);
+  expect(row.revshareDesc).toBe('Rev700');
 });
 
-it('onAcceptButtonClick(ActionType.update) - success path: regenerates table, shows success and writes audit log (self-contained)', fakeAsync(() => {
-  // Arrange: put everything in this test so it's self-contained
-  (component as any).appConfigService = { updateDivisionUrl: '/api/divisions/' } as any;
-
-  // model to be updated
-  component.division = {
-    divisionId: 77,
-    divisionCd: 'D77',
-    divisionDesc: 'Division 77',
-    divisionShortNm: 'D77',
-    abaNbr: '999888777',
-    typeCd: 'T2',
-    createdBy: 'u1',
-    createdDt: '2025-01-01T00:00:00',
-    updatedBy: 'u2',
-    updatedDt: '2025-02-02T00:00:00',
-    activeIndic: true
-  } as any;
-
-  component.selectedDivision = {
-    revShareDivId: 3,
-    revShareTypeId: 30,
-    revShareTypeCd: 'R30'
-  } as any;
-
-  // provide arrays used in getUpdatedModel() if it runs in complete()
-  component.revShareDivMappingList = [{ revShareTypeId: 30, revShareDesc: 'Revenue 30' }] as any[];
-  component.costCentersList = [{ costCenterId: 2, costCenterNbr: '200', costCenterfibr: '200' }] as any[];
-  component.costCenters = [{ costCenterId: 2, costCenterNbr: '200', costCenterDesc: 'Cost 200' }] as any[];
-
-  // combo viewchild values expected by code
-  (component as any)._costCenterComboBox = { value: '2' };
-
-  // Prevent form validation from short-circuiting
-  spyOn(component as any, 'ValidateFormControls').and.returnValue(false);
-
-  // spies for next/complete effects
-  const genSpy = spyOn(component as any, 'GenerateTableRows').and.callFake(() => {});
-  const setMsgSpy = spyOn(component as any, 'SetMessageTypeAndValue').and.callFake(() => {});
-  // provide auditLogService (private) and spy on it
-  (component as any).auditLogService = {
-    writeAuditLog: () => {},
-    updateAction: 'U',
-    addAction: 'A'
-  } as any;
-  const auditSpy = spyOn((component as any).auditLogService, 'writeAuditLog').and.callFake(() => {});
-
-  // stub getUpdatedModel to return a harmless object (so complete() can use it)
-  spyOn(component as any, 'getUpdatedModel').and.returnValue({ some: 'model' });
-
-  // make putRequest succeed
-  spyOn(component.feeApiservice, 'putRequest').and.returnValue(of({}));
-
-  // ensure clearSelection and action modal hide exist and are spied (component clears/hides at end)
-  const clearSpy = spyOn(component as any, 'clearSelection').and.callFake(() => {});
-  (component as any)._actionModal = (component as any)._actionModal || { hide: () => {} };
-  const hideSpy = spyOn((component as any)._actionModal, 'hide').and.callFake(() => {});
+it('LoadTableRows(divisions) - when divisions empty should set isData false and not push any rows', () => {
+  // Arrange: ensure lookups exist (method shouldn't use them for empty input but safe)
+  component.costcentersList = [];
+  component.revShareDivMappingList = [];
 
   // Act
-  component.onAcceptButtonClick(ActionType.update);
-  tick();
+  (component as any).divisions = [];
+  (component as any).LoadTableRows([]);
 
-  // Assert - subscribe next() side-effects:
-  expect(genSpy).toHaveBeenCalled();
-  expect(setMsgSpy).toHaveBeenCalledWith(BlockMessageType.success, component.updateSuccessMessage);
-
-  // complete() should cause audit log to be written
-  expect(auditSpy).toHaveBeenCalledWith(
-    'divisionCd',
-    component.division.divisionCd.toString(),
-    component.selectedDivision,
-    jasmine.any(Object),
-    (component as any).auditLogService.updateAction,
-    component.PageTitle
-  );
-
-  // and component finalizers should run
-  expect(clearSpy).toHaveBeenCalled();
-  expect(hideSpy).toHaveBeenCalled();
-}));
+  // Assert
+  expect(component.isData).toBeFalse();
+  expect(component.divisions.length).toBe(0);
+});
