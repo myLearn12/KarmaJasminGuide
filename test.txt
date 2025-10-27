@@ -1,78 +1,29 @@
-it('ngOnInit(): complete -> should build combo data, deep-clone options, clear loading and dispatch LOADINGACTION(false)', fakeAsync(() => {
+it('onUpdateModalClick(): else branch should deep clone autocom, call helper methods and show modal', () => {
   // Arrange
-  // ensure auth check returns something predictable if used in ngOnInit()
-  spyOn((component as any).authService, 'canHideActionControls').and.returnValue(false);
+  component.isRowSelected = true;  // to trigger else branch
+  component.autocom = { autoComId: 1, regionId: 10, controlId: 20 } as any;
 
-  // stub appConfigService endpoints on the component (private is fine via cast)
-  (component as any).appConfigService = {
-    getAllAutocomUrl: '/api/autocoms',
-    getAllRegionUrl: '/api/regions',
-    getAllControlIdUrl: '/api/controlIds'
-  } as any;
-
-  // data that forkJoin should provide
-  const autocoms = [{ id: 1, name: 'A' }];
-  const regions = [{ regionId: 10, regionDescription: 'Region X' }];
-  const controlIds = [{ conId: 200, controlDesc: 'Control 200' }];
-
-  // capture called urls (helpful if test fails)
-  const calledUrls: string[] = [];
-
-  // Spy feeApiservice.getRequest — robust string guard before includes
-  spyOn(component.feeApiservice, 'getRequest').and.callFake((url: string) => {
-    calledUrls.push(String(url));
-    const u = String(url || '').toLowerCase();
-
-    if (u.includes('autocom') || u.includes('autocoms')) return of(autocoms);
-    if (u.includes('region') || u.includes('regions')) return of(regions);
-    if (u.includes('controlid') || u.includes('controlid') || u.includes('control')) return of(controlIds);
-
-    // fallback so test doesn't break for unexpected calls
-    return of([]);
-  });
-
-  // Spy utils.LoadComboBoxData to return predictable mapped arrays
-  const mappedRegions = [{ label: 'Region X', value: '10' }];
-  const mappedControlIds = [{ label: 'Control 200', value: '200' }];
-  spyOn(component['utils'], 'LoadComboBoxData').and.callFake((arr: any[], label: string, _code: string, id: string) => {
-    if (label === 'regionDescription') return mappedRegions;
-    if (label === 'controlDesc') return mappedControlIds;
-    return [];
-  });
-
-  // Provide ViewChild mocks so .options assignment won't blow up
-  (component as any)._regionComboBox = { options: null };
-  (component as any)._controlIdComboBox = { options: null };
-
-  // If component loads table rows in next(), avoid side-effects from real implementation
-  if ((component as any).LoadTableRows) {
-    spyOn(component as any, 'LoadTableRows').and.callFake(() => {});
-  }
-
-  const dispatchSpy = spyOn(component['store'], 'dispatch');
+  // spies for methods called in else branch
+  const setInitialSpy = spyOn(component as any, 'setIntialvalues');
+  const getRegionSpy = spyOn(component as any, 'getRegionComboBoxValue');
+  const getControlSpy = spyOn(component as any, 'getControlIdComboBoxValue');
+  const modalSpy = spyOn((component as any)._actionModal, 'show');
 
   // Act
-  component.ngOnInit();
-  tick(); // flush forkJoin subscribe next + complete
+  component.onUpdateModalClick();
 
-  // optional debug if urls not matched
-  const sawAutocoms = calledUrls.some(u => /autocom/i.test(u));
-  const sawRegions = calledUrls.some(u => /region/i.test(u));
-  const sawControlIds = calledUrls.some(u => /control/i.test(u));
-  if (!sawAutocoms || !sawRegions || !sawControlIds) {
-    fail('ngOnInit test URL mismatch; calls: ' + JSON.stringify(calledUrls, null, 2));
-    return;
-  }
+  // Assert
+  // Deep clone check
+  expect(component.selectedAutocom).toEqual(component.autocom);
+  expect(component.selectedAutocom).not.toBe(component.autocom);
 
-  // Assert: combo data arrays built using utils.LoadComboBoxData
-  expect(component.regionComboBoxData).toEqual([{ options: mappedRegions }]);
-  expect(component.controlIdComboBoxData).toEqual([{ options: mappedControlIds }]);
+  // Method call verification
+  expect(setInitialSpy).toHaveBeenCalled();
+  expect(getRegionSpy).toHaveBeenCalled();
+  expect(getControlSpy).toHaveBeenCalled();
+  expect(modalSpy).toHaveBeenCalled();
 
-  // Assert: ViewChild options set to deep-cloned arrays (component uses JSON.parse(JSON.stringify(...)))
-  expect((component as any)._regionComboBox.options).toEqual(JSON.parse(JSON.stringify(regions)));
-  expect((component as any)._controlIdComboBox.options).toEqual(JSON.parse(JSON.stringify(controlIds)));
-
-  // loading turned off and LOADINGACTION(false) dispatched
-  expect(component.loading).toBeFalse();
-  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
-}));
+  // Verify modal title/type also set correctly
+  expect(component.actionModalTitle).toBe('Update');
+  expect(component.actionModalType).toBe(ActionType.update);
+});
