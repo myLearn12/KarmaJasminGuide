@@ -1,82 +1,107 @@
 import { fakeAsync, tick } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
-import { LOADINGACTION } from 'path/to/your/actions'; // adjust import if you assert dispatch
+import { ActionType } from 'path/to/your/actiontype'; // adjust
+// import LOADINGACTION if you assert dispatch etc.
 
-describe('LoadCostCenterComboBox', () => {
+describe('onAcceptButtonClick tests (TaxAccount)', () => {
 
-  // SUCCESS / COMPLETE branch
-  it('should populate costCenterComboBoxData, set viewchild.options and set selected value when isSelected=true', fakeAsync(() => {
-    // arrange
-    // replace private viewchild and combo references so assignments won't throw
-    (component as any)._costCenterComboBox = { options: null, value: null };
-    (component as any).costCenterComboBox = { value: 'old' };
+  it('ActionType.add: when POST errors -> should call displayServiceErrors and not write audit log', fakeAsync(() => {
+    // Arrange - ensure UI boxes exist
+    (component as any)._controlIdComboBox = { value: '200' };
+    (component as any)._branchCdComboBox = { value: 'BR01' };
 
-    // ensure division exists and has costCenterId we want to match
-    component.division = { costCenterId: 100 } as any;
+    // taxAccount payload fields
+    component.taxAccount = {
+      acctNbr: ' 12345 ',
+      glAcctNbr: 'GL123',
+      activeIndic: true
+    } as any;
 
-    // mock response from API
-    const costCenters = [
-      { costCenterId: 99, costCenterNbr: '099', costCenterDesc: 'Cost X' },
-      { costCenterId: 100, costCenterNbr: '100', costCenterDesc: 'Cost Y' }
-    ];
+    // make validateFormControls allow execution
+    spyOn(component as any, 'validateFormControls').and.returnValue(false);
 
-    // Spy feeApiservice.getRequest to return success observable
-    (component as any).feeApiservice = (component as any).feeApiservice || {};
-    spyOn((component as any).feeApiservice, 'getRequest').and.returnValue(of(costCenters));
+    // feeApiservice.postRequest to throw error
+    const serverError = { error: { statusMessage: 'Server failed to save tax account' } };
+    spyOn((component as any).feeApiservice, 'postRequest').and.returnValue(throwError(() => serverError));
 
-    // ensure displayServiceErrors exists and spy it (should not be called in success)
+    // Spy displayServiceErrors and auditLogService (private) and GenerateTableRows & SetMessageTypeAndValue
     const displaySpy = spyOn(component as any, 'displayServiceErrors').and.callFake(() => {});
-
-    // Act - call method with isSelected = true
-    (component as any).LoadCostCenterComboBox(true);
-    tick(); // flush subscribe
-
-    // Assert: costCenterComboBoxData built with mapped options
-    const expectedOptions = [
-      { label: `099 Cost X`, value: 99 },
-      { label: `100 Cost Y`, value: 100 }
-    ];
-    expect(component.costCenterComboBoxData).toEqual([{ options: expectedOptions }]);
-
-    // Assert: ViewChild options deep-cloned and value set to matched item
-    expect((component as any)._costCenterComboBox.options).toEqual(JSON.parse(JSON.stringify(component.costCenterComboBoxData)));
-    // value mapping returns `.map(x => x.value)` -> number array
-    expect((component as any)._costCenterComboBox.value).toEqual([100]);
-
-    // showRequiredError was set false and original combo value reset to null
-    expect((component as any).showRequiredError).toBeFalse();
-    expect((component as any).costCenterComboBox.value).toBeNull();
-
-    // displayServiceErrors must NOT have been called
-    expect(displaySpy).not.toHaveBeenCalled();
-  }));
-
-  // ERROR branch
-  it('should call displayServiceErrors when API errors', fakeAsync(() => {
-    // arrange
-    (component as any)._costCenterComboBox = { options: null, value: null };
-    (component as any).costCenterComboBox = { value: 'old' };
-
-    // make feeApiservice.getRequest throw
-    (component as any).feeApiservice = (component as any).feeApiservice || {};
-    const serverErr = { error: { statusMessage: 'Server failure when loading cost centers' } };
-    spyOn((component as any).feeApiservice, 'getRequest').and.returnValue(throwError(() => serverErr));
-
-    // Spy displayServiceErrors
-    const displaySpy = spyOn(component as any, 'displayServiceErrors').and.callFake(() => {});
+    const auditSpy = spyOn((component as any).auditLogService || {}, 'writeAuditLog').and.callFake(() => {});
+    const genSpy = spyOn(component as any, 'GenerateTableRows').and.callFake(() => {});
+    const setMsgSpy = spyOn(component as any, 'SetMessageTypeAndValue').and.callFake(() => {});
 
     // Act
-    (component as any).LoadCostCenterComboBox(false);
+    component.onAcceptButtonClick(ActionType.add);
     tick();
 
     // Assert
-    expect(displaySpy).toHaveBeenCalledWith('Server failure when loading cost centers');
-
-    // No combo data produced on error
-    expect(component.costCenterComboBoxData).toEqual([]); // method initializes to [] on complete; error leaves it []
-    // viewchild options should remain untouched (still null)
-    expect((component as any)._costCenterComboBox.options).toBeNull();
-    // ensure showRequiredError was set false (method sets this at start)
-    expect((component as any).showRequiredError).toBeFalse();
+    expect((component as any).feeApiservice.postRequest).toHaveBeenCalled();
+    expect(displaySpy).toHaveBeenCalledWith('Server failed to save tax account');
+    // Generation and success message should not be called on error
+    expect(genSpy).not.toHaveBeenCalled();
+    expect(setMsgSpy).not.toHaveBeenCalled();
+    // Audit should NOT be called on error
+    expect(auditSpy).not.toHaveBeenCalled();
   }));
+
+
+  it('ActionType.update: when PUT completes -> should regenerate table, show success and call auditLogService.writeAuditLog on complete', fakeAsync(() => {
+    // Arrange
+    (component as any)._controlIdComboBox = { value: '200' };
+    (component as any)._branchCdComboBox = { value: 'BR01' };
+
+    // pre-existing selected snapshot (used if error) and current taxAccount (updated)
+    component.selectedtaxAccount = {
+      taxAcctId: 42,
+      acctNbr: '12345',
+      glAcctNbr: 'GL-OLD',
+      activeIndic: true
+    } as any;
+
+    component.taxAccount = {
+      taxAcctId: 42,
+      acctNbr: '67890',
+      glAcctNbr: 'GL-NEW',
+      activeIndic: true
+    } as any;
+
+    // allow execution
+    spyOn(component as any, 'validateFormControls').and.returnValue(false);
+
+    // make putRequest succeed (emit empty value; complete will run)
+    spyOn((component as any).feeApiservice, 'putRequest').and.returnValue(of({}));
+
+    // spies for side effects
+    const genSpy = spyOn(component as any, 'GenerateTableRows').and.callFake(() => {});
+    const setMsgSpy = spyOn(component as any, 'SetMessageTypeAndValue').and.callFake(() => {});
+    const auditSpy = spyOn((component as any).auditLogService || {}, 'writeAuditLog').and.callFake(() => {});
+    const clearSpy = spyOn(component as any, 'clearSelection').and.callFake(() => {});
+    const modalHideSpy = spyOn((component as any)._actionModal || {}, 'hide').and.callFake(() => {});
+
+    // Act
+    component.onAcceptButtonClick(ActionType.update);
+    tick();
+
+    // Assert - HTTP called
+    expect((component as any).feeApiservice.putRequest).toHaveBeenCalled();
+
+    // next() side-effects executed
+    expect(genSpy).toHaveBeenCalled();
+    expect(setMsgSpy).toHaveBeenCalledWith(jasmine.anything(), jasmine.anything()); // success call
+
+    // complete() side-effects executed: auditLog called
+    expect(auditSpy).toHaveBeenCalledWith(
+      'taxAcctId',
+      component.taxAccount.taxAcctId.toString(),
+      component.selectedtaxAccount,
+      jasmine.any(Object),
+      jasmine.anything(),
+      jasmine.any(String)
+    );
+
+    // cleanup still happens
+    expect(clearSpy).toHaveBeenCalled();
+    expect(modalHideSpy).toHaveBeenCalled();
+  }));
+
 });
