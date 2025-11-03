@@ -1,73 +1,30 @@
-import { of, throwError } from 'rxjs';
+import { throwError } from 'rxjs';
 import { fakeAsync, tick } from '@angular/core/testing';
+import { LOADINGACTION } from 'src/app/shared/actions/loading.actions'; // adjust path if needed
 
-it('LoadBranchCd(): error -> calls displayServiceErrors and leaves combo arrays empty', fakeAsync(() => {
+it('GenerateTableRows(): error -> should call displayServiceErrors, clear loading and dispatch LOADINGACTION(false)', fakeAsync(() => {
   // Arrange
   (component as any).appConfigService = (component as any).appConfigService || {} as any;
-  (component as any).appConfigService.getAllBranchCdUrl = '/api/branchCds';
+  (component as any).appConfigService.getAllAccrualTaxAcctUrl = '/api/taxaccounts';
 
-  // make feeApiservice.getRequest return an error observable
-  const serverErr = { error: { statusMessage: 'Server failure for branch cds' } };
-  spyOn(component.feeApiservice, 'getRequest').and.returnValue(throwError(() => serverErr));
+  // Mock error response
+  const errorResponse = { error: { statusMessage: 'Server error while fetching tax accounts' } };
 
-  // Spy displayServiceErrors so we can assert it was called
-  const displaySpy = spyOn(component as any, 'displayServiceErrors').and.callThrough();
+  // Spy dependencies
+  spyOn(component.feeApiservice, 'getRequest').and.returnValue(throwError(() => errorResponse));
+  const displaySpy = spyOn(component as any, 'displayServiceErrors');
+  (component as any).store = (component as any).store || { dispatch: () => {} };
+  const dispatchSpy = spyOn(component['store'], 'dispatch');
 
-  // Ensure internal arrays start empty
-  (component as any).branchCdOptionsValues = [];
-  component.branchCdComboBoxData = [];
-
-  // Act
-  (component as any).LoadBranchCd();
-  tick();
-
-  // Assert: displayServiceErrors invoked with server message
-  expect(displaySpy).toHaveBeenCalledWith('Server failure for branch cds');
-
-  // Assert: no options were pushed
-  expect((component as any).branchCdOptionsValues).toEqual([]);
-  expect(component.branchCdComboBoxData).toEqual([]);
-}));
-
-
-it('LoadBranchCd(): complete -> populates branchCdOptionsValues and pushes branchCdComboBoxData', fakeAsync(() => {
-  // Arrange
-  (component as any).appConfigService = (component as any).appConfigService || {} as any;
-  (component as any).appConfigService.getAllBranchCdUrl = '/api/branchCds';
-
-  const branchCds = [
-    { branchCode: 'B1', branchDesc: 'Branch One' },
-    { branchCode: 'B2', branchDesc: 'Branch Two' }
-  ];
-
-  // Return the successful response
-  spyOn(component.feeApiservice, 'getRequest').and.callFake((url: string) => {
-    expect(String(url || '')).toContain('/api/branchCds'); // sanity check (optional)
-    return of(branchCds);
-  });
-
-  // Ensure arrays start empty
-  (component as any).branchCdOptionsValues = [];
-  component.branchCdComboBoxData = [];
-
-  // If component dispatches LOADINGACTION in complete, stub store.dispatch to avoid side effects
-  if (component['store']) {
-    spyOn(component['store'], 'dispatch').and.callFake(() => {});
-  }
+  component.loading = true;
 
   // Act
-  (component as any).LoadBranchCd();
+  (component as any).GenerateTableRows();
   tick();
 
-  // Expected label/value: adjust if your implementation uses a different label template
-  const expectedOptions = [
-    { label: 'B1 Branch One', value: 'B1' },
-    { label: 'B2 Branch Two', value: 'B2' }
-  ];
-
-  // Assert: for-loop pushed expected options
-  expect((component as any).branchCdOptionsValues).toEqual(expectedOptions);
-
-  // Assert: complete() pushed combo data with options
-  expect(component.branchCdComboBoxData).toEqual([{ options: expectedOptions }]);
+  // Assert
+  expect(component.feeApiservice.getRequest).toHaveBeenCalledWith('/api/taxaccounts');
+  expect(displaySpy).toHaveBeenCalledWith('Server error while fetching tax accounts');
+  expect(component.loading).toBeFalse();
+  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
 }));
