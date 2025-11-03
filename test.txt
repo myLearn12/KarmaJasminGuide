@@ -1,18 +1,10 @@
-it('ActionType.update: when PUT completes -> should regenerate table, show success and call auditLogService.writeAuditLog', fakeAsync(() => {
-  // --- Make viewchildren-like holders present (strings used by getUpdatedModel) ---
-  (component as any)._controlIdComboBox = { value: '200' };
-  (component as any)._branchCdComboBox = { value: 'BR01' };
-  (component as any)._regionComboBox = { value: '1' }; // if used
+it('onAcceptButtonClick(ActionType.update): when PUT errors should restore model and call displayServiceErrors', fakeAsync(() => {
+  // Arrange: make validateFormControls allow the flow
+  spyOn(component as any, 'validateFormControls').and.returnValue(false);
 
-  // --- Provide arrays so .find(...) won't crash ---
-  (component as any).controlIds = [{ conId: 200, controlDesc: 'Control 200' }];
-  (component as any).branchCds = [{ branchCode: 'BR01', branchDesc: 'Branch 1' }]; // IMPORTANT: fixes branchCds.find error
-  (component as any).regions = [{ regionId: 1, regionDescription: 'R1' }]; // if getUpdatedModel uses regions
-  (component as any).divisions = [{ divisionId: 10, divisionCd: 'D10', divisionDesc: 'Division 10' }];
-
-  // --- Provide selected snapshot (original) and mutated model (UI edits) ---
+  // Provide a "selected" snapshot (original) and a mutated taxAccount (as if UI changed it)
   component.selectedtaxAccount = {
-    taxAcctId: 42,
+    taxAcctId: 123,
     acctNbr: 'OLD-ACCT',
     glAcctNbr: 'GL-OLD',
     controlId: 200,
@@ -20,44 +12,94 @@ it('ActionType.update: when PUT completes -> should regenerate table, show succe
   } as any;
 
   component.taxAccount = {
-    taxAcctId: 42,
+    taxAcctId: 123,
     acctNbr: 'NEW-ACCT',
     glAcctNbr: 'GL-NEW',
     controlId: 200,
     branchCode: 'BR01'
   } as any;
 
-  // allow flow
-  spyOn(component as any, 'validateFormControls').and.returnValue(false);
+  // Spy displayServiceErrors so we can assert it was called
+  const displaySpy = spyOn(component as any, 'displayServiceErrors').and.callFake(() => {});
 
-  // HTTP put succeeds
-  const putSpy = spyOn(component.feeApiservice, 'putRequest').and.returnValue(of({}));
+  // Make putRequest return an error observable
+  const serverError = { error: { statusMessage: 'Server failed to update tax account' } };
+  const putSpy = spyOn(component.feeApiservice, 'putRequest').and.returnValue(throwError(() => serverError));
 
-  // Spy side-effects
-  const genSpy = spyOn(component as any, 'GenerateTableRows').and.callFake(() => {});
-  const setMsgSpy = spyOn(component as any, 'SetMessageTypeAndValue').and.callFake(() => {});
-  const clearSpy = spyOn(component as any, 'clearSelection').and.callFake(() => {});
-  const hideSpy = spyOn((component as any)._actionModal || {}, 'hide').and.callFake(() => {});
+  // Prevent other methods (like GenerateTableRows) from interfering if they exist
+  if ((component as any).GenerateTableRows) {
+    spyOn(component as any, 'GenerateTableRows').and.callFake(() => {});
+  }
 
-  // auditLogService may be private - access via any
-  const auditSpy = spyOn((component as any).auditLogService || {}, 'writeAuditLog').and.callFake(() => {});
-
-  // --- Act ---
+  // Act
   component.onAcceptButtonClick(ActionType.update);
   tick();
 
-  // --- Assert ---
+  // Assert: HTTP was invoked
   expect(putSpy).toHaveBeenCalled();
+
+  // taxAccount should be restored (Object.assign should copy selected snapshot back)
+  expect(component.taxAccount).toEqual(component.selectedtaxAccount);
+
+  // displayServiceErrors should be called with the server statusMessage
+  expect(displaySpy).toHaveBeenCalledWith('Server failed to update tax account');
+}));
+
+
+it('onAcceptButtonClick(ActionType.add): next+complete should regenerate table, show success and call auditLogService.writeAuditLog', fakeAsync(() => {
+  // Arrange: make validateFormControls allow the flow
+  spyOn(component as any, 'validateFormControls').and.returnValue(false);
+
+  // Provide minimal taxAccount (used by getUpdatedModel or in payload)
+  component.taxAccount = {
+    taxAcctId: 999,
+    acctNbr: '12345',
+    glAcctNbr: 'GL-1',
+    controlId: 10,
+    branchCode: 'BR1',
+    activeIndic: true
+  } as any;
+
+  // Spy GenerateTableRows and SetMessageTypeAndValue (next)
+  const genSpy = spyOn(component as any, 'GenerateTableRows').and.callFake(() => {});
+  const setMsgSpy = spyOn(component as any, 'SetMessageTypeAndValue').and.callFake(() => {});
+
+  // Spy getUpdatedModel to return a predictable object used in audit log
+  const expectedUpdatedModel = { some: 'model' };
+  spyOn(component as any, 'getUpdatedModel').and.returnValue(expectedUpdatedModel);
+
+  // Prepare auditLogService spy (auditLogService may be private)
+  const auditSvc = (component as any).auditLogService = (component as any).auditLogService || { writeAuditLog: () => {}, addAction: 'ADD' };
+  const auditSpy = spyOn(auditSvc, 'writeAuditLog').and.callFake(() => {});
+
+  // Spy feeApiservice.postRequest to return an observable that emits next then completes
+  const postSpy = spyOn(component.feeApiservice, 'postRequest').and.returnValue(of({}));
+
+  // Also spy SetMessageTypeAndValue internals to inspect args; (we already spied setMsgSpy)
+  // Ensure PageTitle exists
+  (component as any).PageTitle = 'TaxAccount';
+
+  // Act: call method
+  component.onAcceptButtonClick(ActionType.add);
+  tick(); // flush observables
+
+  // Assert next() behavior: GenerateTableRows and success message called
   expect(genSpy).toHaveBeenCalled();
-  expect(setMsgSpy).toHaveBeenCalledWith(jasmine.anything(), jasmine.anything());
+  expect(setMsgSpy).toHaveBeenCalledWith(BlockMessageType.success, component.addSuccessMessage);
+
+  // Assert postRequest called
+  expect(postSpy).toHaveBeenCalled();
+
+  // Assert complete() behavior: audit log called with expected args
+  // First two params are 'NA','NA' per your code; 3rd is a new TaxAccount (we accept any object),
+  // 4th should be the object returned by getUpdatedModel, 5th is audit action (use jasmine.anything),
+  // last param is PageTitle
   expect(auditSpy).toHaveBeenCalledWith(
-    'taxAcctId',
-    component.taxAccount.taxAcctId.toString(),
-    component.selectedtaxAccount,
-    jasmine.any(Object),
-    jasmine.anything(),
-    jasmine.any(String)
+    'NA',
+    'NA',
+    jasmine.any(Object),        // new TaxAccount() instance created inside component
+    expectedUpdatedModel,       // getUpdatedModel() result
+    jasmine.anything(),         // the audit action constant (auditLogService.addAction)
+    'TaxAccount'                // PageTitle
   );
-  expect(clearSpy).toHaveBeenCalled();
-  expect(hideSpy).toHaveBeenCalled();
 }));
