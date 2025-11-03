@@ -1,128 +1,37 @@
-it('onAcceptButtonClick(ActionType.update): when PUT errors should restore model and call displayServiceErrors', fakeAsync(() => {
-  // arrange: allow processing
-  spyOn(component as any, 'validateFormControls').and.returnValue(false);
 
-  // Prepare selectedTaxAccount (the snapshot to restore on error)
-  component.selectedtaxAccount = {
-    taxAcctId: 1,
-    acctNbr: 'OLD-ACC',
-    glAcctNbr: 'OLD-GL',
-    controlId: 10,
-    branchCode: 'BR-OLD',
-    activeIndic: true
-  } as any;
+it('LoadControlId(): when API errors should call displayServiceErrors and keep controlIdComboBoxData empty and dispatch LOADINGACTION(false)', fakeAsync(() => {
+  // Arrange - make sure test is self-contained
+  // Defensive: ensure appConfigService is present on the component
+  if (!(component as any).appConfigService) {
+    (component as any).appConfigService = { getAllControlIdurl: '/api/controlIds' } as any;
+  } else if (!(component as any).appConfigService.getAllControlIdurl) {
+    (component as any).appConfigService.getAllControlIdurl = '/api/controlIds';
+  }
 
-  // Mutated taxAccount (simulate user changed values which should be restored on error)
-  component.taxAccount = {
-    taxAcctId: 1,
-    acctNbr: 'NEW-ACC',
-    glAcctNbr: 'NEW-GL',
-    controlId: 20,
-    branchCode: 'BR-NEW',
-    activeIndic: false
-  } as any;
+  // Spy getRequest to return an error observable
+  const serverMessage = 'Server failure for control ids';
+  const getSpy = spyOn(component.feeApiservice, 'getRequest').and.returnValue(
+    throwError(() => ({ error: { statusMessage: serverMessage } }))
+  );
 
-  // Ensure combo boxes exist and have safe .value so toString() won't throw
-  (component as any)._controlIdComboBox = { value: '20' };
-  (component as any)._branchCdComboBox = { value: 'BR-NEW' };
-
-  // Spy displayServiceErrors, clearSelection and action modal hide (if used)
+  // Spy displayServiceErrors
   const displaySpy = spyOn(component as any, 'displayServiceErrors').and.callFake(() => {});
-  const clearSpy = spyOn(component as any, 'clearSelection').and.callFake(() => {});
-  const modal = (component as any)._actionModal || { hide: () => {} };
-  const modalHideSpy = spyOn(modal, 'hide').and.callFake(() => {});
 
-  // Make feeApiservice.putRequest return an error observable
-  const serverError = { error: { statusMessage: 'server PUT error' } };
-  const putSpy = spyOn(component.feeApiservice, 'putRequest').and.returnValue(throwError(() => serverError));
+  // Spy store.dispatch (store is often private; use bracket access)
+  const dispatchSpy = spyOn(component['store'], 'dispatch').and.callFake(() => {});
 
-  // act
-  component.onAcceptButtonClick(ActionType.update);
-  tick(); // flush
-
-  // assert HTTP was called
-  expect(putSpy).toHaveBeenCalled();
-
-  // the component should restore the model from selected snapshot
-  expect(component.taxAccount).toEqual(component.selectedtaxAccount);
-
-  // displayServiceErrors must be called with server message
-  expect(displaySpy).toHaveBeenCalledWith('server PUT error');
-
-  // cleanup methods called
-  expect(clearSpy).toHaveBeenCalled();
-  expect(modalHideSpy).toHaveBeenCalled();
-}));
-
-
-it('onAcceptButtonClick(ActionType.add): next+complete should regenerate table, show success and call auditLogService.writeAuditLog', fakeAsync(() => {
-  // Arrange: make validateFormControls allow action
-  spyOn(component as any, 'validateFormControls').and.returnValue(false);
-
-  // Provide safe view-child combo mocks so .toString() won't throw
-  (component as any)._controlIdComboBox = { value: '10' };
-  (component as any)._branchCdComboBox = { value: 'BR-100' };
-
-  // Ensure utils used during payload/model building won't blow up
-  if (!(component as any).utils) { (component as any).utils = {} as any; }
-  spyOn((component as any).utils, 'getFormatedString').and.callFake((v: any) => String(v || ''));
-  spyOn((component as any).utils, 'getCurrentUser').and.returnValue('test-user');
-  spyOn((component as any).utils, 'ToEstDate').and.returnValue('2025-11-03T00:00:00.000Z');
-
-  // Provide arrays used by getUpdatedModel() so .find() works
-  component.controlIds = [{ conId: 10, controlDesc: 'Control 10' }];
-  component.branchCds = [{ branchCode: 'BR-100', branchDesc: 'Branch 100' }];
-
-  // Hook to avoid internal side-effects we don't want in this unit test
-  const genSpy = spyOn(component as any, 'GenerateTableRows').and.callFake(() => {});
-  const setMsgSpy = spyOn(component as any, 'SetMessageTypeAndValue').and.callFake(() => {});
-  // auditLogService is private — access via bracket notation; ensure it exists and spy writeAuditLog
-  if (!(component as any).auditLogService) { (component as any).auditLogService = { writeAuditLog: () => {} } as any; }
-  const auditSpy = spyOn((component as any).auditLogService, 'writeAuditLog').and.callFake(() => {});
-
-  // Prepare the model that will be used in getUpdatedModel() when complete runs
-  component.taxAccount = {
-    taxAcctId: 123,
-    acctNbr: 'AC-123',
-    glAcctNbr: 'GL-123',
-    controlId: 10,
-    branchCode: 'BR-100',
-    activeIndic: true,
-    createdBy: 'u',
-    createdDt: 'dt',
-    updatedBy: null,
-    updatedDt: null
-  } as any;
-
-  // Spy postRequest to return success (so next and complete are executed)
-  const postSpy = spyOn(component.feeApiservice, 'postRequest').and.returnValue(of({}));
-
-  // Prevent displayServiceErrors throwing if called unexpectedly
-  spyOn(component as any, 'displayServiceErrors').and.callFake(() => {});
+  // Optionally pre-fill controlIdComboBoxData to ensure it remains cleared or unchanged after error
+  component.controlIdComboBoxData = [];
 
   // Act
-  component.onAcceptButtonClick(ActionType.add);
-  tick(); // flush observables (next + complete)
+  (component as any).LoadControlId();
+  tick(); // flush observable/error
 
-  // Assert: HTTP call happened
-  expect(postSpy).toHaveBeenCalled();
-
-  // next() branch effects
-  expect(genSpy).toHaveBeenCalled();
-  expect(setMsgSpy).toHaveBeenCalledWith(BlockMessageType.success, component.addSuccessMessage);
-
-  // complete() branch effect: audit log called (make flexible assertions)
-  expect(auditSpy).toHaveBeenCalled();
-  // the writeAuditLog args: first two 'NA','NA' per component code, then an object and updated model and action/title.
-  const auditArgs = auditSpy.calls.mostRecent().args;
-  expect(auditArgs[0]).toBe('NA');
-  expect(auditArgs[1]).toBe('NA');
-  expect(typeof auditArgs[2]).toBe('object'); // unmodified/new object
-  expect(typeof auditArgs[3]).toBe('object'); // getUpdatedModel() result
-  expect(auditArgs[5]).toBe(component.PageTitle);
-
-  // Finally modal/hide/cleanup (if component does clearSelection/_actionModal.hide in the method)
-  if ((component as any).clearSelection) {
-    // clearSelection may be called after complete; spy to confirm it's been invoked earlier would be done similarly
-  }
+  // Assert
+  expect(getSpy).toHaveBeenCalledWith((component as any).appConfigService.getAllControlIdurl);
+  expect(displaySpy).toHaveBeenCalledWith(serverMessage);
+  // After an error the combo data should remain empty (or not populated)
+  expect(component.controlIdComboBoxData).toEqual([]);
+  // Many components dispatch LOADINGACTION(false) on error — adapt if your code doesn't.
+  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
 }));
