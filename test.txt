@@ -1,49 +1,48 @@
-import { fakeAsync, tick } from '@angular/core/testing';
-import { throwError, of } from 'rxjs';
-
-it('LoadControlId(): when API errors -> calls displayServiceErrors and keeps controlIdComboBoxData empty', fakeAsync(() => {
-  // Defensive setup: ensure appConfigService exists and provide both likely property names
+it('LoadControlId(): complete -> builds controlIdOptionsValues and controlIdComboBoxData when controlIds returned', fakeAsync(() => {
+  // Defensive appConfig setup (component may use either casing)
   (component as any).appConfigService = (component as any).appConfigService || {} as any;
   (component as any).appConfigService.getAllControlIdurl = '/api/controlIds';
   (component as any).appConfigService.getAllControlIdUrl = '/api/controlIds';
 
-  // Make feeApiservice.getRequest return an error observable and capture the passed URL
-  const calledUrls: any[] = [];
-  const serverMessage = 'Server failure for control ids';
-  const getSpy = spyOn(component.feeApiservice, 'getRequest').and.callFake((url?: string) => {
-    calledUrls.push(url);
-    return throwError(() => ({ error: { statusMessage: serverMessage } }));
+  // Prepare sample service response (matches structure used in your method)
+  const controlIds = [
+    { conId: 200, controlDesc: 'Control 200' },
+    { conId: 201, controlDesc: 'Control 201' }
+  ];
+
+  // Spy getRequest to return the array (completes -> will call complete handler)
+  spyOn(component.feeApiservice, 'getRequest').and.callFake((url: string) => {
+    // ensure test called the expected URL at least once (optional)
+    expect(String(url)).toContain('/api/controlIds');
+    return of(controlIds);
   });
 
-  // Spy displayServiceErrors so we can assert it was called
-  const displaySpy = spyOn(component as any, 'displayServiceErrors').and.callFake(() => {});
-
-  // Ensure starting state
+  // Ensure starting state is empty so we can observe changes
+  (component as any).controlIdOptionsValues = [];
   component.controlIdComboBoxData = [];
 
-  // Optional: spy store.dispatch to avoid failing if store is private/unset
-  let dispatchSpy: jasmine.Spy | null = null;
+  // If component uses store.dispatch in complete/error paths, spy it to avoid errors
   if (component['store']) {
-    dispatchSpy = spyOn(component['store'], 'dispatch').and.callFake(() => {});
+    spyOn(component['store'], 'dispatch').and.callFake(() => {});
   }
 
-  // Act
+  // Act: call the method that triggers subscription + complete
   (component as any).LoadControlId();
-  tick();
+  tick(); // flush observable/subscribe handlers
 
-  // Assert: feeApiservice.getRequest was called and the URL passed is the expected one
-  expect(getSpy).toHaveBeenCalled();
-  // At least one call should have passed the expected URL
-  expect(calledUrls).toContain('/api/controlIds');
+  // Build expected options array exactly as the method constructs them:
+  // label: `${controlId.conId} ${controlId.controlDesc}`, value: controlId.conId
+  const expectedOptions = [
+    { label: '200 Control 200', value: 200 },
+    { label: '201 Control 201', value: 201 }
+  ];
 
-  // Assert: displayServiceErrors called with server message
-  expect(displaySpy).toHaveBeenCalledWith(serverMessage);
+  // Assert: internal options values populated by the for-loop
+  expect((component as any).controlIdOptionsValues).toEqual(expectedOptions);
 
-  // Assert: combo remains empty on error
-  expect(component.controlIdComboBoxData).toEqual([]);
+  // Assert: controlIdComboBoxData contains a single entry with options array
+  expect(component.controlIdComboBoxData).toEqual([{ options: expectedOptions }]);
 
-  // If component dispatches in error path, ensure it called LOADINGACTION (flexible)
-  if (dispatchSpy && dispatchSpy.calls.any()) {
-    expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
-  }
+  // Also assert that the array length is > 0 (extra defensive check)
+  expect((component as any).controlIdOptionsValues.length).toBeGreaterThan(0);
 }));
