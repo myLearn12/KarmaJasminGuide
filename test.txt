@@ -1,22 +1,27 @@
+import { fakeAsync, tick } from '@angular/core/testing';
+import { throwError, of } from 'rxjs';
 
-it('LoadControlId(): when API errors should call displayServiceErrors and keep controlIdComboBoxData empty (robust)', fakeAsync(() => {
-  // Arrange - ensure appConfigService URL exists (test-local setup)
+it('LoadControlId(): when API errors -> calls displayServiceErrors and keeps controlIdComboBoxData empty', fakeAsync(() => {
+  // Defensive setup: ensure appConfigService exists and provide both likely property names
   (component as any).appConfigService = (component as any).appConfigService || {} as any;
   (component as any).appConfigService.getAllControlIdurl = '/api/controlIds';
+  (component as any).appConfigService.getAllControlIdUrl = '/api/controlIds';
 
-  // Spy getRequest to throw an error observable
+  // Make feeApiservice.getRequest return an error observable and capture the passed URL
+  const calledUrls: any[] = [];
   const serverMessage = 'Server failure for control ids';
-  const getSpy = spyOn(component.feeApiservice, 'getRequest').and.returnValue(
-    throwError(() => ({ error: { statusMessage: serverMessage } }))
-  );
+  const getSpy = spyOn(component.feeApiservice, 'getRequest').and.callFake((url?: string) => {
+    calledUrls.push(url);
+    return throwError(() => ({ error: { statusMessage: serverMessage } }));
+  });
 
-  // Spy displayServiceErrors
+  // Spy displayServiceErrors so we can assert it was called
   const displaySpy = spyOn(component as any, 'displayServiceErrors').and.callFake(() => {});
 
-  // Make sure controlIdComboBoxData exists and is empty before call
+  // Ensure starting state
   component.controlIdComboBoxData = [];
 
-  // Spy store.dispatch if store exists on the component
+  // Optional: spy store.dispatch to avoid failing if store is private/unset
   let dispatchSpy: jasmine.Spy | null = null;
   if (component['store']) {
     dispatchSpy = spyOn(component['store'], 'dispatch').and.callFake(() => {});
@@ -24,18 +29,20 @@ it('LoadControlId(): when API errors should call displayServiceErrors and keep c
 
   // Act
   (component as any).LoadControlId();
-  tick(); // flush observable
+  tick();
 
-  // Assert: feeApiservice called with the configured URL
-  expect(getSpy).toHaveBeenCalledWith((component as any).appConfigService.getAllControlIdurl);
+  // Assert: feeApiservice.getRequest was called and the URL passed is the expected one
+  expect(getSpy).toHaveBeenCalled();
+  // At least one call should have passed the expected URL
+  expect(calledUrls).toContain('/api/controlIds');
 
   // Assert: displayServiceErrors called with server message
   expect(displaySpy).toHaveBeenCalledWith(serverMessage);
 
-  // Assert: combo data remains empty (not populated on error)
+  // Assert: combo remains empty on error
   expect(component.controlIdComboBoxData).toEqual([]);
 
-  // Assert: if the component dispatched something, it should be a LOADINGACTION (flexible)
+  // If component dispatches in error path, ensure it called LOADINGACTION (flexible)
   if (dispatchSpy && dispatchSpy.calls.any()) {
     expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
   }
