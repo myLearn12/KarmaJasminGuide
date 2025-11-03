@@ -1,48 +1,73 @@
-it('LoadControlId(): complete -> builds controlIdOptionsValues and controlIdComboBoxData when controlIds returned', fakeAsync(() => {
-  // Defensive appConfig setup (component may use either casing)
-  (component as any).appConfigService = (component as any).appConfigService || {} as any;
-  (component as any).appConfigService.getAllControlIdurl = '/api/controlIds';
-  (component as any).appConfigService.getAllControlIdUrl = '/api/controlIds';
+import { of, throwError } from 'rxjs';
+import { fakeAsync, tick } from '@angular/core/testing';
 
-  // Prepare sample service response (matches structure used in your method)
-  const controlIds = [
-    { conId: 200, controlDesc: 'Control 200' },
-    { conId: 201, controlDesc: 'Control 201' }
+it('LoadBranchCd(): error -> calls displayServiceErrors and leaves combo arrays empty', fakeAsync(() => {
+  // Arrange
+  (component as any).appConfigService = (component as any).appConfigService || {} as any;
+  (component as any).appConfigService.getAllBranchCdUrl = '/api/branchCds';
+
+  // make feeApiservice.getRequest return an error observable
+  const serverErr = { error: { statusMessage: 'Server failure for branch cds' } };
+  spyOn(component.feeApiservice, 'getRequest').and.returnValue(throwError(() => serverErr));
+
+  // Spy displayServiceErrors so we can assert it was called
+  const displaySpy = spyOn(component as any, 'displayServiceErrors').and.callThrough();
+
+  // Ensure internal arrays start empty
+  (component as any).branchCdOptionsValues = [];
+  component.branchCdComboBoxData = [];
+
+  // Act
+  (component as any).LoadBranchCd();
+  tick();
+
+  // Assert: displayServiceErrors invoked with server message
+  expect(displaySpy).toHaveBeenCalledWith('Server failure for branch cds');
+
+  // Assert: no options were pushed
+  expect((component as any).branchCdOptionsValues).toEqual([]);
+  expect(component.branchCdComboBoxData).toEqual([]);
+}));
+
+
+it('LoadBranchCd(): complete -> populates branchCdOptionsValues and pushes branchCdComboBoxData', fakeAsync(() => {
+  // Arrange
+  (component as any).appConfigService = (component as any).appConfigService || {} as any;
+  (component as any).appConfigService.getAllBranchCdUrl = '/api/branchCds';
+
+  const branchCds = [
+    { branchCode: 'B1', branchDesc: 'Branch One' },
+    { branchCode: 'B2', branchDesc: 'Branch Two' }
   ];
 
-  // Spy getRequest to return the array (completes -> will call complete handler)
+  // Return the successful response
   spyOn(component.feeApiservice, 'getRequest').and.callFake((url: string) => {
-    // ensure test called the expected URL at least once (optional)
-    expect(String(url)).toContain('/api/controlIds');
-    return of(controlIds);
+    expect(String(url || '')).toContain('/api/branchCds'); // sanity check (optional)
+    return of(branchCds);
   });
 
-  // Ensure starting state is empty so we can observe changes
-  (component as any).controlIdOptionsValues = [];
-  component.controlIdComboBoxData = [];
+  // Ensure arrays start empty
+  (component as any).branchCdOptionsValues = [];
+  component.branchCdComboBoxData = [];
 
-  // If component uses store.dispatch in complete/error paths, spy it to avoid errors
+  // If component dispatches LOADINGACTION in complete, stub store.dispatch to avoid side effects
   if (component['store']) {
     spyOn(component['store'], 'dispatch').and.callFake(() => {});
   }
 
-  // Act: call the method that triggers subscription + complete
-  (component as any).LoadControlId();
-  tick(); // flush observable/subscribe handlers
+  // Act
+  (component as any).LoadBranchCd();
+  tick();
 
-  // Build expected options array exactly as the method constructs them:
-  // label: `${controlId.conId} ${controlId.controlDesc}`, value: controlId.conId
+  // Expected label/value: adjust if your implementation uses a different label template
   const expectedOptions = [
-    { label: '200 Control 200', value: 200 },
-    { label: '201 Control 201', value: 201 }
+    { label: 'B1 Branch One', value: 'B1' },
+    { label: 'B2 Branch Two', value: 'B2' }
   ];
 
-  // Assert: internal options values populated by the for-loop
-  expect((component as any).controlIdOptionsValues).toEqual(expectedOptions);
+  // Assert: for-loop pushed expected options
+  expect((component as any).branchCdOptionsValues).toEqual(expectedOptions);
 
-  // Assert: controlIdComboBoxData contains a single entry with options array
-  expect(component.controlIdComboBoxData).toEqual([{ options: expectedOptions }]);
-
-  // Also assert that the array length is > 0 (extra defensive check)
-  expect((component as any).controlIdOptionsValues.length).toBeGreaterThan(0);
+  // Assert: complete() pushed combo data with options
+  expect(component.branchCdComboBoxData).toEqual([{ options: expectedOptions }]);
 }));
