@@ -1,107 +1,67 @@
-import { fakeAsync, tick } from '@angular/core/testing';
-import { of, throwError } from 'rxjs';
-import { ActionType } from 'path/to/your/actiontype'; // adjust
-// import LOADINGACTION if you assert dispatch etc.
+it('ActionType.update: when PUT completes -> should regenerate table, show success and call auditLogService.writeAuditLog', fakeAsync(() => {
+  // --- Arrange: minimal, self-contained setup inside the test ---
+  // Provide viewchild-like holders (strings expected by getUpdatedModel())
+  (component as any)._controlIdComboBox = { value: '200' };
+  (component as any)._branchCdComboBox = { value: 'BR01' };
 
-describe('onAcceptButtonClick tests (TaxAccount)', () => {
+  // Make the collections used by getUpdatedModel() real arrays so .find works
+  (component as any).controlIds = [
+    { conId: 200, controlDesc: 'Control 200' },
+    { conId: 201, controlDesc: 'Control 201' }
+  ];
+  // If getUpdatedModel reads other collections (divisions/regions/costCenters), provide them too:
+  (component as any).divisions = [
+    { divisionId: 10, divisionCd: 'D10', divisionDesc: 'Division 10' }
+  ];
+  (component as any).regions = [{ regionId: 1, regionDescription: 'R1' }];
 
-  it('ActionType.add: when POST errors -> should call displayServiceErrors and not write audit log', fakeAsync(() => {
-    // Arrange - ensure UI boxes exist
-    (component as any)._controlIdComboBox = { value: '200' };
-    (component as any)._branchCdComboBox = { value: 'BR01' };
+  // Selected snapshot (original) and mutated model (simulates user edits)
+  component.selectedtaxAccount = {
+    taxAcctId: 42,
+    acctNbr: 'OLD-ACCT',
+    glAcctNbr: 'GL-OLD',
+    controlId: 200,
+    branchCode: 'BR01'
+  } as any;
 
-    // taxAccount payload fields
-    component.taxAccount = {
-      acctNbr: ' 12345 ',
-      glAcctNbr: 'GL123',
-      activeIndic: true
-    } as any;
+  component.taxAccount = {
+    taxAcctId: 42,
+    acctNbr: 'NEW-ACCT',
+    glAcctNbr: 'GL-NEW',
+    controlId: 200,
+    branchCode: 'BR01'
+  } as any;
 
-    // make validateFormControls allow execution
-    spyOn(component as any, 'validateFormControls').and.returnValue(false);
+  // Make validateFormControls allow the flow
+  spyOn(component as any, 'validateFormControls').and.returnValue(false);
 
-    // feeApiservice.postRequest to throw error
-    const serverError = { error: { statusMessage: 'Server failed to save tax account' } };
-    spyOn((component as any).feeApiservice, 'postRequest').and.returnValue(throwError(() => serverError));
+  // Stub the HTTP put to succeed
+  const putSpy = spyOn(component.feeApiservice, 'putRequest').and.returnValue(of({}));
 
-    // Spy displayServiceErrors and auditLogService (private) and GenerateTableRows & SetMessageTypeAndValue
-    const displaySpy = spyOn(component as any, 'displayServiceErrors').and.callFake(() => {});
-    const auditSpy = spyOn((component as any).auditLogService || {}, 'writeAuditLog').and.callFake(() => {});
-    const genSpy = spyOn(component as any, 'GenerateTableRows').and.callFake(() => {});
-    const setMsgSpy = spyOn(component as any, 'SetMessageTypeAndValue').and.callFake(() => {});
+  // Spy side-effect helpers called by success handling
+  const genSpy = spyOn(component as any, 'GenerateTableRows').and.callFake(() => {});
+  const setMsgSpy = spyOn(component as any, 'SetMessageTypeAndValue').and.callFake(() => {});
+  // auditLogService may be private — access via (component as any).auditLogService
+  const auditSpy = spyOn((component as any).auditLogService || {}, 'writeAuditLog').and.callFake(() => {});
+  const clearSpy = spyOn(component as any, 'clearSelection').and.callFake(() => {});
+  const hideSpy = spyOn((component as any)._actionModal || {}, 'hide').and.callFake(() => {});
 
-    // Act
-    component.onAcceptButtonClick(ActionType.add);
-    tick();
+  // --- Act ---
+  component.onAcceptButtonClick(ActionType.update);
+  tick();
 
-    // Assert
-    expect((component as any).feeApiservice.postRequest).toHaveBeenCalled();
-    expect(displaySpy).toHaveBeenCalledWith('Server failed to save tax account');
-    // Generation and success message should not be called on error
-    expect(genSpy).not.toHaveBeenCalled();
-    expect(setMsgSpy).not.toHaveBeenCalled();
-    // Audit should NOT be called on error
-    expect(auditSpy).not.toHaveBeenCalled();
-  }));
-
-
-  it('ActionType.update: when PUT completes -> should regenerate table, show success and call auditLogService.writeAuditLog on complete', fakeAsync(() => {
-    // Arrange
-    (component as any)._controlIdComboBox = { value: '200' };
-    (component as any)._branchCdComboBox = { value: 'BR01' };
-
-    // pre-existing selected snapshot (used if error) and current taxAccount (updated)
-    component.selectedtaxAccount = {
-      taxAcctId: 42,
-      acctNbr: '12345',
-      glAcctNbr: 'GL-OLD',
-      activeIndic: true
-    } as any;
-
-    component.taxAccount = {
-      taxAcctId: 42,
-      acctNbr: '67890',
-      glAcctNbr: 'GL-NEW',
-      activeIndic: true
-    } as any;
-
-    // allow execution
-    spyOn(component as any, 'validateFormControls').and.returnValue(false);
-
-    // make putRequest succeed (emit empty value; complete will run)
-    spyOn((component as any).feeApiservice, 'putRequest').and.returnValue(of({}));
-
-    // spies for side effects
-    const genSpy = spyOn(component as any, 'GenerateTableRows').and.callFake(() => {});
-    const setMsgSpy = spyOn(component as any, 'SetMessageTypeAndValue').and.callFake(() => {});
-    const auditSpy = spyOn((component as any).auditLogService || {}, 'writeAuditLog').and.callFake(() => {});
-    const clearSpy = spyOn(component as any, 'clearSelection').and.callFake(() => {});
-    const modalHideSpy = spyOn((component as any)._actionModal || {}, 'hide').and.callFake(() => {});
-
-    // Act
-    component.onAcceptButtonClick(ActionType.update);
-    tick();
-
-    // Assert - HTTP called
-    expect((component as any).feeApiservice.putRequest).toHaveBeenCalled();
-
-    // next() side-effects executed
-    expect(genSpy).toHaveBeenCalled();
-    expect(setMsgSpy).toHaveBeenCalledWith(jasmine.anything(), jasmine.anything()); // success call
-
-    // complete() side-effects executed: auditLog called
-    expect(auditSpy).toHaveBeenCalledWith(
-      'taxAcctId',
-      component.taxAccount.taxAcctId.toString(),
-      component.selectedtaxAccount,
-      jasmine.any(Object),
-      jasmine.anything(),
-      jasmine.any(String)
-    );
-
-    // cleanup still happens
-    expect(clearSpy).toHaveBeenCalled();
-    expect(modalHideSpy).toHaveBeenCalled();
-  }));
-
-});
+  // --- Assert ---
+  expect(putSpy).toHaveBeenCalled(); // putRequest invoked
+  expect(genSpy).toHaveBeenCalled(); // table regenerated on success
+  expect(setMsgSpy).toHaveBeenCalledWith(jasmine.anything(), jasmine.anything()); // success message set
+  expect(auditSpy).toHaveBeenCalledWith(
+    'taxAcctId',
+    component.taxAccount.taxAcctId.toString(),
+    component.selectedtaxAccount,
+    jasmine.any(Object),
+    jasmine.anything(),
+    jasmine.any(String)
+  );
+  expect(clearSpy).toHaveBeenCalled(); // selection cleared
+  expect(hideSpy).toHaveBeenCalled(); // modal hidden
+}));
