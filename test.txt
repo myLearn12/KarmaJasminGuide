@@ -1,21 +1,16 @@
 it('ActionType.update: when PUT completes -> should regenerate table, show success and call auditLogService.writeAuditLog', fakeAsync(() => {
-  // --- Arrange: minimal, self-contained setup inside the test ---
-  // Provide viewchild-like holders (strings expected by getUpdatedModel())
+  // --- Make viewchildren-like holders present (strings used by getUpdatedModel) ---
   (component as any)._controlIdComboBox = { value: '200' };
   (component as any)._branchCdComboBox = { value: 'BR01' };
+  (component as any)._regionComboBox = { value: '1' }; // if used
 
-  // Make the collections used by getUpdatedModel() real arrays so .find works
-  (component as any).controlIds = [
-    { conId: 200, controlDesc: 'Control 200' },
-    { conId: 201, controlDesc: 'Control 201' }
-  ];
-  // If getUpdatedModel reads other collections (divisions/regions/costCenters), provide them too:
-  (component as any).divisions = [
-    { divisionId: 10, divisionCd: 'D10', divisionDesc: 'Division 10' }
-  ];
-  (component as any).regions = [{ regionId: 1, regionDescription: 'R1' }];
+  // --- Provide arrays so .find(...) won't crash ---
+  (component as any).controlIds = [{ conId: 200, controlDesc: 'Control 200' }];
+  (component as any).branchCds = [{ branchCode: 'BR01', branchDesc: 'Branch 1' }]; // IMPORTANT: fixes branchCds.find error
+  (component as any).regions = [{ regionId: 1, regionDescription: 'R1' }]; // if getUpdatedModel uses regions
+  (component as any).divisions = [{ divisionId: 10, divisionCd: 'D10', divisionDesc: 'Division 10' }];
 
-  // Selected snapshot (original) and mutated model (simulates user edits)
+  // --- Provide selected snapshot (original) and mutated model (UI edits) ---
   component.selectedtaxAccount = {
     taxAcctId: 42,
     acctNbr: 'OLD-ACCT',
@@ -32,28 +27,29 @@ it('ActionType.update: when PUT completes -> should regenerate table, show succe
     branchCode: 'BR01'
   } as any;
 
-  // Make validateFormControls allow the flow
+  // allow flow
   spyOn(component as any, 'validateFormControls').and.returnValue(false);
 
-  // Stub the HTTP put to succeed
+  // HTTP put succeeds
   const putSpy = spyOn(component.feeApiservice, 'putRequest').and.returnValue(of({}));
 
-  // Spy side-effect helpers called by success handling
+  // Spy side-effects
   const genSpy = spyOn(component as any, 'GenerateTableRows').and.callFake(() => {});
   const setMsgSpy = spyOn(component as any, 'SetMessageTypeAndValue').and.callFake(() => {});
-  // auditLogService may be private — access via (component as any).auditLogService
-  const auditSpy = spyOn((component as any).auditLogService || {}, 'writeAuditLog').and.callFake(() => {});
   const clearSpy = spyOn(component as any, 'clearSelection').and.callFake(() => {});
   const hideSpy = spyOn((component as any)._actionModal || {}, 'hide').and.callFake(() => {});
+
+  // auditLogService may be private - access via any
+  const auditSpy = spyOn((component as any).auditLogService || {}, 'writeAuditLog').and.callFake(() => {});
 
   // --- Act ---
   component.onAcceptButtonClick(ActionType.update);
   tick();
 
   // --- Assert ---
-  expect(putSpy).toHaveBeenCalled(); // putRequest invoked
-  expect(genSpy).toHaveBeenCalled(); // table regenerated on success
-  expect(setMsgSpy).toHaveBeenCalledWith(jasmine.anything(), jasmine.anything()); // success message set
+  expect(putSpy).toHaveBeenCalled();
+  expect(genSpy).toHaveBeenCalled();
+  expect(setMsgSpy).toHaveBeenCalledWith(jasmine.anything(), jasmine.anything());
   expect(auditSpy).toHaveBeenCalledWith(
     'taxAcctId',
     component.taxAccount.taxAcctId.toString(),
@@ -62,6 +58,6 @@ it('ActionType.update: when PUT completes -> should regenerate table, show succe
     jasmine.anything(),
     jasmine.any(String)
   );
-  expect(clearSpy).toHaveBeenCalled(); // selection cleared
-  expect(hideSpy).toHaveBeenCalled(); // modal hidden
+  expect(clearSpy).toHaveBeenCalled();
+  expect(hideSpy).toHaveBeenCalled();
 }));
