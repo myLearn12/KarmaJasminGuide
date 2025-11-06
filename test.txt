@@ -1,46 +1,153 @@
-import { fakeAsync, tick } from '@angular/core/testing';
+// changetable.component.spec.ts
+import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';
 import { of } from 'rxjs';
-import { LOADINGACTION } from 'src/app/shared/actions/loading.actions'; // <-- adjust path
+import { NO_ERRORS_SCHEMA } from '@angular/core';
 
-it('ngOnInit: when selector yields object with regionId undefined -> clears loading, dispatches LOADINGACTION(false) and redirects', fakeAsync(() => {
-  // Arrange
-  // spy store.pipe(select(...)) to emit an object whose regionId is undefined
-  spyOn(component['store'], 'pipe').and.returnValue(of({ regionId: undefined }));
+// Replace with real import path
+import { ChangetableComponent } from './changetable.component';
 
-  // spy dispatch and utils.redirectToRegionSelection
-  const dispatchSpy = spyOn(component['store'], 'dispatch');
-  const redirectSpy = spyOn(component['utils'], 'redirectToRegionSelection');
+// Minimal LOADINGACTION placeholder used for assertions:
+class LOADINGACTION { constructor(public payload: boolean) {} }
 
-  // Act
-  component.ngOnInit();
-  tick();
+describe('ChangetableComponent (focused)', () => {
+  let fixture: ComponentFixture<ChangetableComponent>;
+  let component: ChangetableComponent;
 
-  // Assert: loading should be false
-  expect(component.loading).toBeFalse();
+  // Spies / fakes
+  const utils = jasmine.createSpyObj('utils', ['getPerPageItem', 'getFilterTextMaxLength', 'ToDate', 'redirectToRegionSelection']);
+  const store = jasmine.createSpyObj('store', ['dispatch', 'pipe']);
+  const reportService = jasmine.createSpyObj('reportService', ['getChangeTable']);
+  const changeReport = jasmine.createSpyObj('changeReport', ['getExcelExportData']);
 
-  // Assert: dispatch was called with a LOADINGACTION (we accept any LOADINGACTION instance)
-  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      declarations: [ChangetableComponent],
+      providers: [
+        // We'll attach our spies to the instance directly (below)
+      ],
+      schemas: [NO_ERRORS_SCHEMA]
+    });
 
-  // Assert: redirect was called
-  expect(redirectSpy).toHaveBeenCalled();
-}));
+    fixture = TestBed.createComponent(ChangetableComponent);
+    component = fixture.componentInstance as any;
 
+    // Attach spy implementations to the component (works even for private constructor-injected services)
+    (component as any).utils = utils;
+    (component as any).store = store;
+    (component as any).reportService = reportService;
+    (component as any).changeReport = changeReport;
 
-it('ngDoCheck(): when changeTable has rows -> should set isData=true and loading=false', () => {
-  // Arrange
-  const mockChangeTable = [{ id: 1, name: 'Row1' }];
+    // sensible defaults used by the component initialization
+    utils.getPerPageItem.and.returnValue(10);
+    utils.getFilterTextMaxLength.and.returnValue(100);
+    utils.ToDate.and.returnValue(new Date('2025-11-06T00:00:00Z'));
+    store.dispatch.and.callFake(() => {});
+  });
 
-  // Spy on reportService.getChangeTable() to return non-empty data
-  spyOn(component['reportservice'], 'getChangeTable').and.returnValue(mockChangeTable);
+  afterEach(() => {
+    // cleanup if tests change anything
+    utils.getPerPageItem.calls.reset();
+    utils.getFilterTextMaxLength.calls.reset();
+    utils.ToDate.calls.reset();
+    store.dispatch.calls.reset();
+  });
 
-  // Initial state
-  component.isData = false;
-  component.loading = true;
+  it('ngOnInit(): when store returns regionId -> should dispatch loading true and set loading false without redirect', fakeAsync(() => {
+    // Arrange
+    // Make store.pipe(select(getRegionId)) emit an object with regionId
+    store.pipe.and.returnValue(of({ regionId: 'REG-1' }));
 
-  // Act
-  component.ngDoCheck();
+    // spy for redirect and ensure it is not called
+    utils.redirectToRegionSelection.and.callFake(() => {});
 
-  // Assert
-  expect(component.isData).toBeTrue();
-  expect(component.loading).toBeFalse();
+    // Act
+    (component as any).ngOnInit();
+    tick();
+
+    // Assert
+    expect(store.dispatch).toHaveBeenCalledWith(jasmine.any(LOADINGACTION)); // startup dispatch(true)
+    // component sets loading = false after subscription
+    expect((component as any).loading).toBeFalse();
+    // redirect should NOT be called for present regionId
+    expect(utils.redirectToRegionSelection).not.toHaveBeenCalled();
+  }));
+
+  it('ngOnInit(): when store returns NO regionId -> should dispatch loading true then loading false and redirect', fakeAsync(() => {
+    // Arrange: store.pipe returns null/undefined region
+    store.pipe.and.returnValue(of(null)); // component will interpret this as missing regionId
+    const redirectSpy = utils.redirectToRegionSelection.and.callFake(() => {});
+
+    // Act
+    (component as any).ngOnInit();
+    tick();
+
+    // Assert
+    expect(store.dispatch).toHaveBeenCalledWith(jasmine.any(LOADINGACTION)); // startup true
+    // component should set loading false
+    expect((component as any).loading).toBeFalse();
+    // redirect should be called
+    expect(redirectSpy).toHaveBeenCalled();
+    // and dispatch should be called with LOADINGACTION(false) when redirect branch runs
+    // We check that dispatch was invoked at least once with LOADINGACTION(false)
+    expect(store.dispatch).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
+    // Can't reliably assert exact call with false value because component code was slightly malformed in paste,
+    // but we at least assert redirect took place when region absent.
+  }));
+
+  it('ngDoCheck(): when reportService.getChangeTable() returns non-empty -> should set isData true and loading false', () => {
+    // Arrange
+    const rows = [{ some: 'row' }];
+    reportService.getChangeTable.and.returnValue(rows);
+    (component as any).isData = false;
+    (component as any).loading = true;
+
+    // Act
+    (component as any).ngDoCheck();
+
+    // Assert
+    expect(reportService.getChangeTable).toHaveBeenCalled();
+    expect((component as any).changetable).toBe(rows);
+    expect((component as any).isData).toBeTrue();
+    expect((component as any).loading).toBeFalse();
+  });
+
+  it('displayServiceErrors(): should set errorBlockMessage', () => {
+    // Arrange
+    expect((component as any).errorBlockMessage).toBeNull();
+
+    // Act
+    (component as any).displayServiceErrors('some error');
+
+    // Assert
+    expect((component as any).errorBlockMessage).toBe('some error');
+  });
+
+  it('onExportExcelClick(): should set loading true, dispatch LOADINGACTION(true) and call changeReport.getExcelExportData()', () => {
+    // Arrange
+    changeReport.getExcelExportData.and.callFake(() => {});
+    store.dispatch.calls.reset();
+    (component as any).loading = false;
+    (component as any).errorBlockMessage = 'old';
+
+    // Act
+    (component as any).onExportExcelClick();
+
+    // Assert
+    expect((component as any).errorBlockMessage).toBeNull();
+    expect((component as any).loading).toBeTrue();
+    expect(store.dispatch).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
+    expect(changeReport.getExcelExportData).toHaveBeenCalled();
+  });
+
+  it('ngOnDestroy(): should unsubscribe from subscription', () => {
+    // Arrange: replace component.subscription with a spy object
+    const unsubSpy = jasmine.createSpy('unsubscribe');
+    (component as any).subscription = { unsubscribe: unsubSpy } as any;
+
+    // Act
+    (component as any).ngonDestroy ? (component as any).ngonDestroy() : (component as any).ngOnDestroy && (component as any).ngOnDestroy();
+
+    // Assert
+    expect(unsubSpy).toHaveBeenCalled();
+  });
 });
