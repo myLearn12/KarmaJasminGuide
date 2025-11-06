@@ -1,30 +1,46 @@
-import { throwError } from 'rxjs';
 import { fakeAsync, tick } from '@angular/core/testing';
-import { LOADINGACTION } from 'src/app/shared/actions/loading.actions'; // adjust path if needed
+import { of } from 'rxjs';
+import { LOADINGACTION } from 'src/app/shared/actions/loading.actions'; // <-- adjust path
 
-it('GenerateTableRows(): error -> should call displayServiceErrors, clear loading and dispatch LOADINGACTION(false)', fakeAsync(() => {
+it('ngOnInit: when selector yields object with regionId undefined -> clears loading, dispatches LOADINGACTION(false) and redirects', fakeAsync(() => {
   // Arrange
-  (component as any).appConfigService = (component as any).appConfigService || {} as any;
-  (component as any).appConfigService.getAllAccrualTaxAcctUrl = '/api/taxaccounts';
+  // spy store.pipe(select(...)) to emit an object whose regionId is undefined
+  spyOn(component['store'], 'pipe').and.returnValue(of({ regionId: undefined }));
 
-  // Mock error response
-  const errorResponse = { error: { statusMessage: 'Server error while fetching tax accounts' } };
-
-  // Spy dependencies
-  spyOn(component.feeApiservice, 'getRequest').and.returnValue(throwError(() => errorResponse));
-  const displaySpy = spyOn(component as any, 'displayServiceErrors');
-  (component as any).store = (component as any).store || { dispatch: () => {} };
+  // spy dispatch and utils.redirectToRegionSelection
   const dispatchSpy = spyOn(component['store'], 'dispatch');
+  const redirectSpy = spyOn(component['utils'], 'redirectToRegionSelection');
 
+  // Act
+  component.ngOnInit();
+  tick();
+
+  // Assert: loading should be false
+  expect(component.loading).toBeFalse();
+
+  // Assert: dispatch was called with a LOADINGACTION (we accept any LOADINGACTION instance)
+  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
+
+  // Assert: redirect was called
+  expect(redirectSpy).toHaveBeenCalled();
+}));
+
+
+it('ngDoCheck(): when changeTable has rows -> should set isData=true and loading=false', () => {
+  // Arrange
+  const mockChangeTable = [{ id: 1, name: 'Row1' }];
+
+  // Spy on reportService.getChangeTable() to return non-empty data
+  spyOn(component['reportservice'], 'getChangeTable').and.returnValue(mockChangeTable);
+
+  // Initial state
+  component.isData = false;
   component.loading = true;
 
   // Act
-  (component as any).GenerateTableRows();
-  tick();
+  component.ngDoCheck();
 
   // Assert
-  expect(component.feeApiservice.getRequest).toHaveBeenCalledWith('/api/taxaccounts');
-  expect(displaySpy).toHaveBeenCalledWith('Server error while fetching tax accounts');
+  expect(component.isData).toBeTrue();
   expect(component.loading).toBeFalse();
-  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
-}));
+});
