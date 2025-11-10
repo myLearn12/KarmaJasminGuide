@@ -1,74 +1,90 @@
-describe('validateWorksheet()', () => {
-  beforeEach(() => {
-    component.accoutColumnHeader = 'AccountNo';
-    component.cashAmountColumnHeader = 'CashAmount';
-    component.paidThruDateColumnHeader = 'PaidDate';
-    component.isInvalidCharLength = false;
-    component.isMissingRequiredField = false;
-    spyOn(component as any, 'fileuploadError');
-    (component as any).utils = {
-      isValidDateFormat: jasmine.createSpy('isValidDateFormat')
-    };
-  });
+it('should mark invalid char length when account number exceeds 16 characters', () => {
+  component.accoutColumnHeader = 'AccountNo';
+  component.cashAmountColumnHeader = 'CashAmount';
+  component.paidThruDateColumnHeader = 'PaidDate';
+  component.isInvalidCharLength = false;
+  component.isMissingRequiredField = false;
+  spyOn(component, 'fileuploadError');
 
-  it('should mark invalid char length when account number > 16 chars', () => {
-    const worksheet = [
-      { AccountNo: '12345678901234567' } // 17 chars
-    ];
+  const worksheet = [{ AccountNo: '12345678901234567' }]; // 17 chars
 
-    component.validateWorksheet(worksheet);
+  component.validateWorksheet(worksheet);
 
-    expect(component.isInvalidCharLength).toBeTrue();
-    expect(component.fileuploadError)
-      .toHaveBeenCalledWith('AccountNo field exceed max length of 16 characters; please update and reupload..');
-  });
+  expect(component.isInvalidCharLength).toBeTrue();
+  expect(component.fileuploadError).toHaveBeenCalledWith(
+    'AccountNo field exceed max length of 16 characters; please update and reupload..'
+  );
+});
 
-  it('should mark missing account column when AccountNo undefined', () => {
-    const worksheet = [
-      { SomethingElse: 'value' }
-    ];
+it('should mark missing account column when AccountNo is undefined', () => {
+  component.accoutColumnHeader = 'AccountNo';
+  component.cashAmountColumnHeader = 'CashAmount';
+  component.paidThruDateColumnHeader = 'PaidDate';
+  component.isInvalidCharLength = false;
+  component.isMissingRequiredField = false;
+  spyOn(component, 'fileuploadError');
 
-    component.validateWorksheet(worksheet);
+  const worksheet = [{ SomethingElse: 'value' }];
 
-    expect(component.isMissingRequiredField).toBeTrue();
-    expect(component.fileuploadError)
-      .toHaveBeenCalledWith('AccountNo is missing on the excel sheet. This is a required field; please update and reupload.');
-  });
+  component.validateWorksheet(worksheet);
 
-  it('should mark invalid char length when cash amount is not numeric', () => {
-    const worksheet = [
-      { AccountNo: '1234', CashAmount: 'notANumber' }
-    ];
+  expect(component.isMissingRequiredField).toBeTrue();
+  expect(component.fileuploadError).toHaveBeenCalledWith(
+    'AccountNo is missing on the excel sheet. This is a required field; please update and reupload.'
+  );
+});
 
-    component.validateWorksheet(worksheet);
+it('should mark invalid char length when CashAmount is not numeric', () => {
+  component.accoutColumnHeader = 'AccountNo';
+  component.cashAmountColumnHeader = 'CashAmount';
+  component.paidThruDateColumnHeader = 'PaidDate';
+  component.isInvalidCharLength = false;
+  component.isMissingRequiredField = false;
+  spyOn(component, 'fileuploadError');
 
-    expect(component.isInvalidCharLength).toBeTrue();
-    expect(component.fileuploadError)
-      .toHaveBeenCalledWith('CashAmount field input must be a numeric value; please update and reupload..');
-  });
+  const worksheet = [{ AccountNo: '123', CashAmount: 'NaNValue' }];
 
-  it('should mark missing CashAmount when undefined', () => {
-    const worksheet = [
-      { AccountNo: '1234' }
-    ];
+  component.validateWorksheet(worksheet);
 
-    component.validateWorksheet(worksheet);
+  expect(component.isInvalidCharLength).toBeTrue();
+  expect(component.fileuploadError).toHaveBeenCalledWith(
+    'CashAmount field input must be a numeric value; please update and reupload..'
+  );
+});
 
-    expect(component.isMissingRequiredField).toBeTrue();
-    expect(component.fileuploadError)
-      .toHaveBeenCalledWith('CashAmount is missing on the excel sheet. This is a required field; please update and reupload.');
-  });
+it('should mark missing CashAmount when field is undefined', () => {
+  component.accoutColumnHeader = 'AccountNo';
+  component.cashAmountColumnHeader = 'CashAmount';
+  component.paidThruDateColumnHeader = 'PaidDate';
+  component.isInvalidCharLength = false;
+  component.isMissingRequiredField = false;
+  spyOn(component, 'fileuploadError');
 
-  it('should mark invalid date format when paidThruDate invalid', () => {
-    const worksheet = [
-      { AccountNo: '1234', CashAmount: 10, PaidDate: '99/99/9999' }
-    ];
-    (component as any).utils.isValidDateFormat.and.returnValue(false);
+  const worksheet = [{ AccountNo: '123' }];
 
-    component.validateWorksheet(worksheet);
+  component.validateWorksheet(worksheet);
 
-    expect(component.isInvalidCharLength).toBeTrue();
-    expect(component.fileuploadError)
-      .toHaveBeenCalledWith('PaidDate field input must be a Date value (Format: YYYY-MM-DD); please update and reupload..');
-  });
+  expect(component.isMissingRequiredField).toBeTrue();
+  expect(component.fileuploadError).toHaveBeenCalledWith(
+    'CashAmount is missing on the excel sheet. This is a required field; please update and reupload.'
+  );
+});
+
+it('should mark invalid char length when PaidDate has invalid format', () => {
+  component.accoutColumnHeader = 'AccountNo';
+  component.cashAmountColumnHeader = 'CashAmount';
+  component.paidThruDateColumnHeader = 'PaidDate';
+  component.isInvalidCharLength = false;
+  component.isMissingRequiredField = false;
+  spyOn(component, 'fileuploadError');
+  component.utils = { isValidDateFormat: () => false } as any;
+
+  const worksheet = [{ AccountNo: '123', CashAmount: 10, PaidDate: '99/99/9999' }];
+
+  component.validateWorksheet(worksheet);
+
+  expect(component.isInvalidCharLength).toBeTrue();
+  expect(component.fileuploadError).toHaveBeenCalledWith(
+    'PaidDate field input must be a Date value (Format: YYYY-MM-DD); please update and reupload..'
+  );
 });
