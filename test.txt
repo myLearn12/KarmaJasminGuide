@@ -1,58 +1,46 @@
-it('processRecord(): should post records, stop loading, set totalRecordCount and show modal when successful', () => {
+it('LoadRegion(): should load region data, stop loading and dispatch LOADINGACTION(false) on success', () => {
   // Arrange
-  component.loading = true;
-  component.sheetName = 'Sheet1';
-  component.worksheet = { Sheet1: [{ Account: '123', Amount: 200, PaidDate: '2024-10-10' }] };
-  component.utils = {
-    getUploadDateAndDefaultTime: () => '2024-10-10T00:00:00Z',
-    getCurrentUser: () => 'testUser',
-    ToEstDate: () => new Date()
-  } as any;
+  component.regionid = 'R001';
+  component.appConfigService = { getRegionByIdurl: '/api/region/' } as any;
+  const mockRegionData = { name: 'West Region' };
 
-  component.region = { regionId: 'R1' };
-  component.appConfigService = { UploadCashFeeGFOPostingUrl: '/api/upload/' } as any;
-  component.feeApiservice = {
-    postRequest: jasmine.createSpy().and.returnValue({
-      subscribe: (observer: any) => observer.next()
-    })
-  } as any;
+  const getReqSpy = jasmine.createSpy().and.returnValue({
+    subscribe: (observer: any) => observer.next(mockRegionData)
+  });
+  component['feeApiservice'] = { getRequest: getReqSpy } as any;
 
+  const loadRegionDataSpy = spyOn(component, 'LoadRegionData');
   const dispatchSpy = spyOn(component['store'], 'dispatch');
-  const showSpy = jasmine.createSpy();
-  component['_actionModal'] = { show: showSpy };
 
   // Act
-  component.processRecord();
+  component.LoadRegion();
 
   // Assert
+  expect(loadRegionDataSpy).toHaveBeenCalledWith(mockRegionData);
   expect(component.loading).toBeFalse();
   expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
-  expect(component.totalRecordCount).toBeGreaterThan(0);
-  expect(showSpy).toHaveBeenCalled();
+  expect(getReqSpy).toHaveBeenCalledWith('/api/region/R001');
 });
 
 
-it('processRecord(): should handle error by displaying service error and stopping loading', () => {
+it('LoadRegion(): should display error, stop loading and dispatch LOADINGACTION(false) on failure', () => {
   // Arrange
-  component.worksheet = { Sheet1: [] };
-  component.sheetName = 'Sheet1';
-  component.utils = { getCurrentUser: () => 'testUser', ToEstDate: () => new Date() } as any;
-  component.region = { regionId: 'R1' };
-  component.appConfigService = { UploadCashFeeGFOPostingUrl: '/api/upload/' } as any;
-  component.feeApiservice = {
-    postRequest: jasmine.createSpy().and.returnValue({
-      subscribe: (observer: any) => observer.error({ error: { statusMessage: 'Server error' } })
-    })
-  } as any;
+  component.regionid = 'R002';
+  component.appConfigService = { getRegionByIdurl: '/api/region/' } as any;
 
+  const getReqSpy = jasmine.createSpy().and.returnValue({
+    subscribe: (observer: any) => observer.error({ error: { statusMessage: 'Region not found' } })
+  });
+  component['feeApiservice'] = { getRequest: getReqSpy } as any;
+
+  const displayErrorSpy = spyOn(component, 'displayServiceErrors');
   const dispatchSpy = spyOn(component['store'], 'dispatch');
-  const errorSpy = spyOn(component, 'displayServiceErrors');
 
   // Act
-  component.processRecord();
+  component.LoadRegion();
 
   // Assert
-  expect(errorSpy).toHaveBeenCalledWith('Server error');
+  expect(displayErrorSpy).toHaveBeenCalledWith('Region not found');
   expect(component.loading).toBeFalse();
   expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
 });
