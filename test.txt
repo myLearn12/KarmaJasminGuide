@@ -1,60 +1,50 @@
-it('LoadRegion(): should load region data, stop loading and dispatch LOADINGACTION(false) on success', () => {
-  // Arrange
-  component.regionid = 'R001';
+it('validateWorksheet(): should flag invalid length when accoutColumnHeader exceeds 16 chars', () => {
+  component.accoutColumnHeader = 'Account';
+  component.miscAmountColumnHeader = 'Amount';
+  component.fileuploadError = jasmine.createSpy('fileuploadError');
 
-  // Ensure the component's appConfigService has the exact property the component uses.
-  // If your component uses getRegionByIdUrl use that; if it uses getRegionByIdurl use that.
-  (component as any).appConfigService = {
-    getRegionByIdUrl: '/api/region/',   // <-- preferred / common spelling
-    getRegionByIdurl: '/api/region/'    // <-- alternate spelling (safe to set both)
-  };
+  const worksheet = [{ Account: '12345678901234567' }]; // 17 chars
 
-  const mockRegionData = { name: 'West Region' };
+  component.validateWorksheet(worksheet);
 
-  // Spy getRequest and return an observable-like object
-  const getRequestSpy = jasmine.createSpy('getRequest').and.callFake((url: string) => {
-    // Assert called URL is concatenation of configured URL + regionId
-    expect(url).toBe('/api/region/R001');
-    return { subscribe: (o: any) => o.next(mockRegionData) } as any;
-  });
-  (component as any).feeApiservice = { getRequest: getRequestSpy };
-
-  const loadRegionDataSpy = spyOn(component as any, 'LoadRegionData');
-  const dispatchSpy = spyOn((component as any).store, 'dispatch');
-
-  // Act
-  component.LoadRegion();
-
-  // Assert
-  expect(loadRegionDataSpy).toHaveBeenCalledWith(mockRegionData);
-  expect(component.loading).toBeFalse();
-  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
-  expect(getRequestSpy).toHaveBeenCalled(); // url assertion already checked above
+  expect(component.isInvalidCharLength).toBeTrue();
+  expect(component.fileuploadError).toHaveBeenCalledWith('Account field exceed max length of 16 characters; please update and reupload..');
 });
 
-it('LoadRegion(): should display error, stop loading and dispatch LOADINGACTION(false) on failure', () => {
-  // Arrange
-  component.regionid = 'R002';
-  (component as any).appConfigService = {
-    getRegionByIdUrl: '/api/region/',
-    getRegionByIdurl: '/api/region/'
-  };
+it('validateWorksheet(): should flag missing required account column', () => {
+  component.accoutColumnHeader = 'Account';
+  component.isMissingRequiredField = false;
+  component.fileuploadError = jasmine.createSpy('fileuploadError');
 
-  const getRequestSpy = jasmine.createSpy('getRequest').and.callFake((url: string) => {
-    expect(url).toBe('/api/region/R002');
-    return { subscribe: (o: any) => o.error({ error: { statusMessage: 'Region not found' } }) } as any;
-  });
-  (component as any).feeApiservice = { getRequest: getRequestSpy };
+  const worksheet = [{}]; // missing key
 
-  const displayErrorSpy = spyOn(component as any, 'displayServiceErrors');
-  const dispatchSpy = spyOn((component as any).store, 'dispatch');
+  component.validateWorksheet(worksheet);
 
-  // Act
-  component.LoadRegion();
+  expect(component.isMissingRequiredField).toBeTrue();
+  expect(component.fileuploadError).toHaveBeenCalledWith('Account is missing on the excel sheet. This is a required field; please update and reupload.');
+});
 
-  // Assert
-  expect(displayErrorSpy).toHaveBeenCalledWith('Region not found');
-  expect(component.loading).toBeFalse();
-  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
-  expect(getRequestSpy).toHaveBeenCalled();
+it('validateWorksheet(): should flag invalid misc amount (non-numeric)', () => {
+  component.miscAmountColumnHeader = 'Amount';
+  component.fileuploadError = jasmine.createSpy('fileuploadError');
+
+  const worksheet = [{ Amount: 'abc' }]; // not a number
+
+  component.validateWorksheet(worksheet);
+
+  expect(component.isInvalidCharLength).toBeTrue();
+  expect(component.fileuploadError).toHaveBeenCalledWith('Amount field input must be a numeric value; please update and reupload..');
+});
+
+it('validateWorksheet(): should flag missing required misc amount column', () => {
+  component.miscAmountColumnHeader = 'Amount';
+  component.isMissingRequiredField = false;
+  component.fileuploadError = jasmine.createSpy('fileuploadError');
+
+  const worksheet = [{}];
+
+  component.validateWorksheet(worksheet);
+
+  expect(component.isMissingRequiredField).toBeTrue();
+  expect(component.fileuploadError).toHaveBeenCalledWith('Amount is missing on the excel sheet. This is a required field; please update and reupload.');
 });
