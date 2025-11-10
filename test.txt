@@ -1,85 +1,105 @@
-it('validateWorksheet(): miscAmount non-numeric -> sets isInvalidCharLength, calls fileuploadError and stops further rows', () => {
-  // arrange
-  component.miscAmountColumnHeader = 'MiscAmt';
-  spyOn(component, 'checkSpreadsheetHeaders').and.returnValue(undefined);
-  component.fileuploadError = jasmine.createSpy('fileuploadError');
+// required rxjs imports at top of spec file if not already present:
+// import { of, throwError } from 'rxjs';
+// import { fakeAsync, tick } from '@angular/core/testing';
 
-  // two rows: first is invalid (non-numeric), second would be valid if processed — should NOT be processed due to break
-  const worksheet = [
-    { MiscAmt: 'abc' },      // invalid -> isNaN true
-    { MiscAmt: '123.45' }    // would be valid but should not be reached
-  ];
+it('processRecord(): success with records -> stops loading, dispatches and shows modal', fakeAsync(() => {
+  // prepare component state (all within the test)
+  (component as any).worksheet = {
+    mySheet: [
+      { acctNbr: 'A1', miscAmt: 10, paidThru: '2025-01-01' },
+      { acctNbr: 'A2', miscAmt: 20, paidThru: '2025-01-02' }
+    ]
+  };
+  (component as any).sheetName = 'mySheet';
+  (component as any).region = { regionId: 'R001' };
 
-  // act
-  component.validateWorksheet(worksheet);
+  // minimal utilities used in processRecord
+  (component as any).utils = {
+    getUploadDateAndDefaultTime: (v: any) => '2025-01-01T00:00:00.000Z',
+    getCurrentUser: () => 'tester',
+    ToEstDate: () => '2025-01-01T00:00:00.000Z'
+  };
 
-  // assert
-  expect(component.isInvalidCharLength).toBeTrue();
-  expect(component.fileuploadError).toHaveBeenCalledTimes(1);
-  expect(component.fileuploadError).toHaveBeenCalledWith(
-    'MiscAmt field input must be a numeric value; please update and reupload..'
-  );
-});
+  // spies & mocks
+  const postSpy = spyOn(component.feeApiservice, 'postRequest').and.returnValue(of({}));
+  const dispatchSpy = spyOn((component as any).store, 'dispatch');
+  const showSpy = jasmine.createSpy('showSpy');
+  // actionModal is a component ViewChild; cast to any to avoid typing errors
+  (component as any)._actionModal = { show: showSpy } as any;
+  // spy displayServiceErrors just in case (shouldn't be called here)
+  const displaySpy = spyOn(component as any, 'displayServiceErrors');
 
-it('validateWorksheet(): miscAmount numeric -> does not set flags or call fileuploadError', () => {
-  // arrange
-  component.miscAmountColumnHeader = 'MiscAmt';
-  spyOn(component, 'checkSpreadsheetHeaders').and.returnValue(undefined);
-  component.fileuploadError = jasmine.createSpy('fileuploadError');
+  // Act
+  component.processRecord();
+  tick();
 
-  const worksheet = [{ MiscAmt: '200.5' }]; // numeric string -> isNaN false
+  // Assert
+  expect(postSpy).toHaveBeenCalled(); // HTTP POST invoked
+  expect(component.loading).toBeFalse();
+  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(Object)); // LOADINGACTION(false) dispatched
+  expect(component.totalRecordCount).toBe(2); // two rows produced
+  expect(showSpy).toHaveBeenCalled(); // modal shown since totalRecordCount !== 0
+  expect(displaySpy).not.toHaveBeenCalled();
+}));
 
-  // initialize flags to false
-  component.isInvalidCharLength = false;
-  component.isMissingRequiredField = false;
 
-  // act
-  component.validateWorksheet(worksheet);
+it('processRecord(): success with zero rows -> stops loading, dispatches and does NOT show modal', fakeAsync(() => {
+  // worksheet with zero rows
+  (component as any).worksheet = { mySheet: [] };
+  (component as any).sheetName = 'mySheet';
+  (component as any).region = { regionId: 'R002' };
 
-  // assert - no errors raised
-  expect(component.isInvalidCharLength).toBeFalse();
-  expect(component.isMissingRequiredField).toBeFalse();
-  expect(component.fileuploadError).not.toHaveBeenCalled();
-});
+  (component as any).utils = {
+    getUploadDateAndDefaultTime: (v: any) => '2025-01-01T00:00:00.000Z',
+    getCurrentUser: () => 'tester',
+    ToEstDate: () => '2025-01-01T00:00:00.000Z'
+  };
 
-it('validateWorksheet(): miscAmount missing and isMissingRequiredField false -> sets missing flag and calls fileuploadError', () => {
-  // arrange
-  component.miscAmountColumnHeader = 'MiscAmt';
-  spyOn(component, 'checkSpreadsheetHeaders').and.returnValue(undefined);
-  component.fileuploadError = jasmine.createSpy('fileuploadError');
+  const postSpy = spyOn(component.feeApiservice, 'postRequest').and.returnValue(of({})); // server returns ok
+  const dispatchSpy = spyOn((component as any).store, 'dispatch');
+  const showSpy = jasmine.createSpy('showSpy');
+  (component as any)._actionModal = { show: showSpy } as any;
+  const displaySpy = spyOn(component as any, 'displayServiceErrors');
 
-  // row missing the MiscAmt key
-  const worksheet = [{ OtherCol: 'x' }];
+  component.processRecord();
+  tick();
 
-  // start with isMissingRequiredField false (so code will set it)
-  component.isMissingRequiredField = false;
-  component.isInvalidCharLength = false;
+  expect(postSpy).toHaveBeenCalled();
+  expect(component.loading).toBeFalse();
+  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(Object));
+  expect(component.totalRecordCount).toBe(0);
+  expect(showSpy).not.toHaveBeenCalled(); // no modal when count === 0
+  expect(displaySpy).not.toHaveBeenCalled();
+}));
 
-  // act
-  component.validateWorksheet(worksheet);
 
-  // assert
-  expect(component.isMissingRequiredField).toBeTrue();
-  expect(component.fileuploadError).toHaveBeenCalledWith(
-    'MiscAmt is missing on the excel sheet. This is a required field; please update and reupload.'
-  );
-});
+it('processRecord(): server error -> displayServiceErrors, clear loading and dispatch LOADINGACTION(false)', fakeAsync(() => {
+  (component as any).worksheet = {
+    mySheet: [{ acctNbr: 'A1', miscAmt: 5, paidThru: '2025-01-05' }]
+  };
+  (component as any).sheetName = 'mySheet';
+  (component as any).region = { regionId: 'R003' };
 
-it('validateWorksheet(): miscAmount missing but isMissingRequiredField already true -> does not call fileuploadError again', () => {
-  // arrange
-  component.miscAmountColumnHeader = 'MiscAmt';
-  spyOn(component, 'checkSpreadsheetHeaders').and.returnValue(undefined);
-  component.fileuploadError = jasmine.createSpy('fileuploadError');
+  (component as any).utils = {
+    getUploadDateAndDefaultTime: (v: any) => '2025-01-01T00:00:00.000Z',
+    getCurrentUser: () => 'tester',
+    ToEstDate: () => '2025-01-01T00:00:00.000Z'
+  };
 
-  // two rows both missing the key; component.isMissingRequiredField already true
-  const worksheet = [{ X: 1 }, { X: 2 }];
+  const errorResponse = { error: { statusMessage: 'server failed' } };
+  spyOn(component.feeApiservice, 'postRequest').and.returnValue(throwError(() => errorResponse));
+  const dispatchSpy = spyOn((component as any).store, 'dispatch');
+  const displaySpy = spyOn(component as any, 'displayServiceErrors').and.callThrough();
+  const showSpy = jasmine.createSpy('showSpy');
+  (component as any)._actionModal = { show: showSpy } as any;
 
-  component.isMissingRequiredField = true; // already set
-  component.isInvalidCharLength = false;
+  component.processRecord();
+  tick();
 
-  // act
-  component.validateWorksheet(worksheet);
-
-  // assert - fileuploadError should NOT be called because the code guards against duplicate errors
-  expect(component.fileuploadError).not.toHaveBeenCalled();
-});
+  // Assertions
+  expect(displaySpy).toHaveBeenCalledWith('server failed');
+  expect(component.loading).toBeFalse();
+  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(Object));
+  expect((component as any).totalRecordCount).toBeUndefined(); // not set on error
+  expect(showSpy).not.toHaveBeenCalled();
+}));
