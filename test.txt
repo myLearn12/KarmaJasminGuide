@@ -1,9 +1,5 @@
-// required rxjs imports at top of spec file if not already present:
-// import { of, throwError } from 'rxjs';
-// import { fakeAsync, tick } from '@angular/core/testing';
-
 it('processRecord(): success with records -> stops loading, dispatches and shows modal', fakeAsync(() => {
-  // prepare component state (all within the test)
+  // preparation (all inside test)
   (component as any).worksheet = {
     mySheet: [
       { acctNbr: 'A1', miscAmt: 10, paidThru: '2025-01-01' },
@@ -13,20 +9,21 @@ it('processRecord(): success with records -> stops loading, dispatches and shows
   (component as any).sheetName = 'mySheet';
   (component as any).region = { regionId: 'R001' };
 
-  // minimal utilities used in processRecord
+  // minimal utils used in processRecord
   (component as any).utils = {
     getUploadDateAndDefaultTime: (v: any) => '2025-01-01T00:00:00.000Z',
     getCurrentUser: () => 'tester',
     ToEstDate: () => '2025-01-01T00:00:00.000Z'
   };
 
+  // ensure appConfigService has the URL property used by the method
+  (component as any).appConfigService = { UploadCashFeeGFOPostingUrl: '/api/upload/gfo/' } as any;
+
   // spies & mocks
   const postSpy = spyOn(component.feeApiservice, 'postRequest').and.returnValue(of({}));
   const dispatchSpy = spyOn((component as any).store, 'dispatch');
   const showSpy = jasmine.createSpy('showSpy');
-  // actionModal is a component ViewChild; cast to any to avoid typing errors
   (component as any)._actionModal = { show: showSpy } as any;
-  // spy displayServiceErrors just in case (shouldn't be called here)
   const displaySpy = spyOn(component as any, 'displayServiceErrors');
 
   // Act
@@ -34,17 +31,16 @@ it('processRecord(): success with records -> stops loading, dispatches and shows
   tick();
 
   // Assert
-  expect(postSpy).toHaveBeenCalled(); // HTTP POST invoked
+  expect(postSpy).toHaveBeenCalledWith('/api/upload/gfo/R001', jasmine.any(Array));
   expect(component.loading).toBeFalse();
-  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(Object)); // LOADINGACTION(false) dispatched
-  expect(component.totalRecordCount).toBe(2); // two rows produced
-  expect(showSpy).toHaveBeenCalled(); // modal shown since totalRecordCount !== 0
+  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(Object)); // LOADINGACTION(false)
+  expect(component.totalRecordCount).toBe(2);
+  expect(showSpy).toHaveBeenCalled();
   expect(displaySpy).not.toHaveBeenCalled();
 }));
 
 
 it('processRecord(): success with zero rows -> stops loading, dispatches and does NOT show modal', fakeAsync(() => {
-  // worksheet with zero rows
   (component as any).worksheet = { mySheet: [] };
   (component as any).sheetName = 'mySheet';
   (component as any).region = { regionId: 'R002' };
@@ -55,7 +51,9 @@ it('processRecord(): success with zero rows -> stops loading, dispatches and doe
     ToEstDate: () => '2025-01-01T00:00:00.000Z'
   };
 
-  const postSpy = spyOn(component.feeApiservice, 'postRequest').and.returnValue(of({})); // server returns ok
+  (component as any).appConfigService = { UploadCashFeeGFOPostingUrl: '/api/upload/gfo/' } as any;
+
+  const postSpy = spyOn(component.feeApiservice, 'postRequest').and.returnValue(of({}));
   const dispatchSpy = spyOn((component as any).store, 'dispatch');
   const showSpy = jasmine.createSpy('showSpy');
   (component as any)._actionModal = { show: showSpy } as any;
@@ -64,11 +62,11 @@ it('processRecord(): success with zero rows -> stops loading, dispatches and doe
   component.processRecord();
   tick();
 
-  expect(postSpy).toHaveBeenCalled();
+  expect(postSpy).toHaveBeenCalledWith('/api/upload/gfo/R002', jasmine.any(Array));
   expect(component.loading).toBeFalse();
   expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(Object));
   expect(component.totalRecordCount).toBe(0);
-  expect(showSpy).not.toHaveBeenCalled(); // no modal when count === 0
+  expect(showSpy).not.toHaveBeenCalled();
   expect(displaySpy).not.toHaveBeenCalled();
 }));
 
@@ -86,6 +84,8 @@ it('processRecord(): server error -> displayServiceErrors, clear loading and dis
     ToEstDate: () => '2025-01-01T00:00:00.000Z'
   };
 
+  (component as any).appConfigService = { UploadCashFeeGFOPostingUrl: '/api/upload/gfo/' } as any;
+
   const errorResponse = { error: { statusMessage: 'server failed' } };
   spyOn(component.feeApiservice, 'postRequest').and.returnValue(throwError(() => errorResponse));
   const dispatchSpy = spyOn((component as any).store, 'dispatch');
@@ -96,10 +96,9 @@ it('processRecord(): server error -> displayServiceErrors, clear loading and dis
   component.processRecord();
   tick();
 
-  // Assertions
   expect(displaySpy).toHaveBeenCalledWith('server failed');
   expect(component.loading).toBeFalse();
   expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(Object));
-  expect((component as any).totalRecordCount).toBeUndefined(); // not set on error
+  expect((component as any).totalRecordCount).toBeUndefined();
   expect(showSpy).not.toHaveBeenCalled();
 }));
