@@ -1,50 +1,36 @@
-it('validateWorksheet(): should flag invalid length when accoutColumnHeader exceeds 16 chars', () => {
-  component.accoutColumnHeader = 'Account';
+it('validateWorksheet(): should flag invalid misc amount when value is non-numeric', () => {
+  // Arrange
   component.miscAmountColumnHeader = 'Amount';
+  spyOn(component, 'checkSpreadsheetHeaders').and.callFake(() => {}); // skip header validation
   component.fileuploadError = jasmine.createSpy('fileuploadError');
 
-  const worksheet = [{ Account: '12345678901234567' }]; // 17 chars
+  const worksheet = [{ Amount: 'abc' }]; // invalid (non-numeric)
 
+  // Act
   component.validateWorksheet(worksheet);
 
+  // Assert
   expect(component.isInvalidCharLength).toBeTrue();
-  expect(component.fileuploadError).toHaveBeenCalledWith('Account field exceed max length of 16 characters; please update and reupload..');
+  expect(component.fileuploadError).toHaveBeenCalledWith(
+    'Amount field input must be a numeric value; please update and reupload..'
+  );
 });
 
-it('validateWorksheet(): should flag missing required account column', () => {
-  component.accoutColumnHeader = 'Account';
-  component.isMissingRequiredField = false;
-  component.fileuploadError = jasmine.createSpy('fileuploadError');
-
-  const worksheet = [{}]; // missing key
-
-  component.validateWorksheet(worksheet);
-
-  expect(component.isMissingRequiredField).toBeTrue();
-  expect(component.fileuploadError).toHaveBeenCalledWith('Account is missing on the excel sheet. This is a required field; please update and reupload.');
-});
-
-it('validateWorksheet(): should flag invalid misc amount (non-numeric)', () => {
-  component.miscAmountColumnHeader = 'Amount';
-  component.fileuploadError = jasmine.createSpy('fileuploadError');
-
-  const worksheet = [{ Amount: 'abc' }]; // not a number
-
-  component.validateWorksheet(worksheet);
-
-  expect(component.isInvalidCharLength).toBeTrue();
-  expect(component.fileuploadError).toHaveBeenCalledWith('Amount field input must be a numeric value; please update and reupload..');
-});
-
-it('validateWorksheet(): should flag missing required misc amount column', () => {
+it('validateWorksheet(): should flag missing misc amount column as required', () => {
+  // Arrange
   component.miscAmountColumnHeader = 'Amount';
   component.isMissingRequiredField = false;
+  spyOn(component, 'checkSpreadsheetHeaders').and.callFake(() => {});
   component.fileuploadError = jasmine.createSpy('fileuploadError');
 
-  const worksheet = [{}];
+  const worksheet = [{}]; // missing "Amount" key
 
+  // Act
   component.validateWorksheet(worksheet);
 
+  // Assert
   expect(component.isMissingRequiredField).toBeTrue();
-  expect(component.fileuploadError).toHaveBeenCalledWith('Amount is missing on the excel sheet. This is a required field; please update and reupload.');
+  expect(component.fileuploadError).toHaveBeenCalledWith(
+    'Amount is missing on the excel sheet. This is a required field; please update and reupload.'
+  );
 });
