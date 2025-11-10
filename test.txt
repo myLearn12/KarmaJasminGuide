@@ -1,80 +1,105 @@
-it('LoadRegion(): on success should call feeApiservice.getRequest(url+regionid), call LoadRegionData, clear loading and dispatch LOADINGACTION(false)', fakeAsync(() => {
-  // arrange - all inside test
-  (component as any).regionid = 'R001';
-  (component as any).appConfigService = { getRegionByIdUrl: '/api/region/' } as any;
+it('validateWorksheet: numeric field invalid -> should mark isInvalidCharLength and call fileUploadError', fakeAsync(() => {
+  // arrange - put everything inside test
+  const fileErrSpy = spyOn(component as any, 'fileUploadError');
+  // stub utils numeric check to return false (invalid)
+  (component as any).utils = { isStringNumeric: (val: any) => false } as any;
 
-  const regionObj = { regionId: 'R001', regionDesc: 'Region A' };
-  const getSpy = spyOn(component.feeApiservice, 'getRequest').and.returnValue(of(regionObj));
-  const loadRegionDataSpy = spyOn(component as any, 'LoadRegionData').and.callThrough();
-  const dispatchSpy = spyOn((component as any).store, 'dispatch');
+  // prepare worksheet containing one row where 'cashAmountColumnHeader' exists but is non-numeric
+  // adapt header names to match your component property names
+  (component as any).cashAmountColumnHeader = 'CASH_AMT';
+  const worksheet = {
+    [component['sheetName'] || 'Sheet1']: [
+      { 'CASH_AMT': 'abc' }   // invalid numeric
+    ]
+  };
 
-  // pre-set loading true to assert it is cleared
-  component['loading'] = true;
+  // reset flags
+  component['isInvalidCharLength'] = false;
+  component['isMissingRequiredField'] = false;
 
   // act
-  (component as any).LoadRegion();
-  tick();
+  (component as any).validateWorksheet(worksheet[component['sheetName'] || 'Sheet1']); // some components pass array directly
 
   // assert
-  expect(getSpy).toHaveBeenCalledWith('/api/region/R001');
-  expect(loadRegionDataSpy).toHaveBeenCalledWith(regionObj);
-  expect(component['loading']).toBeFalse();
-  expect(dispatchSpy).toHaveBeenCalled(); // LOADINGACTION(false)
+  expect(component['isInvalidCharLength']).toBeTrue();
+  expect(fileErrSpy).toHaveBeenCalled();
 }));
 
 
-it('LoadRegion(): when API errors -> displayServiceErrors, clear loading and dispatch LOADINGACTION(false)', fakeAsync(() => {
-  // arrange
-  (component as any).regionid = 'R002';
-  (component as any).appConfigService = { getRegionByIdUrl: '/api/region/' } as any;
+it('validateWorksheet: missing required field -> should mark isMissingRequiredField and call fileUploadError', fakeAsync(() => {
+  const fileErrSpy = spyOn(component as any, 'fileUploadError');
+  // numeric validator not used here; we want missing field path
+  (component as any).utils = { isStringNumeric: (v: any) => true } as any;
 
-  const serverErr = { error: { statusMessage: 'server failed' } };
-  spyOn(component.feeApiservice, 'getRequest').and.returnValue(throwError(() => serverErr));
-  const displaySpy = spyOn(component as any, 'displayServiceErrors');
-  const dispatchSpy = spyOn((component as any).store, 'dispatch');
+  // define header name that will *not* exist in row (simulate missing)
+  (component as any).cashAmountColumnHeader = 'CASH_AMT';
+  const worksheet = {
+    [component['sheetName'] || 'Sheet1']: [
+      { OTHER_COL: 'value' }  // CASH_AMT missing
+    ]
+  };
 
-  component['loading'] = true;
+  component['isMissingRequiredField'] = false;
 
-  // act
-  (component as any).LoadRegion();
-  tick();
+  (component as any).validateWorksheet(worksheet[component['sheetName'] || 'Sheet1']);
 
-  // assert
-  expect(displaySpy).toHaveBeenCalledWith('server failed');
-  expect(component['loading']).toBeFalse();
-  expect(dispatchSpy).toHaveBeenCalled();
+  expect(component['isMissingRequiredField']).toBeTrue();
+  expect(fileErrSpy).toHaveBeenCalled();
 }));
 
 
-it('LoadRegion(): missing appConfigService.getRegionByIdUrl should not build "undefined" url (catch earlier bug)', fakeAsync(() => {
-  // arrange: appConfigService exists but getRegionByIdUrl is undefined -> previous bug produced "undefinedR001"
-  (component as any).regionid = 'R003';
-  (component as any).appConfigService = { /* getRegionByIdUrl missing on purpose */ } as any;
+it('validateWorksheet: cusip length exceeded -> should mark isInvalidCharLength and call fileUploadError', fakeAsync(() => {
+  const fileErrSpy = spyOn(component as any, 'fileUploadError');
+  // stub alpha/numeric check to pass
+  (component as any).utils = { isStringAlphaNumeric: (v: any) => true } as any;
 
-  // Spy getRequest so we can detect how it was called if invoked
-  const getSpy = spyOn(component.feeApiservice, 'getRequest').and.returnValue(of({ regionId: 'R003' }));
-  const displaySpy = spyOn(component as any, 'displayServiceErrors');
-  const dispatchSpy = spyOn((component as any).store, 'dispatch');
+  (component as any).cusipColumnHeader = 'CUSIP';
+  // create a cusip longer than 12 chars
+  const worksheet = {
+    [component['sheetName'] || 'Sheet1']: [
+      { 'CUSIP': 'ABCDEFGHIJKLM' } // 13 chars
+    ]
+  };
 
-  component['loading'] = true;
+  component['isInvalidCharLength'] = false;
 
-  // act
-  (component as any).LoadRegion();
-  tick();
+  (component as any).validateWorksheet(worksheet[component['sheetName'] || 'Sheet1']);
 
-  // assert - if code attempted to call getRequest with undefined+regionid we'd see it called with 'undefinedR003'
-  // We assert that either getRequest was not called or it was called with a proper string (not 'undefinedR003')
-  if (getSpy.calls.any()) {
-    const calledWith = getSpy.calls.mostRecent().args[0];
-    expect(String(calledWith)).not.toContain('undefinedR003');
-  } else {
-    // safe path: if no request made because config missing, ensure user saw an error or loading cleared
-    // At minimum, loading must be cleared and dispatch called.
-    expect(component['loading']).toBeFalse();
-    expect(dispatchSpy).toHaveBeenCalled();
-  }
+  expect(component['isInvalidCharLength']).toBeTrue();
+  expect(fileErrSpy).toHaveBeenCalled();
+}));
 
-  // If app decided to display an error for missing config, don't fail the test — just ensure no crash
-  // (optional) assert displayServiceErrors not throwing:
-  expect(displaySpy).not.toBeUndefined();
+
+it('validateWorksheet: valid rows -> should mark isFileUploaded true and clear errorBlockMessage', fakeAsync(() => {
+  const fileErrSpy = spyOn(component as any, 'fileUploadError');
+  // make utils return valid responses
+  (component as any).utils = {
+    isStringNumeric: (v: any) => !isNaN(Number(v)),
+    isStringAlphaNumeric: (v: any) => /^[a-z0-9]+$/i.test(String(v)),
+    isValidDate: (d: any) => true
+  } as any;
+
+  // set headers used by the function
+  (component as any).accountColumnHeader = 'ACCT';
+  (component as any).cashAmountColumnHeader = 'CASH';
+  (component as any).paidThruDateColumnHeader = 'PAID_DT';
+  (component as any).sheetName = 'Sheet1';
+
+  // create valid row
+  const worksheet = {
+    'Sheet1': [
+      { 'ACCT': '12345', 'CASH': '100.50', 'PAID_DT': '2023-01-01' }
+    ]
+  };
+
+  // reset flags
+  component['isFileUploaded'] = false;
+  component['errorBlockMessage'] = 'some error';
+
+  // act - some implementations accept worksheet[sheetName] array; adjust call to match your validateWorksheet signature
+  (component as any).validateWorksheet(worksheet['Sheet1']);
+
+  expect(component['isFileUploaded']).toBeTrue();
+  expect(component['errorBlockMessage']).toBeNull();
+  expect(fileErrSpy).not.toHaveBeenCalled();
 }));
