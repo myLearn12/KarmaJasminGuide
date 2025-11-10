@@ -1,26 +1,74 @@
-it('checkFile(): when worksheet has valid rows and no validation errors -> should set isfileuploaded true and clear errorBlockMessage', () => {
-  // Arrange
-  component.sheetName = 'Sheet1';
-  component.maxUploadRowCount = 100;
+describe('validateWorksheet()', () => {
+  beforeEach(() => {
+    component.accoutColumnHeader = 'AccountNo';
+    component.cashAmountColumnHeader = 'CashAmount';
+    component.paidThruDateColumnHeader = 'PaidDate';
+    component.isInvalidCharLength = false;
+    component.isMissingRequiredField = false;
+    spyOn(component as any, 'fileuploadError');
+    (component as any).utils = {
+      isValidDateFormat: jasmine.createSpy('isValidDateFormat')
+    };
+  });
 
-  // mock the worksheet with 1 valid row
-  const worksheetMock = {
-    Sheet1: [{ some: 'data' }]
-  };
+  it('should mark invalid char length when account number > 16 chars', () => {
+    const worksheet = [
+      { AccountNo: '12345678901234567' } // 17 chars
+    ];
 
-  // ensure flags start off wrong
-  component.isInvalidCharLength = false;
-  component.isMissingRequiredField = false;
-  component.isfileuploaded = false;
-  component.errorBlockMessage = 'previous error';
+    component.validateWorksheet(worksheet);
 
-  // stub out validateWorksheet to skip its internal logic
-  spyOn(component as any, 'validateWorksheet').and.callFake(() => {});
+    expect(component.isInvalidCharLength).toBeTrue();
+    expect(component.fileuploadError)
+      .toHaveBeenCalledWith('AccountNo field exceed max length of 16 characters; please update and reupload..');
+  });
 
-  // Act
-  component.checkFile(worksheetMock);
+  it('should mark missing account column when AccountNo undefined', () => {
+    const worksheet = [
+      { SomethingElse: 'value' }
+    ];
 
-  // Assert
-  expect(component.isfileuploaded).toBeTrue();
-  expect(component.errorBlockMessage).toBeNull();
+    component.validateWorksheet(worksheet);
+
+    expect(component.isMissingRequiredField).toBeTrue();
+    expect(component.fileuploadError)
+      .toHaveBeenCalledWith('AccountNo is missing on the excel sheet. This is a required field; please update and reupload.');
+  });
+
+  it('should mark invalid char length when cash amount is not numeric', () => {
+    const worksheet = [
+      { AccountNo: '1234', CashAmount: 'notANumber' }
+    ];
+
+    component.validateWorksheet(worksheet);
+
+    expect(component.isInvalidCharLength).toBeTrue();
+    expect(component.fileuploadError)
+      .toHaveBeenCalledWith('CashAmount field input must be a numeric value; please update and reupload..');
+  });
+
+  it('should mark missing CashAmount when undefined', () => {
+    const worksheet = [
+      { AccountNo: '1234' }
+    ];
+
+    component.validateWorksheet(worksheet);
+
+    expect(component.isMissingRequiredField).toBeTrue();
+    expect(component.fileuploadError)
+      .toHaveBeenCalledWith('CashAmount is missing on the excel sheet. This is a required field; please update and reupload.');
+  });
+
+  it('should mark invalid date format when paidThruDate invalid', () => {
+    const worksheet = [
+      { AccountNo: '1234', CashAmount: 10, PaidDate: '99/99/9999' }
+    ];
+    (component as any).utils.isValidDateFormat.and.returnValue(false);
+
+    component.validateWorksheet(worksheet);
+
+    expect(component.isInvalidCharLength).toBeTrue();
+    expect(component.fileuploadError)
+      .toHaveBeenCalledWith('PaidDate field input must be a Date value (Format: YYYY-MM-DD); please update and reupload..');
+  });
 });
