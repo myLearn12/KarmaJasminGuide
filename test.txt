@@ -1,16 +1,26 @@
 it('LoadRegion(): should load region data, stop loading and dispatch LOADINGACTION(false) on success', () => {
   // Arrange
   component.regionid = 'R001';
-  component.appConfigService = { getRegionByIdurl: '/api/region/' } as any;
+
+  // Ensure the component's appConfigService has the exact property the component uses.
+  // If your component uses getRegionByIdUrl use that; if it uses getRegionByIdurl use that.
+  (component as any).appConfigService = {
+    getRegionByIdUrl: '/api/region/',   // <-- preferred / common spelling
+    getRegionByIdurl: '/api/region/'    // <-- alternate spelling (safe to set both)
+  };
+
   const mockRegionData = { name: 'West Region' };
 
-  const getReqSpy = jasmine.createSpy().and.returnValue({
-    subscribe: (observer: any) => observer.next(mockRegionData)
+  // Spy getRequest and return an observable-like object
+  const getRequestSpy = jasmine.createSpy('getRequest').and.callFake((url: string) => {
+    // Assert called URL is concatenation of configured URL + regionId
+    expect(url).toBe('/api/region/R001');
+    return { subscribe: (o: any) => o.next(mockRegionData) } as any;
   });
-  component['feeApiservice'] = { getRequest: getReqSpy } as any;
+  (component as any).feeApiservice = { getRequest: getRequestSpy };
 
-  const loadRegionDataSpy = spyOn(component, 'LoadRegionData');
-  const dispatchSpy = spyOn(component['store'], 'dispatch');
+  const loadRegionDataSpy = spyOn(component as any, 'LoadRegionData');
+  const dispatchSpy = spyOn((component as any).store, 'dispatch');
 
   // Act
   component.LoadRegion();
@@ -19,22 +29,25 @@ it('LoadRegion(): should load region data, stop loading and dispatch LOADINGACTI
   expect(loadRegionDataSpy).toHaveBeenCalledWith(mockRegionData);
   expect(component.loading).toBeFalse();
   expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
-  expect(getReqSpy).toHaveBeenCalledWith('/api/region/R001');
+  expect(getRequestSpy).toHaveBeenCalled(); // url assertion already checked above
 });
-
 
 it('LoadRegion(): should display error, stop loading and dispatch LOADINGACTION(false) on failure', () => {
   // Arrange
   component.regionid = 'R002';
-  component.appConfigService = { getRegionByIdurl: '/api/region/' } as any;
+  (component as any).appConfigService = {
+    getRegionByIdUrl: '/api/region/',
+    getRegionByIdurl: '/api/region/'
+  };
 
-  const getReqSpy = jasmine.createSpy().and.returnValue({
-    subscribe: (observer: any) => observer.error({ error: { statusMessage: 'Region not found' } })
+  const getRequestSpy = jasmine.createSpy('getRequest').and.callFake((url: string) => {
+    expect(url).toBe('/api/region/R002');
+    return { subscribe: (o: any) => o.error({ error: { statusMessage: 'Region not found' } }) } as any;
   });
-  component['feeApiservice'] = { getRequest: getReqSpy } as any;
+  (component as any).feeApiservice = { getRequest: getRequestSpy };
 
-  const displayErrorSpy = spyOn(component, 'displayServiceErrors');
-  const dispatchSpy = spyOn(component['store'], 'dispatch');
+  const displayErrorSpy = spyOn(component as any, 'displayServiceErrors');
+  const dispatchSpy = spyOn((component as any).store, 'dispatch');
 
   // Act
   component.LoadRegion();
@@ -43,4 +56,5 @@ it('LoadRegion(): should display error, stop loading and dispatch LOADINGACTION(
   expect(displayErrorSpy).toHaveBeenCalledWith('Region not found');
   expect(component.loading).toBeFalse();
   expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
+  expect(getRequestSpy).toHaveBeenCalled();
 });
