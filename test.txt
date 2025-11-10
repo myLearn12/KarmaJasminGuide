@@ -1,36 +1,85 @@
-it('validateWorksheet(): should flag invalid misc amount when value is non-numeric', () => {
-  // Arrange
-  component.miscAmountColumnHeader = 'Amount';
-  spyOn(component, 'checkSpreadsheetHeaders').and.callFake(() => {}); // skip header validation
+it('validateWorksheet(): miscAmount non-numeric -> sets isInvalidCharLength, calls fileuploadError and stops further rows', () => {
+  // arrange
+  component.miscAmountColumnHeader = 'MiscAmt';
+  spyOn(component, 'checkSpreadsheetHeaders').and.returnValue(undefined);
   component.fileuploadError = jasmine.createSpy('fileuploadError');
 
-  const worksheet = [{ Amount: 'abc' }]; // invalid (non-numeric)
+  // two rows: first is invalid (non-numeric), second would be valid if processed — should NOT be processed due to break
+  const worksheet = [
+    { MiscAmt: 'abc' },      // invalid -> isNaN true
+    { MiscAmt: '123.45' }    // would be valid but should not be reached
+  ];
 
-  // Act
+  // act
   component.validateWorksheet(worksheet);
 
-  // Assert
+  // assert
   expect(component.isInvalidCharLength).toBeTrue();
+  expect(component.fileuploadError).toHaveBeenCalledTimes(1);
   expect(component.fileuploadError).toHaveBeenCalledWith(
-    'Amount field input must be a numeric value; please update and reupload..'
+    'MiscAmt field input must be a numeric value; please update and reupload..'
   );
 });
 
-it('validateWorksheet(): should flag missing misc amount column as required', () => {
-  // Arrange
-  component.miscAmountColumnHeader = 'Amount';
-  component.isMissingRequiredField = false;
-  spyOn(component, 'checkSpreadsheetHeaders').and.callFake(() => {});
+it('validateWorksheet(): miscAmount numeric -> does not set flags or call fileuploadError', () => {
+  // arrange
+  component.miscAmountColumnHeader = 'MiscAmt';
+  spyOn(component, 'checkSpreadsheetHeaders').and.returnValue(undefined);
   component.fileuploadError = jasmine.createSpy('fileuploadError');
 
-  const worksheet = [{}]; // missing "Amount" key
+  const worksheet = [{ MiscAmt: '200.5' }]; // numeric string -> isNaN false
 
-  // Act
+  // initialize flags to false
+  component.isInvalidCharLength = false;
+  component.isMissingRequiredField = false;
+
+  // act
   component.validateWorksheet(worksheet);
 
-  // Assert
+  // assert - no errors raised
+  expect(component.isInvalidCharLength).toBeFalse();
+  expect(component.isMissingRequiredField).toBeFalse();
+  expect(component.fileuploadError).not.toHaveBeenCalled();
+});
+
+it('validateWorksheet(): miscAmount missing and isMissingRequiredField false -> sets missing flag and calls fileuploadError', () => {
+  // arrange
+  component.miscAmountColumnHeader = 'MiscAmt';
+  spyOn(component, 'checkSpreadsheetHeaders').and.returnValue(undefined);
+  component.fileuploadError = jasmine.createSpy('fileuploadError');
+
+  // row missing the MiscAmt key
+  const worksheet = [{ OtherCol: 'x' }];
+
+  // start with isMissingRequiredField false (so code will set it)
+  component.isMissingRequiredField = false;
+  component.isInvalidCharLength = false;
+
+  // act
+  component.validateWorksheet(worksheet);
+
+  // assert
   expect(component.isMissingRequiredField).toBeTrue();
   expect(component.fileuploadError).toHaveBeenCalledWith(
-    'Amount is missing on the excel sheet. This is a required field; please update and reupload.'
+    'MiscAmt is missing on the excel sheet. This is a required field; please update and reupload.'
   );
+});
+
+it('validateWorksheet(): miscAmount missing but isMissingRequiredField already true -> does not call fileuploadError again', () => {
+  // arrange
+  component.miscAmountColumnHeader = 'MiscAmt';
+  spyOn(component, 'checkSpreadsheetHeaders').and.returnValue(undefined);
+  component.fileuploadError = jasmine.createSpy('fileuploadError');
+
+  // two rows both missing the key; component.isMissingRequiredField already true
+  const worksheet = [{ X: 1 }, { X: 2 }];
+
+  component.isMissingRequiredField = true; // already set
+  component.isInvalidCharLength = false;
+
+  // act
+  component.validateWorksheet(worksheet);
+
+  // assert - fileuploadError should NOT be called because the code guards against duplicate errors
+  expect(component.fileuploadError).not.toHaveBeenCalled();
 });
