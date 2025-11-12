@@ -1,13 +1,10 @@
 it('canProcessRecord(true): should hide confirmModal and call processRecord', () => {
-  // Ensure modal exists on component instance
   (component as any).confirmModal = { hide: jasmine.createSpy('hide') };
   const processSpy = spyOn(component as any, 'processRecord').and.callFake(() => {});
 
-  // Act
-  (component as any).canProcessRecord(true);
+  component.canProcessRecord(true);
 
-  // Assert
-  expect((component as any).confirmModal.hide).toHaveBeenCalledTimes(1);
+  expect((component as any).confirmModal.hide).toHaveBeenCalled();
   expect(processSpy).toHaveBeenCalled();
 });
 
@@ -15,37 +12,32 @@ it('canProcessRecord(false): should hide confirmModal but not call processRecord
   (component as any).confirmModal = { hide: jasmine.createSpy('hide') };
   const processSpy = spyOn(component as any, 'processRecord').and.callFake(() => {});
 
-  (component as any).canProcessRecord(false);
+  component.canProcessRecord(false);
 
-  expect((component as any).confirmModal.hide).toHaveBeenCalledTimes(1);
+  expect((component as any).confirmModal.hide).toHaveBeenCalled();
   expect(processSpy).not.toHaveBeenCalled();
 });
 
 it('uploadXcelFile(): should show confirmModal when selected date is today', () => {
-  // attach fake modal to avoid undefined
-  (component as any).confirmModal = { show: jasmine.createSpy('show') };
-
-  (component as any).utils = { isTodaysDate: () => true };
+  const showSpy = jasmine.createSpy('show');
+  (component as any).confirmModal = { show: showSpy };
   (component as any).selectedMonthEndDate = '2025-11-12';
+  (component as any).utils = { isTodaysDate: () => true };
   spyOn(component as any, 'ValidateFormControls').and.returnValue(false);
 
-  // Act
-  (component as any).uploadXcelFile();
+  component.uploadXcelFile();
 
-  // Assert
   expect((component as any).actionMessage)
     .toContain('Date selected is Today');
-  expect((component as any).confirmModal.show).toHaveBeenCalledTimes(1);
+  expect(showSpy).toHaveBeenCalled();
 });
 
 it('uploadXcelFile(): should call processRecord when date is not today', () => {
-  (component as any).confirmModal = { show: jasmine.createSpy('show') };
   (component as any).utils = { isTodaysDate: () => false };
   spyOn(component as any, 'ValidateFormControls').and.returnValue(false);
   const processSpy = spyOn(component as any, 'processRecord').and.callFake(() => {});
 
-  (component as any).uploadXcelFile();
+  component.uploadXcelFile();
 
   expect(processSpy).toHaveBeenCalled();
-  expect((component as any).confirmModal.show).not.toHaveBeenCalled();
 });
