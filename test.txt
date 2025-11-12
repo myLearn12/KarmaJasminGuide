@@ -1,70 +1,46 @@
-it('processRecord(): success -> stops loading, dispatches LOADINGACTION(false), calls LoadTableRows and shows modal', fakeAsync(() => {
-  // prepare worksheet with one valid row
-  (component as any).sheetName = 'Sheet1';
-  (component as any).worksheet = {
-    Sheet1: [
-      {
-        acctNbr: '12345',
-        miscAmount: 100,
-        paidThruDt: '2025-01-01'
-      }
-    ]
-  };
+it('LoadRegion(): success -> calls LoadRegionData, clears loading and dispatches LOADINGACTION(false)', fakeAsync(() => {
+  // arrange
+  (component as any).regionid = 'R001';
+  (component as any).appConfigService = { getRegionByIdUrl: '/api/region/' } as any;
 
-  // minimal region and config
-  (component as any).region = { regionId: 'R001' };
-  (component as any).appConfigService = { updateBulkFundFeePostingUrl: '/api/upload/' } as any;
+  const regionObj = { regionId: 'R001', regionName: 'Region A' };
+  spyOn(component.feeApiservice, 'getRequest').and.returnValue(of(regionObj));
+  const loadRegionDataSpy = spyOn(component as any, 'LoadRegionData').and.callFake(() => {});
+  const dispatchSpy = spyOn(component['store'], 'dispatch').and.callFake(() => {});
 
-  // spies
-  const postSpy = spyOn(component.feeApiservice, 'postRequest')
-    .and.returnValue(of([{ some: 'row' }])); // server returns rows for LoadTableRows
-  const dispatchSpy = spyOn(component['store'], 'dispatch');
-  const loadSpy = spyOn(component as any, 'LoadTableRows').and.callFake(() => {});
-  // mock modal (cast to any to avoid typing issues)
-  (component as any)._actionModal = { show: jasmine.createSpy('show') };
-
-  // initial states: loading true to ensure it flips to false later
+  // make loading true initially so we can assert it gets cleared
   (component as any).loading = true;
 
-  // Act
-  component.processRecord();
+  // act
+  (component as any).LoadRegion();
   tick();
 
-  // Assert - API called with url + regionId and payload length 1
-  expect(postSpy).toHaveBeenCalled();
-  const calledUrl = postSpy.calls.mostRecent().args[0];
-  expect(String(calledUrl)).toContain('/api/upload/');
-  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(Object)); // LOADINGACTION dispatched
-  expect(loadSpy).toHaveBeenCalledWith(jasmine.anything()); // LoadTableRows called
+  // assert
+  expect(component.feeApiservice.getRequest).toHaveBeenCalledWith('/api/region/' + 'R001');
+  expect(loadRegionDataSpy).toHaveBeenCalledWith(regionObj);
   expect((component as any).loading).toBeFalse();
-  expect(((component as any)._actionModal).show).toHaveBeenCalled();
-  expect((component as any).totalRecordCount).toBe(1);
+  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(Object)); // LOADINGACTION(false)
 }));
 
-it('processRecord(): server error -> calls displayServiceErrors, clears loading and dispatches LOADINGACTION(false)', fakeAsync(() => {
-  // setup worksheet and region
-  (component as any).sheetName = 'Sheet1';
-  (component as any).worksheet = { Sheet1: [{ acctNbr: '1', miscAmount: 10, paidThruDt: '2025-01-01' }] };
-  (component as any).region = { regionId: 'R002' };
-  (component as any).appConfigService = { updateBulkFundFeePostingUrl: '/api/upload/' } as any;
+it('LoadRegion(): error -> calls displayServiceErrors, clears loading and dispatches LOADINGACTION(false)', fakeAsync(() => {
+  // arrange
+  (component as any).regionid = 'R002';
+  (component as any).appConfigService = { getRegionByIdUrl: '/api/region/' } as any;
 
-  // make postRequest throw error
-  const errorResp = { error: { statusMessage: 'server fail' } };
-  spyOn(component.feeApiservice, 'postRequest').and.returnValue(throwError(() => errorResp));
+  const err = { error: { statusMessage: 'server failure' } };
+  spyOn(component.feeApiservice, 'getRequest').and.returnValue(throwError(() => err));
+  const displaySpy = spyOn(component as any, 'displayServiceErrors').and.callThrough();
+  const dispatchSpy = spyOn(component['store'], 'dispatch').and.callFake(() => {});
 
-  // spies for error handling / dispatch
-  const displaySpy = spyOn(component as any, 'displayServiceErrors');
-  const dispatchSpy = spyOn(component['store'], 'dispatch');
-
-  // ensure loading starts true
   (component as any).loading = true;
 
-  // Act
-  component.processRecord();
+  // act
+  (component as any).LoadRegion();
   tick();
 
-  // Assert
-  expect(displaySpy).toHaveBeenCalledWith('server fail');
+  // assert
+  expect(component.feeApiservice.getRequest).toHaveBeenCalledWith('/api/region/' + 'R002');
+  expect(displaySpy).toHaveBeenCalledWith('server failure');
   expect((component as any).loading).toBeFalse();
   expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(Object)); // LOADINGACTION(false)
 }));
