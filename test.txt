@@ -1,46 +1,43 @@
-it('LoadRegion(): success -> calls LoadRegionData, clears loading and dispatches LOADINGACTION(false)', fakeAsync(() => {
-  // arrange
-  (component as any).regionid = 'R001';
-  (component as any).appConfigService = { getRegionByIdUrl: '/api/region/' } as any;
+it('canProcessRecord(true): should hide confirmModal and call processRecord', () => {
+  (component as any).confirmModal = { hide: jasmine.createSpy('hide') };
+  const processSpy = spyOn(component as any, 'processRecord').and.callFake(() => {});
 
-  const regionObj = { regionId: 'R001', regionName: 'Region A' };
-  spyOn(component.feeApiservice, 'getRequest').and.returnValue(of(regionObj));
-  const loadRegionDataSpy = spyOn(component as any, 'LoadRegionData').and.callFake(() => {});
-  const dispatchSpy = spyOn(component['store'], 'dispatch').and.callFake(() => {});
+  component.canProcessRecord(true);
 
-  // make loading true initially so we can assert it gets cleared
-  (component as any).loading = true;
+  expect((component as any).confirmModal.hide).toHaveBeenCalled();
+  expect(processSpy).toHaveBeenCalled();
+});
 
-  // act
-  (component as any).LoadRegion();
-  tick();
+it('canProcessRecord(false): should hide confirmModal but not call processRecord', () => {
+  (component as any).confirmModal = { hide: jasmine.createSpy('hide') };
+  const processSpy = spyOn(component as any, 'processRecord').and.callFake(() => {});
 
-  // assert
-  expect(component.feeApiservice.getRequest).toHaveBeenCalledWith('/api/region/' + 'R001');
-  expect(loadRegionDataSpy).toHaveBeenCalledWith(regionObj);
-  expect((component as any).loading).toBeFalse();
-  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(Object)); // LOADINGACTION(false)
-}));
+  component.canProcessRecord(false);
 
-it('LoadRegion(): error -> calls displayServiceErrors, clears loading and dispatches LOADINGACTION(false)', fakeAsync(() => {
-  // arrange
-  (component as any).regionid = 'R002';
-  (component as any).appConfigService = { getRegionByIdUrl: '/api/region/' } as any;
+  expect((component as any).confirmModal.hide).toHaveBeenCalled();
+  expect(processSpy).not.toHaveBeenCalled();
+});
 
-  const err = { error: { statusMessage: 'server failure' } };
-  spyOn(component.feeApiservice, 'getRequest').and.returnValue(throwError(() => err));
-  const displaySpy = spyOn(component as any, 'displayServiceErrors').and.callThrough();
-  const dispatchSpy = spyOn(component['store'], 'dispatch').and.callFake(() => {});
+it('uploadXcelFile(): should show confirmModal when selected date is today', () => {
+  const showSpy = jasmine.createSpy('show');
+  (component as any).confirmModal = { show: showSpy };
+  (component as any).selectedMonthEndDate = '2025-11-12';
+  (component as any).utils = { isTodaysDate: () => true };
+  spyOn(component as any, 'ValidateFormControls').and.returnValue(false);
 
-  (component as any).loading = true;
+  component.uploadXcelFile();
 
-  // act
-  (component as any).LoadRegion();
-  tick();
+  expect((component as any).actionMessage)
+    .toContain('Date selected is Today');
+  expect(showSpy).toHaveBeenCalled();
+});
 
-  // assert
-  expect(component.feeApiservice.getRequest).toHaveBeenCalledWith('/api/region/' + 'R002');
-  expect(displaySpy).toHaveBeenCalledWith('server failure');
-  expect((component as any).loading).toBeFalse();
-  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(Object)); // LOADINGACTION(false)
-}));
+it('uploadXcelFile(): should call processRecord when date is not today', () => {
+  (component as any).utils = { isTodaysDate: () => false };
+  spyOn(component as any, 'ValidateFormControls').and.returnValue(false);
+  const processSpy = spyOn(component as any, 'processRecord').and.callFake(() => {});
+
+  component.uploadXcelFile();
+
+  expect(processSpy).toHaveBeenCalled();
+});
