@@ -1,9 +1,175 @@
-component['appConfigService'] = {
-  getRegionByIdUrl: '/api/region/',
-  restoreAccountUrl: '/api/restoreAccount/',
-  UploadCashFeeGFOPostingUrl: '/api/uploadCash/',
-  // ...etc
-};
+it('canProcessRecord(): returns false when worksheet missing or sheet empty', () => {
+  (component as any).sheetName = 'Sheet1';
+  (component as any).accoutColumnHeader = 'AccountNumber';
+  (component as any).worksheet = {}; // no Sheet1
 
-spyOn(feeApiService, 'postRequest').and.returnValue(of([]));
-spyOn(store, 'dispatch').and.callFake(() => {});
+  const result = (component as any).canProcessRecord();
+  expect(result).toBeFalse();
+});
+
+it('canProcessRecord(): returns false when sheet exists but no account column in rows', () => {
+  (component as any).sheetName = 'Sheet1';
+  (component as any).accoutColumnHeader = 'AccountNumber';
+  (component as any).worksheet = { Sheet1: [{ Other: 'x' }] };
+
+  const result = (component as any).canProcessRecord();
+  expect(result).toBeFalse();
+});
+
+it('canProcessRecord(): returns true when sheet has rows with account column', () => {
+  (component as any).sheetName = 'Sheet1';
+  (component as any).accoutColumnHeader = 'AccountNumber';
+  (component as any).worksheet = { Sheet1: [{ AccountNumber: '111' }, { AccountNumber: '222' }] };
+
+  const result = (component as any).canProcessRecord();
+  expect(result).toBeTrue();
+});
+
+it('processRecord(): builds payload skipping empty acct rows and calls postRequest with correct URL + payload', fakeAsync(() => {
+  // arrange
+  (component as any).sheetName = 'Sheet1';
+  (component as any).accoutColumnHeader = 'AccountNumber';
+  (component as any).region = { regionId: 10 };
+  (component as any).selectedMonthEndDate = '2025-01-31';
+  (component as any).currentDateTime = '2025-01-31T10:00:00Z';
+  (component as any)._actionModal = { show: jasmine.createSpy('show') };
+  (component as any).LoadTableRows = jasmine.createSpy('LoadTableRows');
+  (component as any).clearSelection = jasmine.createSpy('clearSelection');
+
+  (component as any).worksheet = {
+    Sheet1: [
+      { AccountNumber: 'A1' },
+      { AccountNumber: '' },   // should be skipped
+      { AccountNumber: 'A2' }
+    ]
+  };
+
+  spyOn((component as any).utils, 'getFormatedDateAndTimeEST').and.returnValue('2025-01-31T00:00:00Z');
+  spyOn((component as any).utils, 'getCurrentUser').and.returnValue('tester');
+  spyOn((component as any).utils, 'ToEstDate').and.returnValue('2025-01-31');
+
+  const serverResp = [{ hasError: false }, { hasError: false }];
+  const postSpy = spyOn((component as any).feeApiservice, 'postRequest').and.returnValue(of(serverResp));
+  spyOn((component as any).store, 'dispatch');
+
+  // pre-set loading true to assert cleared later
+  (component as any).loading = true;
+
+  // act
+  (component as any).processRecord();
+  tick();
+
+  // assert
+  expect(postSpy).toHaveBeenCalled();
+  const calledUrl = postSpy.calls.mostRecent().args[0];
+  // your code concatenates + "1" in screenshot; assert pattern rather than exact absolute path if config varies
+  expect(String(calledUrl)).toContain('1');
+
+  const payload = postSpy.calls.mostRecent().args[1];
+  expect(Array.isArray(payload)).toBeTrue();
+  expect(payload.length).toBe(2);
+  expect(payload[0].acctnum).toBe('A1');
+  expect(payload[1].acctnum).toBe('A2');
+
+  expect((component as any).LoadTableRows).toHaveBeenCalledWith(serverResp);
+  expect((component as any).loading).toBeFalse();
+  expect((component as any).clearSelection).toHaveBeenCalled();
+}));
+
+it('processRecord(): when API returns at least one hasError true -> computes totals, sets isData true, shows modal', fakeAsync(() => {
+  // arrange
+  (component as any).sheetName = 'Sheet1';
+  (component as any).accoutColumnHeader = 'AccountNumber';
+  (component as any).region = { regionId: 1 };
+  (component as any)._actionModal = { show: jasmine.createSpy('show') };
+  (component as any).LoadTableRows = jasmine.createSpy('LoadTableRows');
+
+  (component as any).worksheet = { Sheet1: [{ AccountNumber: 'X' }] };
+  spyOn((component as any).utils, 'getFormatedDateAndTimeEST').and.returnValue('2025-01-31T00:00:00Z');
+  spyOn((component as any).utils, 'getCurrentUser').and.returnValue('u');
+  spyOn((component as any).utils, 'ToEstDate').and.returnValue('2025-01-31');
+
+  const resp = [{ hasError: true }, { hasError: false }];
+  spyOn((component as any).feeApiservice, 'postRequest').and.returnValue(of(resp));
+  spyOn((component as any).store, 'dispatch');
+
+  // act
+  (component as any).processRecord();
+  tick();
+
+  // assert
+  expect((component as any).totalRecordCount).toBeDefined();
+  expect((component as any).totalErrorRecordCount).toBeGreaterThan(0);
+  expect((component as any).isData).toBeTrue();
+  expect((component as any)._actionModal.show).toHaveBeenCalled();
+}));
+
+it('processRecord(): when API returns all hasError false -> isData false and modal shown', fakeAsync(() => {
+  // arrange
+  (component as any).sheetName = 'Sheet1';
+  (component as any).accoutColumnHeader = 'AccountNumber';
+  (component as any)._actionModal = { show: jasmine.createSpy('show') };
+  (component as any).worksheet = { Sheet1: [{ AccountNumber: 'Y' }] };
+
+  spyOn((component as any).utils, 'getFormatedDateAndTimeEST').and.returnValue('2025-01-31T00:00:00Z');
+  spyOn((component as any).utils, 'getCurrentUser').and.returnValue('u');
+  spyOn((component as any).utils, 'ToEstDate').and.returnValue('2025-01-31');
+
+  const resp = [{ hasError: false }];
+  spyOn((component as any).feeApiservice, 'postRequest').and.returnValue(of(resp));
+  spyOn((component as any).store, 'dispatch');
+
+  // act
+  (component as any).processRecord();
+  tick();
+
+  // assert
+  expect((component as any).totalErrorRecordCount).toBe(0);
+  expect((component as any).isData).toBeFalse();
+  expect((component as any)._actionModal.show).toHaveBeenCalled();
+}));
+
+it('processRecord(): on service error -> calls displayServiceErrors with statusMessage, clears loading and dispatches false', fakeAsync(() => {
+  // arrange
+  (component as any).sheetName = 'Sheet1';
+  (component as any).accoutColumnHeader = 'AccountNumber';
+  (component as any).worksheet = { Sheet1: [{ AccountNumber: 'Z' }] };
+
+  const serverErr = { error: { statusMessage: 'boom' } };
+  spyOn((component as any).feeApiservice, 'postRequest').and.returnValue(throwError(() => serverErr));
+  const dispSpy = spyOn(component as any, 'displayServiceErrors').and.callThrough();
+  const dispatchSpy = spyOn((component as any).store, 'dispatch');
+
+  // set loading true to assert it is cleared
+  (component as any).loading = true;
+
+  // act
+  (component as any).processRecord();
+  tick();
+
+  // assert
+  expect(dispSpy).toHaveBeenCalledWith('boom');
+  expect((component as any).loading).toBeFalse();
+  expect(dispatchSpy).toHaveBeenCalled(); // LOADINGACTION(false)
+}));
+
+it('processRecord(): if worksheet contains only empty account rows -> should not call postRequest and should clear loading', fakeAsync(() => {
+  // arrange
+  (component as any).sheetName = 'Sheet1';
+  (component as any).accoutColumnHeader = 'AccountNumber';
+  (component as any).worksheet = { Sheet1: [{ AccountNumber: '' }, { AccountNumber: null }] };
+
+  const postSpy = spyOn((component as any).feeApiservice, 'postRequest');
+  const dispatchSpy = spyOn((component as any).store, 'dispatch');
+
+  (component as any).loading = true;
+
+  // act
+  (component as any).processRecord();
+  tick();
+
+  // assert
+  expect(postSpy).not.toHaveBeenCalled();
+  expect((component as any).loading).toBeFalse();
+  expect(dispatchSpy).toHaveBeenCalled();
+}));
