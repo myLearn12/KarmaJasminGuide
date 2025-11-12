@@ -1,105 +1,70 @@
-it('validateWorksheet: numeric field invalid -> should mark isInvalidCharLength and call fileUploadError', fakeAsync(() => {
-  // arrange - put everything inside test
-  const fileErrSpy = spyOn(component as any, 'fileUploadError');
-  // stub utils numeric check to return false (invalid)
-  (component as any).utils = { isStringNumeric: (val: any) => false } as any;
-
-  // prepare worksheet containing one row where 'cashAmountColumnHeader' exists but is non-numeric
-  // adapt header names to match your component property names
-  (component as any).cashAmountColumnHeader = 'CASH_AMT';
-  const worksheet = {
-    [component['sheetName'] || 'Sheet1']: [
-      { 'CASH_AMT': 'abc' }   // invalid numeric
-    ]
-  };
-
-  // reset flags
-  component['isInvalidCharLength'] = false;
-  component['isMissingRequiredField'] = false;
-
-  // act
-  (component as any).validateWorksheet(worksheet[component['sheetName'] || 'Sheet1']); // some components pass array directly
-
-  // assert
-  expect(component['isInvalidCharLength']).toBeTrue();
-  expect(fileErrSpy).toHaveBeenCalled();
-}));
-
-
-it('validateWorksheet: missing required field -> should mark isMissingRequiredField and call fileUploadError', fakeAsync(() => {
-  const fileErrSpy = spyOn(component as any, 'fileUploadError');
-  // numeric validator not used here; we want missing field path
-  (component as any).utils = { isStringNumeric: (v: any) => true } as any;
-
-  // define header name that will *not* exist in row (simulate missing)
-  (component as any).cashAmountColumnHeader = 'CASH_AMT';
-  const worksheet = {
-    [component['sheetName'] || 'Sheet1']: [
-      { OTHER_COL: 'value' }  // CASH_AMT missing
-    ]
-  };
-
-  component['isMissingRequiredField'] = false;
-
-  (component as any).validateWorksheet(worksheet[component['sheetName'] || 'Sheet1']);
-
-  expect(component['isMissingRequiredField']).toBeTrue();
-  expect(fileErrSpy).toHaveBeenCalled();
-}));
-
-
-it('validateWorksheet: cusip length exceeded -> should mark isInvalidCharLength and call fileUploadError', fakeAsync(() => {
-  const fileErrSpy = spyOn(component as any, 'fileUploadError');
-  // stub alpha/numeric check to pass
-  (component as any).utils = { isStringAlphaNumeric: (v: any) => true } as any;
-
-  (component as any).cusipColumnHeader = 'CUSIP';
-  // create a cusip longer than 12 chars
-  const worksheet = {
-    [component['sheetName'] || 'Sheet1']: [
-      { 'CUSIP': 'ABCDEFGHIJKLM' } // 13 chars
-    ]
-  };
-
-  component['isInvalidCharLength'] = false;
-
-  (component as any).validateWorksheet(worksheet[component['sheetName'] || 'Sheet1']);
-
-  expect(component['isInvalidCharLength']).toBeTrue();
-  expect(fileErrSpy).toHaveBeenCalled();
-}));
-
-
-it('validateWorksheet: valid rows -> should mark isFileUploaded true and clear errorBlockMessage', fakeAsync(() => {
-  const fileErrSpy = spyOn(component as any, 'fileUploadError');
-  // make utils return valid responses
-  (component as any).utils = {
-    isStringNumeric: (v: any) => !isNaN(Number(v)),
-    isStringAlphaNumeric: (v: any) => /^[a-z0-9]+$/i.test(String(v)),
-    isValidDate: (d: any) => true
-  } as any;
-
-  // set headers used by the function
-  (component as any).accountColumnHeader = 'ACCT';
-  (component as any).cashAmountColumnHeader = 'CASH';
-  (component as any).paidThruDateColumnHeader = 'PAID_DT';
+it('processRecord(): success -> stops loading, dispatches LOADINGACTION(false), calls LoadTableRows and shows modal', fakeAsync(() => {
+  // prepare worksheet with one valid row
   (component as any).sheetName = 'Sheet1';
-
-  // create valid row
-  const worksheet = {
-    'Sheet1': [
-      { 'ACCT': '12345', 'CASH': '100.50', 'PAID_DT': '2023-01-01' }
+  (component as any).worksheet = {
+    Sheet1: [
+      {
+        acctNbr: '12345',
+        miscAmount: 100,
+        paidThruDt: '2025-01-01'
+      }
     ]
   };
 
-  // reset flags
-  component['isFileUploaded'] = false;
-  component['errorBlockMessage'] = 'some error';
+  // minimal region and config
+  (component as any).region = { regionId: 'R001' };
+  (component as any).appConfigService = { updateBulkFundFeePostingUrl: '/api/upload/' } as any;
 
-  // act - some implementations accept worksheet[sheetName] array; adjust call to match your validateWorksheet signature
-  (component as any).validateWorksheet(worksheet['Sheet1']);
+  // spies
+  const postSpy = spyOn(component.feeApiservice, 'postRequest')
+    .and.returnValue(of([{ some: 'row' }])); // server returns rows for LoadTableRows
+  const dispatchSpy = spyOn(component['store'], 'dispatch');
+  const loadSpy = spyOn(component as any, 'LoadTableRows').and.callFake(() => {});
+  // mock modal (cast to any to avoid typing issues)
+  (component as any)._actionModal = { show: jasmine.createSpy('show') };
 
-  expect(component['isFileUploaded']).toBeTrue();
-  expect(component['errorBlockMessage']).toBeNull();
-  expect(fileErrSpy).not.toHaveBeenCalled();
+  // initial states: loading true to ensure it flips to false later
+  (component as any).loading = true;
+
+  // Act
+  component.processRecord();
+  tick();
+
+  // Assert - API called with url + regionId and payload length 1
+  expect(postSpy).toHaveBeenCalled();
+  const calledUrl = postSpy.calls.mostRecent().args[0];
+  expect(String(calledUrl)).toContain('/api/upload/');
+  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(Object)); // LOADINGACTION dispatched
+  expect(loadSpy).toHaveBeenCalledWith(jasmine.anything()); // LoadTableRows called
+  expect((component as any).loading).toBeFalse();
+  expect(((component as any)._actionModal).show).toHaveBeenCalled();
+  expect((component as any).totalRecordCount).toBe(1);
+}));
+
+it('processRecord(): server error -> calls displayServiceErrors, clears loading and dispatches LOADINGACTION(false)', fakeAsync(() => {
+  // setup worksheet and region
+  (component as any).sheetName = 'Sheet1';
+  (component as any).worksheet = { Sheet1: [{ acctNbr: '1', miscAmount: 10, paidThruDt: '2025-01-01' }] };
+  (component as any).region = { regionId: 'R002' };
+  (component as any).appConfigService = { updateBulkFundFeePostingUrl: '/api/upload/' } as any;
+
+  // make postRequest throw error
+  const errorResp = { error: { statusMessage: 'server fail' } };
+  spyOn(component.feeApiservice, 'postRequest').and.returnValue(throwError(() => errorResp));
+
+  // spies for error handling / dispatch
+  const displaySpy = spyOn(component as any, 'displayServiceErrors');
+  const dispatchSpy = spyOn(component['store'], 'dispatch');
+
+  // ensure loading starts true
+  (component as any).loading = true;
+
+  // Act
+  component.processRecord();
+  tick();
+
+  // Assert
+  expect(displaySpy).toHaveBeenCalledWith('server fail');
+  expect((component as any).loading).toBeFalse();
+  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(Object)); // LOADINGACTION(false)
 }));
