@@ -1,318 +1,51 @@
-// Self-contained tests for RestorebulkacctsComponent.processRecord()
-// No helper functions, no describe/beforeEach — each `it` creates its own TestBed+fixture
-// Replace import paths with your actual file paths.
-
-import { TestBed, fakeAsync, tick, ComponentFixture } from '@angular/core/testing';
-import { of, throwError } from 'rxjs';
-import { Store } from '@ngrx/store';
-import { RestorebulkacctsComponent } from './restorebulkaccts.component';
-import { FeeApiService } from 'src/app/services/fee-api.service';
-import { AppConfigService } from 'src/app/services/app-config.service';
-import { UtilsService } from 'src/app/services/utils.service';
-
-it('processRecord(): on success builds payload skipping empty rows, posts to restoreAccountUrl + "1", calls LoadTableRows, clears loading and dispatches LOADINGACTION(false)', fakeAsync(() => {
+it('LoadRegion() - success: calls API, calls LoadRegionData, clears loading and dispatches LOADINGACTION(false)', () => {
   // arrange
-  const feeApiSpy = jasmine.createSpyObj('FeeApiService', ['postRequest']);
-  const storeSpy = jasmine.createSpyObj('Store', ['dispatch']);
-  const appConfigStub = {} as any;
-  const utilsStub = {} as any;
+  const cfg = { getRegionByIdUrl: '/api/region/' } as any;
+  (component as any).appConfigService = cfg;
+  (component as any).regionid = 'R001';
 
-  TestBed.configureTestingModule({
-    declarations: [RestorebulkacctsComponent],
-    providers: [
-      { provide: FeeApiService, useValue: feeApiSpy },
-      { provide: Store, useValue: storeSpy },
-      { provide: AppConfigService, useValue: appConfigStub },
-      { provide: UtilsService, useValue: utilsStub }
-    ]
-  }).compileComponents();
+  const mockRegionResponse = { regionId: 'R001', regionDescription: 'North' };
+  const feeApi = TestBed.inject(FeeApiService) as any;
+  spyOn(feeApi, 'getRequest').and.returnValue(of(mockRegionResponse));
 
-  const fixture: ComponentFixture<RestorebulkacctsComponent> = TestBed.createComponent(RestorebulkacctsComponent);
-  const comp = fixture.componentInstance as any;
+  // spy on the protected method (call via any) so we can verify it was invoked with the API response
+  spyOn(component as any, 'LoadRegionData').and.callThrough();
 
-  // provide expected runtime dependencies
-  comp.sheetName = 'Sheet1';
-  comp.accoutColumnHeader = 'AccountNumber';
-  comp.appConfigService = { restoreAccountUrl: '/api/restore/' } as any;
-  comp.region = { regionId: 55 };
-  comp.selectedMonthEndDate = '2025-01-31';
-  comp.currentDateTime = '2025-01-31T10:00:00Z';
-
-  comp.utils = {
-    getFormatedDateAndTimeEST: () => '2025-01-31T00:00:00Z',
-    getCurrentUser: () => 'tester',
-    ToEstDate: () => '2025-01-31',
-    ToDate: () => '2025-01-31'
-  };
-
-  comp.subscription = { add: jasmine.createSpy('add') };
-  comp._actionModal = { show: jasmine.createSpy('show') };
-  comp.LoadTableRows = jasmine.createSpy('LoadTableRows');
-  comp.clearSelection = jasmine.createSpy('clearSelection');
-
-  comp.worksheet = {
-    Sheet1: [
-      { AccountNumber: 'ACC1' },
-      { AccountNumber: '' },
-      { AccountNumber: 'ACC2' }
-    ]
-  };
-
-  const serverResp = [{ hasError: false }, { hasError: false }];
-  feeApiSpy.postRequest.and.returnValue(of(serverResp));
-  spyOn(storeSpy, 'dispatch');
-
-  comp.loading = true;
+  const store = TestBed.inject(Store) as any;
+  spyOn(store, 'dispatch').and.callFake(() => {});
 
   // act
-  comp.processRecord();
-  tick();
+  (component as any).LoadRegion();
 
   // assert
-  expect(feeApiSpy.postRequest).toHaveBeenCalled();
-  const calledUrl = String(feeApiSpy.postRequest.calls.mostRecent().args[0]);
-  expect(calledUrl).toContain('/api/restore/');
-  expect(calledUrl).toContain('1');
+  expect(feeApi.getRequest).toHaveBeenCalledWith('/api/region/' + 'R001');
+  expect((component as any).LoadRegionData).toHaveBeenCalledWith(mockRegionResponse);
+  expect((component as any).loading).toBeFalse();
+  expect(store.dispatch).toHaveBeenCalled(); // dispatched LOADINGACTION(false)
+});
 
-  const payload = feeApiSpy.postRequest.calls.mostRecent().args[1];
-  expect(Array.isArray(payload)).toBeTrue();
-  expect(payload.length).toBe(2);
-  expect(payload[0].acctnum).toBe('ACC1');
-  expect(payload[1].acctnum).toBe('ACC2');
-
-  expect(comp.LoadTableRows).toHaveBeenCalledWith(serverResp);
-  expect(comp.loading).toBeFalse();
-  expect(comp.clearSelection).toHaveBeenCalled();
-
-  fixture.destroy();
-}));
-
-it('processRecord(): when response contains at least one hasError true -> sets totalErrorRecordCount > 0, isData true and shows modal', fakeAsync(() => {
+it('LoadRegion() - error: when API errors should call displayServiceErrors and clear loading and dispatch LOADINGACTION(false)', () => {
   // arrange
-  const feeApiSpy = jasmine.createSpyObj('FeeApiService', ['postRequest']);
-  const storeSpy = jasmine.createSpyObj('Store', ['dispatch']);
-  const appConfigStub = {} as any;
-  const utilsStub = {} as any;
+  const cfg = { getRegionByIdUrl: '/api/region/' } as any;
+  (component as any).appConfigService = cfg;
+  (component as any).regionid = 'R002';
 
-  TestBed.configureTestingModule({
-    declarations: [RestorebulkacctsComponent],
-    providers: [
-      { provide: FeeApiService, useValue: feeApiSpy },
-      { provide: Store, useValue: storeSpy },
-      { provide: AppConfigService, useValue: appConfigStub },
-      { provide: UtilsService, useValue: utilsStub }
-    ]
-  }).compileComponents();
+  const feeApi = TestBed.inject(FeeApiService) as any;
+  const serverError = { error: { statusMessage: 'server failed' } };
+  spyOn(feeApi, 'getRequest').and.returnValue(throwError(serverError));
 
-  const fixture = TestBed.createComponent(RestorebulkacctsComponent);
-  const comp = fixture.componentInstance as any;
+  // spy displayServiceErrors to assert it was called with the server message
+  spyOn(component as any, 'displayServiceErrors').and.callThrough();
 
-  comp.sheetName = 'Sheet1';
-  comp.accoutColumnHeader = 'AccountNumber';
-  comp.appConfigService = { restoreAccountUrl: '/api/restore/' } as any;
-  comp.utils = { getFormatedDateAndTimeEST: () => 't', getCurrentUser: () => 'u', ToEstDate: () => 'd', ToDate: () => 'd' };
-  comp.subscription = { add: jasmine.createSpy('add') };
-  comp._actionModal = { show: jasmine.createSpy('show') };
-  comp.LoadTableRows = jasmine.createSpy('LoadTableRows');
-
-  comp.worksheet = { Sheet1: [{ AccountNumber: 'X' }] };
-
-  const resp = [{ hasError: true }, { hasError: false }];
-  feeApiSpy.postRequest.and.returnValue(of(resp));
-  spyOn(storeSpy, 'dispatch');
+  const store = TestBed.inject(Store) as any;
+  spyOn(store, 'dispatch').and.callFake(() => {});
 
   // act
-  comp.processRecord();
-  tick();
+  (component as any).LoadRegion();
 
   // assert
-  expect(comp.totalErrorRecordCount).toBeGreaterThan(0);
-  expect(comp.isData).toBeTrue();
-  expect(comp._actionModal.show).toHaveBeenCalled();
-
-  fixture.destroy();
-}));
-
-it('processRecord(): when response all hasError false -> totalErrorRecordCount 0, isData false, modal shown', fakeAsync(() => {
-  // arrange
-  const feeApiSpy = jasmine.createSpyObj('FeeApiService', ['postRequest']);
-  const storeSpy = jasmine.createSpyObj('Store', ['dispatch']);
-  const appConfigStub = {} as any;
-  const utilsStub = {} as any;
-
-  TestBed.configureTestingModule({
-    declarations: [RestorebulkacctsComponent],
-    providers: [
-      { provide: FeeApiService, useValue: feeApiSpy },
-      { provide: Store, useValue: storeSpy },
-      { provide: AppConfigService, useValue: appConfigStub },
-      { provide: UtilsService, useValue: utilsStub }
-    ]
-  }).compileComponents();
-
-  const fixture = TestBed.createComponent(RestorebulkacctsComponent);
-  const comp = fixture.componentInstance as any;
-
-  comp.sheetName = 'Sheet1';
-  comp.accoutColumnHeader = 'AccountNumber';
-  comp.appConfigService = { restoreAccountUrl: '/api/restore/' } as any;
-  comp.utils = { getFormatedDateAndTimeEST: () => 't', getCurrentUser: () => 'u', ToEstDate: () => 'd', ToDate: () => 'd' };
-  comp.subscription = { add: jasmine.createSpy('add') };
-  comp._actionModal = { show: jasmine.createSpy('show') };
-
-  comp.worksheet = { Sheet1: [{ AccountNumber: 'Y' }] };
-
-  const resp = [{ hasError: false }];
-  feeApiSpy.postRequest.and.returnValue(of(resp));
-  spyOn(storeSpy, 'dispatch');
-
-  // act
-  comp.processRecord();
-  tick();
-
-  // assert
-  expect(comp.totalErrorRecordCount).toBe(0);
-  expect(comp.isData).toBeFalse();
-  expect(comp._actionModal.show).toHaveBeenCalled();
-
-  fixture.destroy();
-}));
-
-it('processRecord(): on feeApiservice.postRequest error -> calls displayServiceErrors, clears loading and dispatches LOADINGACTION(false)', fakeAsync(() => {
-  // arrange
-  const feeApiSpy = jasmine.createSpyObj('FeeApiService', ['postRequest']);
-  const storeSpy = jasmine.createSpyObj('Store', ['dispatch']);
-  const appConfigStub = {} as any;
-  const utilsStub = {} as any;
-
-  TestBed.configureTestingModule({
-    declarations: [RestorebulkacctsComponent],
-    providers: [
-      { provide: FeeApiService, useValue: feeApiSpy },
-      { provide: Store, useValue: storeSpy },
-      { provide: AppConfigService, useValue: appConfigStub },
-      { provide: UtilsService, useValue: utilsStub }
-    ]
-  }).compileComponents();
-
-  const fixture = TestBed.createComponent(RestorebulkacctsComponent);
-  const comp = fixture.componentInstance as any;
-
-  comp.sheetName = 'Sheet1';
-  comp.accoutColumnHeader = 'AccountNumber';
-  comp.appConfigService = { restoreAccountUrl: '/api/restore/' } as any;
-  comp.utils = { getFormatedDateAndTimeEST: () => 't', getCurrentUser: () => 'u', ToEstDate: () => 'd', ToDate: () => 'd' };
-  comp.subscription = { add: jasmine.createSpy('add') };
-  comp.worksheet = { Sheet1: [{ AccountNumber: 'Z' }] };
-
-  const serverErr = { error: { statusMessage: 'server failed' } };
-  feeApiSpy.postRequest.and.returnValue(throwError(() => serverErr));
-  const dispSpy = spyOn(comp, 'displayServiceErrors').and.callFake(() => {});
-  spyOn(storeSpy, 'dispatch');
-
-  comp.loading = true;
-
-  // act
-  comp.processRecord();
-  tick();
-
-  // assert
-  expect(dispSpy).toHaveBeenCalledWith('server failed');
-  expect(comp.loading).toBeFalse();
-  expect(storeSpy.dispatch).toHaveBeenCalled();
-
-  fixture.destroy();
-}));
-
-it('processRecord(): when worksheet has only empty/null account values -> should not call postRequest, should clear loading and dispatch LOADINGACTION(false)', fakeAsync(() => {
-  // arrange
-  const feeApiSpy = jasmine.createSpyObj('FeeApiService', ['postRequest']);
-  const storeSpy = jasmine.createSpyObj('Store', ['dispatch']);
-  const appConfigStub = {} as any;
-  const utilsStub = {} as any;
-
-  TestBed.configureTestingModule({
-    declarations: [RestorebulkacctsComponent],
-    providers: [
-      { provide: FeeApiService, useValue: feeApiSpy },
-      { provide: Store, useValue: storeSpy },
-      { provide: AppConfigService, useValue: appConfigStub },
-      { provide: UtilsService, useValue: utilsStub }
-    ]
-  }).compileComponents();
-
-  const fixture = TestBed.createComponent(RestorebulkacctsComponent);
-  const comp = fixture.componentInstance as any;
-
-  comp.sheetName = 'Sheet1';
-  comp.accoutColumnHeader = 'AccountNumber';
-  comp.appConfigService = { restoreAccountUrl: '/api/restore/' } as any;
-  comp.utils = { getFormatedDateAndTimeEST: () => 't', getCurrentUser: () => 'u', ToEstDate: () => 'd', ToDate: () => 'd' };
-  comp.subscription = { add: jasmine.createSpy('add') };
-  comp.worksheet = { Sheet1: [{ AccountNumber: '' }, { AccountNumber: null }] };
-
-  const postSpy = feeApiSpy.postRequest.and.returnValue(of([]));
-  spyOn(storeSpy, 'dispatch');
-
-  comp.loading = true;
-
-  // act
-  comp.processRecord();
-  tick();
-
-  // assert
-  expect(postSpy).not.toHaveBeenCalled();
-  expect(comp.loading).toBeFalse();
-  expect(storeSpy.dispatch).toHaveBeenCalled();
-
-  fixture.destroy();
-}));
-
-it('processRecord(): missing appConfigService.restoreAccountUrl should not crash and should not produce "undefined" URL', fakeAsync(() => {
-  // arrange
-  const feeApiSpy = jasmine.createSpyObj('FeeApiService', ['postRequest']);
-  const storeSpy = jasmine.createSpyObj('Store', ['dispatch']);
-  const appConfigStub = {} as any; // intentionally missing restoreAccountUrl
-  const utilsStub = {} as any;
-
-  TestBed.configureTestingModule({
-    declarations: [RestorebulkacctsComponent],
-    providers: [
-      { provide: FeeApiService, useValue: feeApiSpy },
-      { provide: Store, useValue: storeSpy },
-      { provide: AppConfigService, useValue: appConfigStub },
-      { provide: UtilsService, useValue: utilsStub }
-    ]
-  }).compileComponents();
-
-  const fixture = TestBed.createComponent(RestorebulkacctsComponent);
-  const comp = fixture.componentInstance as any;
-
-  comp.sheetName = 'Sheet1';
-  comp.accoutColumnHeader = 'AccountNumber';
-  // deliberately leave comp.appConfigService.restoreAccountUrl undefined
-  comp.appConfigService = {} as any;
-  comp.utils = { getFormatedDateAndTimeEST: () => 't', getCurrentUser: () => 'u', ToEstDate: () => 'd', ToDate: () => 'd' };
-  comp.subscription = { add: jasmine.createSpy('add') };
-  comp.worksheet = { Sheet1: [{ AccountNumber: 'P1' }] };
-
-  const postSpy = feeApiSpy.postRequest.and.returnValue(of([]));
-  spyOn(storeSpy, 'dispatch');
-
-  comp.loading = true;
-
-  // act
-  comp.processRecord();
-  tick();
-
-  // assert: either not called or URL must not contain 'undefined'
-  if (postSpy.calls.any()) {
-    const calledUrl = String(postSpy.calls.mostRecent().args[0]);
-    expect(calledUrl).not.toContain('undefined');
-  } else {
-    expect(comp.loading).toBeFalse();
-    expect(storeSpy.dispatch).toHaveBeenCalled();
-  }
-
-  fixture.destroy();
-}));
+  expect(feeApi.getRequest).toHaveBeenCalledWith('/api/region/' + 'R002');
+  expect((component as any).displayServiceErrors).toHaveBeenCalledWith('server failed');
+  expect((component as any).loading).toBeFalse();
+  expect(store.dispatch).toHaveBeenCalled(); // dispatched LOADINGACTION(false)
+});
