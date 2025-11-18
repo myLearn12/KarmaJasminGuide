@@ -1,17 +1,29 @@
-it('onSearchButtonClick() - other value & invalid string should call GenerateSearchAcctNameTableRows(url, "1")', () => {
-  spyOn(component, 'GenerateSearchAcctNameTableRows').and.callFake(() => {});
-  spyOn(store, 'dispatch').and.callFake(() => {});
+it('onSearchButtonClick() - searchByValue=4 should dispatch loading and call GenerateSearchAcctNameTableRows with longAccountNbr', () => {
+  // arrange
   component.ValidateFormControls = jasmine.createSpy().and.returnValue(false);
 
-  component._searchByRadioButton = { value: '3' };
-  component.selectedSearchText = 'XYZ';
-  component.utils = { isStringValid: () => false };
+  // make the radio selection "4"
+  component._searchByRadioButton = { value: '4' };
+
+  component.selectedSearchText = '  1234567890  '; // trimmed in code
   component.appConfigService = { getAllAccountExportUrl: '/api/accounts/' };
 
+  spyOn(component, 'GenerateSearchAcctNameTableRows').and.callFake(() => {});
+
+  // store is private; spy it via (component as any).store
+  const storeSpy = spyOn((component as any).store, 'dispatch').and.callFake(() => {});
+
+  // act
   component.onSearchButtonClick();
 
+  // assert
   expect(component.loading).toBeTrue();
-  expect(store.dispatch).toHaveBeenCalledWith(new LOADINGACTION(true));
+
+  expect(storeSpy).toHaveBeenCalledWith(new LOADINGACTION(true));
+
+  const expectedUrl = '/api/accounts/';
+  const expectedQuery = '2?longAccountNbr=' + encodeURIComponent(component.selectedSearchText.trim());
+
   expect(component.GenerateSearchAcctNameTableRows)
-    .toHaveBeenCalledWith('/api/accounts/', '1');
+    .toHaveBeenCalledWith(expectedUrl, expectedQuery);
 });
