@@ -1,36 +1,38 @@
-it('GenerateTableRows() - error: sets isData=false, calls displayServiceErrors, clears loading and dispatches LOADINGACTION(false)', () => {
-  // Arrange: ensure component has subscription and appConfig url
+it('GenerateSearchAcctNumTableRows() - error: sets isData=false, calls displayServiceErrors, clears loading and dispatches LOADINGACTION(false)', () => {
+  // ensure component has a Subscription to avoid undefined .add calls
   (component as any).subscription = new Subscription();
-  (component as any).appConfigService = { getAllAccountExportUrl: '/api/accounts' } as any;
 
-  // Ensure store exists and we spy dispatch
+  // Spy store.dispatch (TestBed should have provided Store in your spec)
   const store = TestBed.inject(Store) as any;
   spyOn(store, 'dispatch').and.callFake(() => {});
 
-  // Spy on the exact feeApi instance used by the component
-  const componentFeeApi = (component as any).feeApiservice;
-  if (!componentFeeApi) {
-    // if the component didn't have it wired, inject and assign one (mock)
-    const feeApiMock = TestBed.inject(FeeApiService) as any;
-    (component as any).feeApiservice = feeApiMock;
+  // Ensure feeApiservice exists on the component and spy getRequest to throw
+  if (!(component as any).feeApiservice) {
+    // if not wired, get from injector and assign
+    (component as any).feeApiservice = TestBed.inject(FeeApiService);
   }
-
-  // Now spy on that instance and make it throw synchronously
   spyOn((component as any).feeApiservice, 'getRequest').and.returnValue(
     throwError({ error: { statusMessage: 'server failed' } })
   );
 
-  // Spy the displayServiceErrors on the component instance
+  // Spy the displayServiceErrors method on the component instance
   spyOn(component as any, 'displayServiceErrors').and.callFake(() => {});
 
-  // Act: call the method under test
-  (component as any).GenerateTableRows();
+  // guard initial state
+  component.isData = true;
+  component.loading = true;
 
-  // Assert
+  // Act — call the method with urlString and queryString that match your code usage
+  const urlString = '/api/accounts';
+  const queryString = '2';
+  (component as any).GenerateSearchAcctNumTableRows(urlString, queryString);
+
+  // Assertions
   expect((component as any).feeApiservice.getRequest)
-    .toHaveBeenCalledWith('/api/accounts' + '0' + '/2'); // matches code: + '0' + '/2'
-  expect((component as any).isData).toBeFalse();
-  expect((component as any).loading).toBeFalse();
+    .toHaveBeenCalledWith(urlString + '0' + '/' + queryString);
+
+  expect(component.isData).toBeFalse();
+  expect(component.loading).toBeFalse();
   expect((component as any).displayServiceErrors).toHaveBeenCalledWith('server failed');
-  expect(store.dispatch).toHaveBeenCalled();
+  expect(store.dispatch).toHaveBeenCalled(); // you can tighten this to the exact action if desired
 });
