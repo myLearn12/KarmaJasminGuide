@@ -1,26 +1,34 @@
 it('GenerateTableRows() - error: sets isData=false, calls displayServiceErrors, clears loading and dispatches LOADINGACTION(false)', () => {
-  // arrange
-  const feeApi = TestBed.inject(FeeApiService) as any;
-  const store = TestBed.inject(Store) as any;
-
-  // ensure appConfig URL used in the method is defined (screenshot shows: + '0' + '/2')
+  // Arrange: ensure component has subscription and appConfig url
+  (component as any).subscription = new Subscription();
   (component as any).appConfigService = { getAllAccountExportUrl: '/api/accounts' } as any;
 
-  // make sure subscription exists so .add(...) doesn't throw
-  (component as any).subscription = new Subscription();
-
-  // stub the API to return an error
-  spyOn(feeApi, 'getRequest').and.returnValue(throwError({ error: { statusMessage: 'server failed' } }));
-
-  // spy displayServiceErrors and store.dispatch
-  spyOn(component as any, 'displayServiceErrors').and.callThrough();
+  // Ensure store exists and we spy dispatch
+  const store = TestBed.inject(Store) as any;
   spyOn(store, 'dispatch').and.callFake(() => {});
 
-  // act
+  // Spy on the exact feeApi instance used by the component
+  const componentFeeApi = (component as any).feeApiservice;
+  if (!componentFeeApi) {
+    // if the component didn't have it wired, inject and assign one (mock)
+    const feeApiMock = TestBed.inject(FeeApiService) as any;
+    (component as any).feeApiservice = feeApiMock;
+  }
+
+  // Now spy on that instance and make it throw synchronously
+  spyOn((component as any).feeApiservice, 'getRequest').and.returnValue(
+    throwError({ error: { statusMessage: 'server failed' } })
+  );
+
+  // Spy the displayServiceErrors on the component instance
+  spyOn(component as any, 'displayServiceErrors').and.callFake(() => {});
+
+  // Act: call the method under test
   (component as any).GenerateTableRows();
 
-  // assert
-  expect(feeApi.getRequest).toHaveBeenCalledWith('/api/accounts' + '0' + '/2');
+  // Assert
+  expect((component as any).feeApiservice.getRequest)
+    .toHaveBeenCalledWith('/api/accounts' + '0' + '/2'); // matches code: + '0' + '/2'
   expect((component as any).isData).toBeFalse();
   expect((component as any).loading).toBeFalse();
   expect((component as any).displayServiceErrors).toHaveBeenCalledWith('server failed');
