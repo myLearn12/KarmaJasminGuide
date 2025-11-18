@@ -1,29 +1,14 @@
-it('onSearchButtonClick() - searchByValue=4 should dispatch loading and call GenerateSearchAcctNameTableRows with longAccountNbr', () => {
-  // arrange
-  component.ValidateFormControls = jasmine.createSpy().and.returnValue(false);
+it('InitialExcelDataLoad() – searchByValue=3 should build queryString "/1/"', () => {
+  component._searchByRadioButton = { value: '3' };
+  component.selectedSearchText = ' ACC123 ';
+  component.utils = { isStringValid: () => true };
 
-  // make the radio selection "4"
-  component._searchByRadioButton = { value: '4' };
+  spyOn(component.subscription, 'add').and.callFake(() => {});
+  spyOn(component.feeApiservice, 'getRequest').and.returnValue(of({ accountsExportList: [], officers: [] }));
+  spyOn((component as any).store, 'dispatch');
 
-  component.selectedSearchText = '  1234567890  '; // trimmed in code
-  component.appConfigService = { getAllAccountExportUrl: '/api/accounts/' };
+  component.InitialExcelDataLoad();
 
-  spyOn(component, 'GenerateSearchAcctNameTableRows').and.callFake(() => {});
-
-  // store is private; spy it via (component as any).store
-  const storeSpy = spyOn((component as any).store, 'dispatch').and.callFake(() => {});
-
-  // act
-  component.onSearchButtonClick();
-
-  // assert
-  expect(component.loading).toBeTrue();
-
-  expect(storeSpy).toHaveBeenCalledWith(new LOADINGACTION(true));
-
-  const expectedUrl = '/api/accounts/';
-  const expectedQuery = '2?longAccountNbr=' + encodeURIComponent(component.selectedSearchText.trim());
-
-  expect(component.GenerateSearchAcctNameTableRows)
-    .toHaveBeenCalledWith(expectedUrl, expectedQuery);
+  expect(component.feeApiservice.getRequest)
+    .toHaveBeenCalledWith(component.appConfigService.getAllAccountExportUrl + '/1/' + encodeURIComponent('ACC123'));
 });
