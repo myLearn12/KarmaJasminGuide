@@ -1,38 +1,39 @@
-it('GenerateSearchAcctNumTableRows() - error: sets isData=false, calls displayServiceErrors, clears loading and dispatches LOADINGACTION(false)', () => {
-  // ensure component has a Subscription to avoid undefined .add calls
+it('GenerateSearchAcctNameTableRows() - error: sets isData=false, calls displayServiceErrors, clears loading and dispatches LOADINGACTION(false)', () => {
+  // ensure subscription exists so .add() won't blow up
   (component as any).subscription = new Subscription();
 
-  // Spy store.dispatch (TestBed should have provided Store in your spec)
+  // spy store.dispatch
   const store = TestBed.inject(Store) as any;
   spyOn(store, 'dispatch').and.callFake(() => {});
 
-  // Ensure feeApiservice exists on the component and spy getRequest to throw
+  // ensure feeApiservice is available and make getRequest throw
   if (!(component as any).feeApiservice) {
-    // if not wired, get from injector and assign
     (component as any).feeApiservice = TestBed.inject(FeeApiService);
   }
   spyOn((component as any).feeApiservice, 'getRequest').and.returnValue(
     throwError({ error: { statusMessage: 'server failed' } })
   );
 
-  // Spy the displayServiceErrors method on the component instance
+  // spy the component's displayServiceErrors
   spyOn(component as any, 'displayServiceErrors').and.callFake(() => {});
 
-  // guard initial state
+  // set starting state
   component.isData = true;
   component.loading = true;
+  component.disableButtonAction = true;
 
-  // Act — call the method with urlString and queryString that match your code usage
-  const urlString = '/api/accounts';
-  const queryString = '2';
-  (component as any).GenerateSearchAcctNumTableRows(urlString, queryString);
+  // call the method (use same url/query construction as in component)
+  const urlString = '/api/searchName';
+  const queryString = 'john';
+  (component as any).GenerateSearchAcctNameTableRows(urlString, queryString);
 
-  // Assertions
+  // expectations
   expect((component as any).feeApiservice.getRequest)
     .toHaveBeenCalledWith(urlString + '0' + '/' + queryString);
 
   expect(component.isData).toBeFalse();
   expect(component.loading).toBeFalse();
   expect((component as any).displayServiceErrors).toHaveBeenCalledWith('server failed');
-  expect(store.dispatch).toHaveBeenCalled(); // you can tighten this to the exact action if desired
+  expect(store.dispatch).toHaveBeenCalled();
+  expect(component.disableButtonAction).toBeFalse();
 });
