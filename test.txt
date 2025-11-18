@@ -1,39 +1,21 @@
-it('GenerateSearchAcctNameTableRows() - error: sets isData=false, calls displayServiceErrors, clears loading and dispatches LOADINGACTION(false)', () => {
-  // ensure subscription exists so .add() won't blow up
-  (component as any).subscription = new Subscription();
-
-  // spy store.dispatch
-  const store = TestBed.inject(Store) as any;
+it('onSearchButtonClick() - searchByValue=1 should set flags, dispatch loading, and call GenerateSearchAcctNumTableRows', () => {
+  spyOn(component, 'GenerateSearchAcctNumTableRows').and.callFake(() => {});
   spyOn(store, 'dispatch').and.callFake(() => {});
 
-  // ensure feeApiservice is available and make getRequest throw
-  if (!(component as any).feeApiservice) {
-    (component as any).feeApiservice = TestBed.inject(FeeApiService);
-  }
-  spyOn((component as any).feeApiservice, 'getRequest').and.returnValue(
-    throwError({ error: { statusMessage: 'server failed' } })
-  );
+  component.ValidateFormControls = jasmine.createSpy().and.returnValue(false);
 
-  // spy the component's displayServiceErrors
-  spyOn(component as any, 'displayServiceErrors').and.callFake(() => {});
+  component._searchByRadioButton = { value: '1' };
+  component.selectedSearchText = 'ABC123';
+  component.appConfigService = { getAllAccountExportUrl: '/api/accounts/' };
 
-  // set starting state
-  component.isData = true;
-  component.loading = true;
-  component.disableButtonAction = true;
+  component.onSearchButtonClick();
 
-  // call the method (use same url/query construction as in component)
-  const urlString = '/api/searchName';
-  const queryString = 'john';
-  (component as any).GenerateSearchAcctNameTableRows(urlString, queryString);
+  expect(component.loading).toBeTrue();
+  expect(component.disableButtonAction).toBeTrue();
+  expect(store.dispatch).toHaveBeenCalledWith(new LOADINGACTION(true));
 
-  // expectations
-  expect((component as any).feeApiservice.getRequest)
-    .toHaveBeenCalledWith(urlString + '0' + '/' + queryString);
-
-  expect(component.isData).toBeFalse();
-  expect(component.loading).toBeFalse();
-  expect((component as any).displayServiceErrors).toHaveBeenCalledWith('server failed');
-  expect(store.dispatch).toHaveBeenCalled();
-  expect(component.disableButtonAction).toBeFalse();
+  const urlString = '/api/accounts/';
+  const query = '2|' + encodeURIComponent('ABC123');
+  expect(component.GenerateSearchAcctNumTableRows)
+    .toHaveBeenCalledWith(urlString, query);
 });
