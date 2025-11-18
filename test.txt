@@ -1,51 +1,28 @@
-it('LoadRegion() - success: calls API, calls LoadRegionData, clears loading and dispatches LOADINGACTION(false)', () => {
+it('GenerateTableRows() - error: sets isData=false, calls displayServiceErrors, clears loading and dispatches LOADINGACTION(false)', () => {
   // arrange
-  const cfg = { getRegionByIdUrl: '/api/region/' } as any;
-  (component as any).appConfigService = cfg;
-  (component as any).regionid = 'R001';
-
-  const mockRegionResponse = { regionId: 'R001', regionDescription: 'North' };
   const feeApi = TestBed.inject(FeeApiService) as any;
-  spyOn(feeApi, 'getRequest').and.returnValue(of(mockRegionResponse));
-
-  // spy on the protected method (call via any) so we can verify it was invoked with the API response
-  spyOn(component as any, 'LoadRegionData').and.callThrough();
-
   const store = TestBed.inject(Store) as any;
-  spyOn(store, 'dispatch').and.callFake(() => {});
 
-  // act
-  (component as any).LoadRegion();
+  // ensure appConfig URL used in the method is defined (screenshot shows: + '0' + '/2')
+  (component as any).appConfigService = { getAllAccountExportUrl: '/api/accounts' } as any;
 
-  // assert
-  expect(feeApi.getRequest).toHaveBeenCalledWith('/api/region/' + 'R001');
-  expect((component as any).LoadRegionData).toHaveBeenCalledWith(mockRegionResponse);
-  expect((component as any).loading).toBeFalse();
-  expect(store.dispatch).toHaveBeenCalled(); // dispatched LOADINGACTION(false)
-});
+  // make sure subscription exists so .add(...) doesn't throw
+  (component as any).subscription = new Subscription();
 
-it('LoadRegion() - error: when API errors should call displayServiceErrors and clear loading and dispatch LOADINGACTION(false)', () => {
-  // arrange
-  const cfg = { getRegionByIdUrl: '/api/region/' } as any;
-  (component as any).appConfigService = cfg;
-  (component as any).regionid = 'R002';
+  // stub the API to return an error
+  spyOn(feeApi, 'getRequest').and.returnValue(throwError({ error: { statusMessage: 'server failed' } }));
 
-  const feeApi = TestBed.inject(FeeApiService) as any;
-  const serverError = { error: { statusMessage: 'server failed' } };
-  spyOn(feeApi, 'getRequest').and.returnValue(throwError(serverError));
-
-  // spy displayServiceErrors to assert it was called with the server message
+  // spy displayServiceErrors and store.dispatch
   spyOn(component as any, 'displayServiceErrors').and.callThrough();
-
-  const store = TestBed.inject(Store) as any;
   spyOn(store, 'dispatch').and.callFake(() => {});
 
   // act
-  (component as any).LoadRegion();
+  (component as any).GenerateTableRows();
 
   // assert
-  expect(feeApi.getRequest).toHaveBeenCalledWith('/api/region/' + 'R002');
-  expect((component as any).displayServiceErrors).toHaveBeenCalledWith('server failed');
+  expect(feeApi.getRequest).toHaveBeenCalledWith('/api/accounts' + '0' + '/2');
+  expect((component as any).isData).toBeFalse();
   expect((component as any).loading).toBeFalse();
-  expect(store.dispatch).toHaveBeenCalled(); // dispatched LOADINGACTION(false)
+  expect((component as any).displayServiceErrors).toHaveBeenCalledWith('server failed');
+  expect(store.dispatch).toHaveBeenCalled();
 });
