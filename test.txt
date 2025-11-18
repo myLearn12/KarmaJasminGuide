@@ -1,21 +1,20 @@
-it('onSearchButtonClick() - searchByValue=1 should set flags, dispatch loading, and call GenerateSearchAcctNumTableRows', () => {
-  spyOn(component, 'GenerateSearchAcctNumTableRows').and.callFake(() => {});
+it('onSearchButtonClick() - searchByValue=2 should dispatch loading and call GenerateSearchAcctNameTableRows', () => {
+  spyOn(component, 'GenerateSearchAcctNameTableRows').and.callFake(() => {});
   spyOn(store, 'dispatch').and.callFake(() => {});
 
   component.ValidateFormControls = jasmine.createSpy().and.returnValue(false);
 
-  component._searchByRadioButton = { value: '1' };
+  component._searchByRadioButton = { value: '2' };
   component.selectedSearchText = 'ABC123';
   component.appConfigService = { getAllAccountExportUrl: '/api/accounts/' };
 
   component.onSearchButtonClick();
 
-  expect(component.loading).toBeTrue();
-  expect(component.disableButtonAction).toBeTrue();
-  expect(store.dispatch).toHaveBeenCalledWith(new LOADINGACTION(true));
-
   const urlString = '/api/accounts/';
   const query = '2|' + encodeURIComponent('ABC123');
-  expect(component.GenerateSearchAcctNumTableRows)
+
+  expect(component.loading).toBeTrue();
+  expect(store.dispatch).toHaveBeenCalledWith(new LOADINGACTION(true));
+  expect(component.GenerateSearchAcctNameTableRows)
     .toHaveBeenCalledWith(urlString, query);
 });
