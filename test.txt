@@ -1,14 +1,18 @@
-it('InitialExcelDataLoad() – searchByValue=3 should build queryString "/1/"', () => {
-  component._searchByRadioButton = { value: '3' };
-  component.selectedSearchText = ' ACC123 ';
+it('InitialExcelDataLoad() – error path should call displayServiceErrors, clear loading, dispatch false', () => {
+  component._searchByRadioButton = { value: '1' };
+  component.selectedSearchText = 'abc';
   component.utils = { isStringValid: () => true };
 
+  const errorObj = { error: { statusMessage: 'server failed' } };
+
   spyOn(component.subscription, 'add').and.callFake(() => {});
-  spyOn(component.feeApiservice, 'getRequest').and.returnValue(of({ accountsExportList: [], officers: [] }));
-  spyOn((component as any).store, 'dispatch');
+  spyOn(component.feeApiservice, 'getRequest').and.returnValue(throwError(() => errorObj));
+  spyOn(component, 'displayServiceErrors');
+  const dispatchSpy = spyOn((component as any).store, 'dispatch');
 
   component.InitialExcelDataLoad();
 
-  expect(component.feeApiservice.getRequest)
-    .toHaveBeenCalledWith(component.appConfigService.getAllAccountExportUrl + '/1/' + encodeURIComponent('ACC123'));
+  expect(component.displayServiceErrors).toHaveBeenCalledWith('server failed');
+  expect(component.loading).toBeFalse();
+  expect(dispatchSpy).toHaveBeenCalledWith(new LOADINGACTION(false));
 });
