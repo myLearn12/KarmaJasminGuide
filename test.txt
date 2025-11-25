@@ -1,30 +1,21 @@
-it('should set showSearchTextRequiredError when value is "2"', () => {
-  component._searchByRadioButton = { value: '2' } as any;
-  component.selectedSearchText = '';
-  spyOn(component.utils, 'isStringValid').and.returnValue(false);
+it('processRecord(): server error -> calls displayServiceErrors, clears loading and dispatches LOADINGACTION(false)', () => {
+  // arrange
+  const uploadList = [{ acctNbr: 'A3', miscProceedsAmt: 50, paidThruDt: '2025-11-30' }];
+  component.sheetName = 'sheet1';
+  component.worksheet = { [component.sheetName]: uploadList };
+  component.region = { regionId: 'R003' };
 
-  const result = component.ValidateFormControls();
+  const serverError = { error: { statusMessage: 'server failed' } };
+  spyOn(component.feeApiService, 'postRequest').and.returnValue(throwError(serverError));
+  const displaySpy = spyOn(component, 'displayServiceErrors');
+  const dispSpy = spyOn(component.store, 'dispatch');
 
-  expect(component.showSearchTextRequiredError).toBeTrue();
-  expect(result).toBeTrue();   // final if block
-});
+  // act
+  component.processRecord();
+  fixture.detectChanges();
 
-it('should set showSearchTextRequiredError when value is "4"', () => {
-  component._searchByRadioButton = { value: '4' } as any;
-  component.selectedSearchText = '';
-  spyOn(component.utils, 'isStringValid').and.returnValue(false);
-
-  const result = component.ValidateFormControls();
-
-  expect(component.showSearchTextRequiredError).toBeTrue();
-  expect(result).toBeTrue();   // final if block
-});
-
-it('should return true when showSearchByRequiredError is true', () => {
-  component._searchByRadioButton = { value: null } as any;
-
-  const result = component.ValidateFormControls();
-
-  expect(component.showSearchByRequiredError).toBeTrue();
-  expect(result).toBeTrue();   // returns from last if
-});
+  // assert
+  expect(displaySpy).toHaveBeenCalledWith('server failed');
+  expect(component.loading).toBeFalse();
+  expect(dispSpy).toHaveBeenCalled();
+})
