@@ -1,5 +1,13 @@
-it('should return early when ValidateFormControls() is true', () => {
-  spyOn(component, 'ValidateFormControls').and.returnValue(true);
+it('should handle searchByValue=1 with valid string and call GenerateSearchAcctNumTableRows', () => {
+  component._searchByRadioButton = { value: '1' } as any;
+  component.selectedSearchText = ' 123 ';
+  spyOn(utils, 'isStringValid').and.returnValue(true);
+
+  spyOn(component, 'GenerateSearchAcctNumTableRows');
+
   component.onSearchButtonClick();
-  expect(store.dispatch).not.toHaveBeenCalled();
+
+  expect(component.GenerateSearchAcctNumTableRows)
+    .toHaveBeenCalledWith(appConfigService.getAccountByNumberUrl, '123');
+  expect(store.dispatch).toHaveBeenCalled();
 });
