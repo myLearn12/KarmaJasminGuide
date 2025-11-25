@@ -1,29 +1,71 @@
-it('canProcessRecord(): should hide modal and call processRecord when canProceed=true', () => {
-  // Arrange
-  const hideSpy = jasmine.createSpy('hide');
-  const processSpy = spyOn(component as any, 'processRecord');
+// processRecord() - tests (standalone `it` blocks). Put these in your spec file.
+// Assumes `component` is the ViewAccountsComponent instance under test and
+// required spies/mocks for store, successModal and displayServiceErrors are available.
 
-  component['_actionModal'] = { hide: hideSpy } as any;
+// 1) NEXT branch: putRequest emits a next() (but does NOT complete) -> should clear loading and dispatch false
+it('processRecord(): next branch -> clears loading and dispatches LOADINGACTION(false)', fakeAsync(() => {
+  // arrange
+  const putSpy = spyOn((component as any).feeApiservice, 'putRequest').and.returnValue(
+    new Observable(observer => {
+      observer.next({}); // trigger next only
+      // do not complete so complete handler is not executed
+    })
+  );
+  const storeSpy = spyOn((component as any).store, 'dispatch');
+  (component as any).loading = true;
 
-  // Act
-  component.canProcessRecord(true);
+  // act
+  component.processRecord();
+  tick();
 
-  // Assert
-  expect(hideSpy).toHaveBeenCalled();
-  expect(processSpy).toHaveBeenCalled();
-});
+  // assert
+  expect(putSpy).toHaveBeenCalled();
+  expect((component as any).loading).toBeFalse();
+  expect(storeSpy).toHaveBeenCalledWith(jasmine.any(Object)); // LOADINGACTION(false)
+}));
 
-it('canProcessRecord(): should hide modal and NOT call processRecord when canProceed=false', () => {
-  // Arrange
-  const hideSpy = jasmine.createSpy('hide');
-  const processSpy = spyOn(component as any, 'processRecord');
+// 2) ERROR branch: putRequest throws -> should call displayServiceErrors and clear flags + dispatch false
+it('processRecord(): error branch -> calls displayServiceErrors and dispatches LOADINGACTION(false)', fakeAsync(() => {
+  // arrange
+  const err = { error: { statusMessage: 'update failed' } };
+  spyOn((component as any).feeApiservice, 'putRequest').and.returnValue(throwError(() => err));
+  const dispSpy = spyOn(component as any, 'displayServiceErrors');
+  const storeSpy = spyOn((component as any).store, 'dispatch');
+  (component as any).loading = true;
 
-  component['_actionModal'] = { hide: hideSpy } as any;
+  // act
+  component.processRecord();
+  tick();
 
-  // Act
-  component.canProcessRecord(false);
+  // assert
+  expect(dispSpy).toHaveBeenCalledWith('update failed');
+  expect((component as any).loading).toBeFalse();
+  expect(storeSpy).toHaveBeenCalledWith(jasmine.any(Object)); // LOADINGACTION(false)
+}));
 
-  // Assert
-  expect(hideSpy).toHaveBeenCalled();
-  expect(processSpy).not.toHaveBeenCalled();
-});
+// 3) COMPLETE branch: putRequest emits next() and complete() -> should set success modal values and show it
+it('processRecord(): complete branch -> sets success modal title/message and shows modal', fakeAsync(() => {
+  // arrange
+  const putSpy = spyOn((component as any).feeApiservice, 'putRequest').and.returnValue(
+    new Observable(observer => {
+      observer.next({});    // next
+      observer.complete();  // complete -> triggers complete handler in component
+    })
+  );
+  const storeSpy = spyOn((component as any).store, 'dispatch');
+  const showSpy = spyOn((component as any).successModal, 'show');
+  (component as any).account = { accountNbr: 'ACCT-999' }; // ensure account number present
+  (component as any).loading = true;
+
+  // act
+  component.processRecord();
+  tick();
+
+  // assert
+  expect(putSpy).toHaveBeenCalled();
+  expect((component as any).loading).toBeFalse();
+  expect(storeSpy).toHaveBeenCalledWith(jasmine.any(Object)); // LOADINGACTION(false)
+  expect((component as any).successModalTitle).toBe('Reopen Account');
+  expect((component as any).successModalMessage).toContain('ACCT-999');
+  expect(showSpy).toHaveBeenCalled();
+}));
