@@ -1,18 +1,30 @@
-it('InitialExcelDataLoad() – error path should call displayServiceErrors, clear loading, dispatch false', () => {
-  component._searchByRadioButton = { value: '1' };
-  component.selectedSearchText = 'abc';
-  component.utils = { isStringValid: () => true };
+it('should set showSearchTextRequiredError when value is "2"', () => {
+  component._searchByRadioButton = { value: '2' } as any;
+  component.selectedSearchText = '';
+  spyOn(component.utils, 'isStringValid').and.returnValue(false);
 
-  const errorObj = { error: { statusMessage: 'server failed' } };
+  const result = component.ValidateFormControls();
 
-  spyOn(component.subscription, 'add').and.callFake(() => {});
-  spyOn(component.feeApiservice, 'getRequest').and.returnValue(throwError(() => errorObj));
-  spyOn(component, 'displayServiceErrors');
-  const dispatchSpy = spyOn((component as any).store, 'dispatch');
+  expect(component.showSearchTextRequiredError).toBeTrue();
+  expect(result).toBeTrue();   // final if block
+});
 
-  component.InitialExcelDataLoad();
+it('should set showSearchTextRequiredError when value is "4"', () => {
+  component._searchByRadioButton = { value: '4' } as any;
+  component.selectedSearchText = '';
+  spyOn(component.utils, 'isStringValid').and.returnValue(false);
 
-  expect(component.displayServiceErrors).toHaveBeenCalledWith('server failed');
-  expect(component.loading).toBeFalse();
-  expect(dispatchSpy).toHaveBeenCalledWith(new LOADINGACTION(false));
+  const result = component.ValidateFormControls();
+
+  expect(component.showSearchTextRequiredError).toBeTrue();
+  expect(result).toBeTrue();   // final if block
+});
+
+it('should return true when showSearchByRequiredError is true', () => {
+  component._searchByRadioButton = { value: null } as any;
+
+  const result = component.ValidateFormControls();
+
+  expect(component.showSearchByRequiredError).toBeTrue();
+  expect(result).toBeTrue();   // returns from last if
 });
