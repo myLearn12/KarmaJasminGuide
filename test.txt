@@ -1,12 +1,10 @@
-it('should handle searchByValue=1 with invalid string and call GenerateSearchAcctNameTableRows("2")', () => {
-  component._searchByRadioButton = { value: '1' } as any;
-  component.selectedSearchText = '';
-  spyOn(utils, 'isStringValid').and.returnValue(false);
-
+it('should handle searchByValue=2 and call GenerateSearchAcctNameTableRows', () => {
+  component._searchByRadioButton = { value: '2' } as any;
+  component.selectedSearchText = ' Tarang ';
   spyOn(component, 'GenerateSearchAcctNameTableRows');
 
   component.onSearchButtonClick();
 
   expect(component.GenerateSearchAcctNameTableRows)
-    .toHaveBeenCalledWith(appConfigService.getAccountByStatusurl, '2');
+    .toHaveBeenCalledWith(appConfigService.getAccountByNameUrl, 'Tarang');
 });
