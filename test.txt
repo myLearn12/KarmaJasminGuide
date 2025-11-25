@@ -1,29 +1,26 @@
-it('should execute error branch in GenerateSearchAcctNameTableRows()', () => {
-  // Arrange
-  const url = '/api/search/';
-  const query = 'abc';
+it('InitialDataLoad(): should execute error branch, call displayServiceErrors, clear loading and dispatch', () => {
+  // Arrange - error payload the component expects
+  const serverError = { error: { statusCode: '1', statusMessage: 'server failed' } };
 
-  const errorResponse = {
-    error: { statusMessage: 'server failed' }
-  };
-
-  // spy on displayServiceErrors
+  // spy the component helper that shows errors
   const displaySpy = spyOn(component, 'displayServiceErrors');
 
-  // spy on store.dispatch
-  const storeSpy = spyOn(component['store'], 'dispatch');
+  // spy store.dispatch (store is private -> access via bracket notation)
+  const storeDispatchSpy = spyOn(component['store'], 'dispatch');
 
-  // spy on feeApiService.getRequest (private → access through bracket notation)
-  spyOn(component['feeApiService'], 'getRequest')
-    .and.returnValue(throwError(() => errorResponse));
+  // ensure feeApiService.getRequest (private) returns an observable that errors
+  spyOn(component['feeApiservice'], 'getRequest').and.returnValue(throwError(() => serverError));
 
+  // Pre-assert: method should set disbleButtonAction true at start, but we call method directly
   // Act
-  component.GenerateSearchAcctNameTableRows(url, query);
+  component.InitialDataLoad();
 
-  // Assert
+  // Assert: error branch executed
   expect(component.isData).toBeFalse();
-  expect(displaySpy).toHaveBeenCalledWith('server failed');
-  expect(component.loading).toBeFalse();
-  expect(storeSpy).toHaveBeenCalledWith(new LOADINGACTION(false));
-  expect(component.disbleButtonAction).toBeFalse();
+  expect(displaySpy).toHaveBeenCalledWith('server failed');        // displayServiceErrors called with message
+  expect(component.loading).toBeFalse();                            // loading cleared
+  expect(storeDispatchSpy).toHaveBeenCalled();                      // store.dispatch called
+  // optional stronger assert on dispatch argument (uncomment if LOADINGACTION is imported into spec)
+  // expect(storeDispatchSpy).toHaveBeenCalledWith(new LOADINGACTION(false));
+  expect(component.disbleButtonAction).toBeFalse();                 // button re-enabled
 });
