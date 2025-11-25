@@ -1,17 +1,8 @@
-it('InitialExcelDataLoad(): searchByValue 3 → invalid text → queryString = region/1', () => {
-  const component = new ViewaccountsComponent(null, null, null, null);
-
-  component.regionid = "R001";
-
-  component._searchByRadioButton = { value: "3" } as any;
-  component.selectedSearchText = "";
-
-  component.utils = {
-    isStringValid: jasmine.createSpy().and.returnValue(false)
-  } as any;
-
-  component.InitialExcelDataLoad();
-
-  expect(component.utils.isStringValid).toHaveBeenCalledWith("");
-  // branch covered: queryString = regionid + "/1"
-});
+const component = new ViewaccountsComponent(
+  null as any,   // httpService
+  null as any,   // appConfigService
+  null as any,   // store
+  {} as any,     // utils mock
+  null as any,   // acctService
+  null as any    // authService
+);
