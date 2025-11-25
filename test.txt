@@ -1,21 +1,23 @@
-it('processRecord(): server error -> calls displayServiceErrors, clears loading and dispatches LOADINGACTION(false)', () => {
-  // arrange
-  const uploadList = [{ acctNbr: 'A3', miscProceedsAmt: 50, paidThruDt: '2025-11-30' }];
-  component.sheetName = 'sheet1';
-  component.worksheet = { [component.sheetName]: uploadList };
-  component.region = { regionId: 'R003' };
+it('InitialDataLoad(): should execute error branch, call displayServiceErrors, set flags and dispatch LOADINGACTION(false)', () => {
 
-  const serverError = { error: { statusMessage: 'server failed' } };
-  spyOn(component.feeApiService, 'postRequest').and.returnValue(throwError(serverError));
+  // Arrange
+  const errorResponse = {
+    error: { statusMessage: 'server failed', statusCode: '1' }
+  };
+
+  spyOn(feeApiService, 'getRequest')
+      .and.returnValue(throwError(() => errorResponse));
+
   const displaySpy = spyOn(component, 'displayServiceErrors');
-  const dispSpy = spyOn(component.store, 'dispatch');
+  const dispatchSpy = spyOn((component as any).store, 'dispatch');
 
-  // act
-  component.processRecord();
-  fixture.detectChanges();
+  // Act
+  (component as any).InitialDataLoad();
 
-  // assert
+  // Assert
+  expect(component.isData).toBeFalse();
   expect(displaySpy).toHaveBeenCalledWith('server failed');
   expect(component.loading).toBeFalse();
-  expect(dispSpy).toHaveBeenCalled();
-})
+  expect(component.disbleButtonAction).toBeFalse();
+  expect(dispatchSpy).toHaveBeenCalledWith(new LOADINGACTION(false));
+});
