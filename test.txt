@@ -1,33 +1,42 @@
-// single-test fragment — put this inside an `it(...)` in your spec
-// create component (supply all constructor params; use null as any for unused services)
+// paste this inside an it(...) in your spec (standalone, no describe/beforeEach required)
+
+// Create the component instance (supply minimal constructor args; use `null as any` where service behavior is not needed)
 const component = new ViewaccountsComponent(
   null as any, // httpService
   null as any, // appConfigService
   null as any, // store
-  {} as any,   // utils placeholder (will overwrite below)
+  {} as any,   // utils placeholder (we'll overwrite)
   null as any, // acctService
   null as any  // authService
 );
 
-// required inputs for InitialExcelDataLoad()
+// Arrange: make inputs so InitialExcelDataLoad takes the branch you want to test
 component.regionid = 'R001';
-component._searchByRadioButton = { value: '3' } as any; // test path: searchByValue === "3"
+component._searchByRadioButton = { value: '3' } as any; // test searchByValue === "3" branch
 component.selectedSearchText = '  someText  ';
 
-// mock utils with the functions the method calls
+// Provide a complete minimal utils mock for the methods called by InitialExcelDataLoad()
+// and any other utility calls that branch might call. Add methods as needed for other tests.
 component.utils = {
-  isStringValid: jasmine.createSpy('isStringValid').and.callFake((s: string) => !!(s && s.trim().length > 0)),
-  ToExcelTitleDate: jasmine.createSpy('ToExcelTitleDate').and.returnValue('Title-20251125'),
-  // add any other util methods you need for other tests, e.g.:
+  isStringValid: jasmine.createSpy('isStringValid').and.callFake((s: string) => !!(s && s.toString().trim().length > 0)),
+  ToExcelTitleDate: jasmine.createSpy('ToExcelTitleDate').and.returnValue('ExcelTitle-20251125'),
+  // If your InitialExcelDataLoad uses other utils methods (e.g. getPerPageItem, encode functions, etc.)
+  // add them here as simple spies/stubs. Example:
   // getPerPageItem: jasmine.createSpy('getPerPageItem').and.returnValue(10),
-  // getFilterTextMaxLength: jasmine.createSpy('getFilterTextMaxLength').and.returnValue(200),
 } as any;
 
-// run the code under test
-component.InitialExcelDataLoad();
+// Sanity: set any other properties the method may reference (if present in your implementation)
+(component as any).someOtherDependency = null;
 
-// verify we didn't hit the "ToExcelTitleDate is not a function" error
+// Act: call the method (wrap in try/catch to fail the test with a helpful message if it throws)
+let thrown: any = null;
+try {
+  component.InitialExcelDataLoad();
+} catch (e) {
+  thrown = e;
+}
+
+// Assert: no exception thrown and the utils method was invoked
+expect(thrown).toBeNull();
+expect(component.utils.isStringValid).toHaveBeenCalled();
 expect(component.utils.ToExcelTitleDate).toHaveBeenCalled();
-
-// optionally assert the built queryString or other side-effects
-// (adjust expected string depending on your implementation)
