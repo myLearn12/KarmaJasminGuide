@@ -1,28 +1,29 @@
-it('should hit error branch in GenerateSearchAcctNumTableRows() and set flags + call displayServiceErrors + dispatch LOADINGACTION(false)', () => {
-
+it('should execute error branch in GenerateSearchAcctNameTableRows()', () => {
   // Arrange
-  const urlString = '/api/search/';
-  const queryString = '2?accountNumber=123';
+  const url = '/api/search/';
+  const query = 'abc';
 
   const errorResponse = {
     error: { statusMessage: 'server failed' }
   };
 
-  // Spy on private feeApiService.getRequest
-  const getReqSpy = spyOn(component['feeApiService'], 'getRequest')
-                      .and.returnValue(throwError(() => errorResponse));
+  // spy on displayServiceErrors
+  const displaySpy = spyOn(component, 'displayServiceErrors');
 
-  const errorSpy = spyOn(component, 'displayServiceErrors');
-  const dispatchSpy = spyOn(component['store'], 'dispatch');
+  // spy on store.dispatch
+  const storeSpy = spyOn(component['store'], 'dispatch');
+
+  // spy on feeApiService.getRequest (private → access through bracket notation)
+  spyOn(component['feeApiService'], 'getRequest')
+    .and.returnValue(throwError(() => errorResponse));
 
   // Act
-  component.GenerateSearchAcctNumTableRows(urlString, queryString);
+  component.GenerateSearchAcctNameTableRows(url, query);
 
   // Assert
-  expect(getReqSpy).toHaveBeenCalledWith(urlString + component.regionid + '/' + encodeURIComponent(queryString));
   expect(component.isData).toBeFalse();
+  expect(displaySpy).toHaveBeenCalledWith('server failed');
   expect(component.loading).toBeFalse();
-  expect(errorSpy).toHaveBeenCalledWith('server failed');
-  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
+  expect(storeSpy).toHaveBeenCalledWith(new LOADINGACTION(false));
   expect(component.disbleButtonAction).toBeFalse();
 });
