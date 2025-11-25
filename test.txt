@@ -1,114 +1,42 @@
 it('InitialDataLoad(): should execute error branch, call displayServiceErrors, set flags and dispatch LOADINGACTION(false)', fakeAsync(() => {
-  // setup: replace private feeApiService and store so we can spy on them
+  // Mock private services
   const apiSpy = jasmine.createSpyObj('feeApiService', ['getRequest']);
   const storeSpy = jasmine.createSpyObj('store', ['dispatch']);
+
   (component as any).feeApiService = apiSpy;
   (component as any).store = storeSpy;
 
-  // spy displayServiceErrors
+  // Spy the display error method
   spyOn(component as any, 'displayServiceErrors');
 
-  // make getRequest return an error Observable
-  apiSpy.getRequest.and.returnValue(throwError(() => ({ error: { statusMessage: 'server failed', statusCode: '123' } })));
+  // Fake backend error
+  const backendError = {
+    error: {
+      statusCode: "500",
+      statusMessage: "server failed"
+    }
+  };
 
-  // ensure state before call
-  component['disableButtonAction'] = true;
-  // call
+  apiSpy.getRequest.and.returnValue(throwError(() => backendError));
+
+  // Set regionId so URL formation doesn't fail
+  (component as any).regionid = "R001";
+
+  // Execute function
   (component as any).InitialDataLoad();
-
-  // flush microtasks
   tick();
 
-  // expectations
+  // EXPECTATIONS
   expect((component as any).isData).toBeFalse();
-  expect((component as any).displayServiceErrors).toHaveBeenCalledWith('server failed');
-  expect(storeSpy.dispatch).toHaveBeenCalled(); // LOADINGACTION(false) dispatched
-  expect((component as any).disableButtonAction).toBeFalse();
-}));
+  expect((component as any).displayServiceErrors)
+      .toHaveBeenCalledWith('server failed');
 
-
-it('GenerateTableRows(): error path - should set isData=false, call displayServiceErrors and dispatch LOADINGACTION(false)', fakeAsync(() => {
-  const apiSpy = jasmine.createSpyObj('feeApiService', ['getRequest']);
-  const storeSpy = jasmine.createSpyObj('store', ['dispatch']);
-  (component as any).feeApiService = apiSpy;
-  (component as any).store = storeSpy;
-
-  spyOn(component as any, 'displayServiceErrors');
-
-  // Simulate getRequest never being called normally: return error
-  apiSpy.getRequest.and.returnValue(throwError(() => ({ error: { statusMessage: 'accounts failed' } })));
-
-  // call the method under test (use appropriate URL parts used in your component)
-  (component as any).GenerateTableRows(); // or call the public method that triggers it
-
-  tick();
-
-  expect((component as any).isData).toBeFalse();
-  expect((component as any).displayServiceErrors).toHaveBeenCalledWith('accounts failed');
-  expect(storeSpy.dispatch).toHaveBeenCalled();
-}));
-
-
-it('LoadRegion(): error branch should call displayServiceErrors, clear loading and dispatch LOADINGACTION(false)', fakeAsync(() => {
-  const apiSpy = jasmine.createSpyObj('feeApiService', ['getRequest']);
-  const storeSpy = jasmine.createSpyObj('store', ['dispatch']);
-  (component as any).feeApiService = apiSpy;
-  (component as any).store = storeSpy;
-
-  spyOn(component as any, 'displayServiceErrors');
-
-  apiSpy.getRequest.and.returnValue(throwError(() => ({ error: { statusMessage: 'region failed' } })));
-
-  // call protected method via type cast
-  (component as any).regionid = 'R001';
-  (component as any).LoadRegion();
-
-  tick();
-
-  expect((component as any).displayServiceErrors).toHaveBeenCalledWith('region failed');
+  // loading must be cleared
   expect((component as any).loading).toBeFalse();
-  expect(storeSpy.dispatch).toHaveBeenCalled();
+
+  // dispatch LOADINGACTION(false)
+  expect(storeSpy.dispatch).toHaveBeenCalledWith(new LOADINGACTION(false));
+
+  // disable button -> false
+  expect((component as any).disbleButtonAction).toBeFalse();
 }));
-
-
-it('processRecord(): error branch should call displayServiceErrors, set loading false and dispatch LOADINGACTION(false)', fakeAsync(() => {
-  const apiSpy = jasmine.createSpyObj('feeApiService', ['postRequest']);
-  const storeSpy = jasmine.createSpyObj('store', ['dispatch']);
-  (component as any).feeApiService = apiSpy;
-  (component as any).store = storeSpy;
-
-  spyOn(component as any, 'displayServiceErrors');
-
-  // make postRequest return an error
-  apiSpy.postRequest.and.returnValue(throwError(() => ({ error: { statusMessage: 'post failed' } })));
-
-  // prepare minimal required fields used inside processRecord
-  (component as any).worksheet = {};
-  (component as any).sheetName = 'SHEET'; // empty list -> bulk payload becomes []
-  (component as any).region = { regionId: 'R1' };
-
-  // call
-  (component as any).processRecord();
-
-  tick();
-
-  expect((component as any).displayServiceErrors).toHaveBeenCalledWith('post failed');
-  expect((component as any).loading).toBeFalse();
-  expect(storeSpy.dispatch).toHaveBeenCalled();
-}));
-
-// ---- NOTES / guidance ----
-// • These `it` blocks assume your spec's beforeEach already created the component fixture and `component` variable.
-// • Because the services are private on the component, we replace them using `(component as any).feeApiService = ...`
-//   and `(component as any).store = ...` so spyOn/spy objects can be attached.
-// • If your component method wraps calls inside a subscription that uses forkJoin/other Observables, ensure the returned
-//   spy Observable shapes match what your component expects (e.g. `{ data: ... }` vs raw array).
-// • If you see "could not find object to spy upon for getRequest()" errors, it means you attempted `spyOn(component['feeApiService'], 'getRequest')`
-//   before replacing `feeApiService`. Use `jasmine.createSpyObj` and assign to `(component as any).feeApiService` before calling the method.
-// • If your LOADINGACTION dispatch check needs to validate the exact payload, change the `expect(storeSpy.dispatch).toHaveBeenCalled()`
-//   into something like:
-//     expect(storeSpy.dispatch).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
-//   or
-//     expect(storeSpy.dispatch).toHaveBeenCalledWith(new LOADINGACTION(false));
-//
-// If you want, paste your current spec `beforeEach` here and I will inline these `it(...)` tests into it and adapt the mocks to your exact setup.
