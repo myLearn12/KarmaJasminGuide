@@ -1,37 +1,26 @@
-it('InitialDataLoad(): when API errors -> sets isData=false, calls displayServiceErrors, clears loading, dispatches LOADINGACTION(false) and resets disbleButtonAction', fakeAsync(() => {
+it('onCloneClick(): should set clone flag, set account number and redirect', () => {
   // Arrange
-  const fakeError = { error: { statusCode: '1', statusMessage: 'server failed' } };
+  component.account = { accountNbr: 'ACC123' } as any;
 
-  // stub feeApiservice.getRequest to return an error observable
-  component['feeApiservice'] = {
-    getRequest: (url: string) => throwError(() => fakeError)
+  component['acctService'] = {
+    setCloneAccount: jasmine.createSpy('setCloneAccount'),
+    setAccountNumber: jasmine.createSpy('setAccountNumber')
   } as any;
 
-  // stub required appConfigService value used inside the method
-  component['appConfigService'] = {
-    getAccountByStatusurl: '/api/accounts/status'
+  component['utils'] = {
+    redirectTo: jasmine.createSpy('redirectTo')
   } as any;
-
-  // some method uses regionid to build URL — set one
-  component.regionid = 'R001';
-
-  // spies for side-effects
-  const displaySpy = spyOn(component as any, 'displayServiceErrors');
-  component['store'] = { dispatch: jasmine.createSpy('dispatch') } as any;
-
-  // set initial flags as the method expects
-  component.loading = true;
-  component.disbleButtonAction = true;
-  component.isData = true; // ensure it flips to false on error
 
   // Act
-  component.InitialDataLoad();
-  tick(); // flush observable error
+  component.onCloneClick();
 
   // Assert
-  expect(component.isData).toBeFalse();
-  expect(displaySpy).toHaveBeenCalledWith('server failed');
-  expect(component.loading).toBeFalse();
-  expect(component['store'].dispatch).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
-  expect(component.disbleButtonAction).toBeFalse();
-}));
+  expect(component['acctService'].setCloneAccount)
+    .toHaveBeenCalledWith(true);
+
+  expect(component['acctService'].setAccountNumber)
+    .toHaveBeenCalledWith('ACC123');
+
+  expect(component['utils'].redirectTo)
+    .toHaveBeenCalledWith('/FeeAccrual/account/editaccount');
+});
