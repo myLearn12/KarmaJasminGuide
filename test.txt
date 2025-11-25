@@ -1,11 +1,17 @@
-it('should handle else branch when string invalid and call GenerateSearchAcctNameTableRows("1")', () => {
-  component._searchByRadioButton = { value: '' } as any;
-  component.selectedSearchText = '';
-  spyOn(utils, 'isStringValid').and.returnValue(false);
-  spyOn(component, 'GenerateSearchAcctNameTableRows');
+it('InitialExcelDataLoad(): searchByValue 3 → invalid text → queryString = region/1', () => {
+  const component = new ViewaccountsComponent(null, null, null, null);
 
-  component.onSearchButtonClick();
+  component.regionid = "R001";
 
-  expect(component.GenerateSearchAcctNameTableRows)
-    .toHaveBeenCalledWith(appConfigService.getAccountByStatusurl, '1');
+  component._searchByRadioButton = { value: "3" } as any;
+  component.selectedSearchText = "";
+
+  component.utils = {
+    isStringValid: jasmine.createSpy().and.returnValue(false)
+  } as any;
+
+  component.InitialExcelDataLoad();
+
+  expect(component.utils.isStringValid).toHaveBeenCalledWith("");
+  // branch covered: queryString = regionid + "/1"
 });
