@@ -1,8 +1,33 @@
+// single-test fragment — put this inside an `it(...)` in your spec
+// create component (supply all constructor params; use null as any for unused services)
 const component = new ViewaccountsComponent(
-  null as any,   // httpService
-  null as any,   // appConfigService
-  null as any,   // store
-  {} as any,     // utils mock
-  null as any,   // acctService
-  null as any    // authService
+  null as any, // httpService
+  null as any, // appConfigService
+  null as any, // store
+  {} as any,   // utils placeholder (will overwrite below)
+  null as any, // acctService
+  null as any  // authService
 );
+
+// required inputs for InitialExcelDataLoad()
+component.regionid = 'R001';
+component._searchByRadioButton = { value: '3' } as any; // test path: searchByValue === "3"
+component.selectedSearchText = '  someText  ';
+
+// mock utils with the functions the method calls
+component.utils = {
+  isStringValid: jasmine.createSpy('isStringValid').and.callFake((s: string) => !!(s && s.trim().length > 0)),
+  ToExcelTitleDate: jasmine.createSpy('ToExcelTitleDate').and.returnValue('Title-20251125'),
+  // add any other util methods you need for other tests, e.g.:
+  // getPerPageItem: jasmine.createSpy('getPerPageItem').and.returnValue(10),
+  // getFilterTextMaxLength: jasmine.createSpy('getFilterTextMaxLength').and.returnValue(200),
+} as any;
+
+// run the code under test
+component.InitialExcelDataLoad();
+
+// verify we didn't hit the "ToExcelTitleDate is not a function" error
+expect(component.utils.ToExcelTitleDate).toHaveBeenCalled();
+
+// optionally assert the built queryString or other side-effects
+// (adjust expected string depending on your implementation)
