@@ -1,42 +1,37 @@
-// paste this inside an it(...) in your spec (standalone, no describe/beforeEach required)
+it('InitialDataLoad(): when API errors -> sets isData=false, calls displayServiceErrors, clears loading, dispatches LOADINGACTION(false) and resets disbleButtonAction', fakeAsync(() => {
+  // Arrange
+  const fakeError = { error: { statusCode: '1', statusMessage: 'server failed' } };
 
-// Create the component instance (supply minimal constructor args; use `null as any` where service behavior is not needed)
-const component = new ViewaccountsComponent(
-  null as any, // httpService
-  null as any, // appConfigService
-  null as any, // store
-  {} as any,   // utils placeholder (we'll overwrite)
-  null as any, // acctService
-  null as any  // authService
-);
+  // stub feeApiservice.getRequest to return an error observable
+  component['feeApiservice'] = {
+    getRequest: (url: string) => throwError(() => fakeError)
+  } as any;
 
-// Arrange: make inputs so InitialExcelDataLoad takes the branch you want to test
-component.regionid = 'R001';
-component._searchByRadioButton = { value: '3' } as any; // test searchByValue === "3" branch
-component.selectedSearchText = '  someText  ';
+  // stub required appConfigService value used inside the method
+  component['appConfigService'] = {
+    getAccountByStatusurl: '/api/accounts/status'
+  } as any;
 
-// Provide a complete minimal utils mock for the methods called by InitialExcelDataLoad()
-// and any other utility calls that branch might call. Add methods as needed for other tests.
-component.utils = {
-  isStringValid: jasmine.createSpy('isStringValid').and.callFake((s: string) => !!(s && s.toString().trim().length > 0)),
-  ToExcelTitleDate: jasmine.createSpy('ToExcelTitleDate').and.returnValue('ExcelTitle-20251125'),
-  // If your InitialExcelDataLoad uses other utils methods (e.g. getPerPageItem, encode functions, etc.)
-  // add them here as simple spies/stubs. Example:
-  // getPerPageItem: jasmine.createSpy('getPerPageItem').and.returnValue(10),
-} as any;
+  // some method uses regionid to build URL — set one
+  component.regionid = 'R001';
 
-// Sanity: set any other properties the method may reference (if present in your implementation)
-(component as any).someOtherDependency = null;
+  // spies for side-effects
+  const displaySpy = spyOn(component as any, 'displayServiceErrors');
+  component['store'] = { dispatch: jasmine.createSpy('dispatch') } as any;
 
-// Act: call the method (wrap in try/catch to fail the test with a helpful message if it throws)
-let thrown: any = null;
-try {
-  component.InitialExcelDataLoad();
-} catch (e) {
-  thrown = e;
-}
+  // set initial flags as the method expects
+  component.loading = true;
+  component.disbleButtonAction = true;
+  component.isData = true; // ensure it flips to false on error
 
-// Assert: no exception thrown and the utils method was invoked
-expect(thrown).toBeNull();
-expect(component.utils.isStringValid).toHaveBeenCalled();
-expect(component.utils.ToExcelTitleDate).toHaveBeenCalled();
+  // Act
+  component.InitialDataLoad();
+  tick(); // flush observable error
+
+  // Assert
+  expect(component.isData).toBeFalse();
+  expect(displaySpy).toHaveBeenCalledWith('server failed');
+  expect(component.loading).toBeFalse();
+  expect(component['store'].dispatch).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
+  expect(component.disbleButtonAction).toBeFalse();
+}));
