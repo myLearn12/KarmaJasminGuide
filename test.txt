@@ -1,46 +1,28 @@
-import { TestBed, fakeAsync, tick } from '@angular/core/testing';
-import { throwError } from 'rxjs';
+it('should hit error branch in GenerateSearchAcctNumTableRows() and set flags + call displayServiceErrors + dispatch LOADINGACTION(false)', () => {
 
-// adapt imports to your spec file
-// import { FeeApiService } from '...';
-// import { Store } from '...';
+  // Arrange
+  const urlString = '/api/search/';
+  const queryString = '2?accountNumber=123';
 
-it('InitialDataLoad(): executes error branch and calls displayServiceErrors (TestBed override)', fakeAsync(() => {
-  // create spies for DI-provided services
-  const feeApiSpy = jasmine.createSpyObj('FeeApiService', ['getRequest']);
-  const storeSpy = jasmine.createSpyObj('Store', ['dispatch']);
+  const errorResponse = {
+    error: { statusMessage: 'server failed' }
+  };
 
-  // ensure testbed is configured earlier in your spec; now override the providers
-  TestBed.overrideProvider(FeeApiService, { useValue: feeApiSpy });
-  TestBed.overrideProvider(Store, { useValue: storeSpy });
+  // Spy on private feeApiService.getRequest
+  const getReqSpy = spyOn(component['feeApiService'], 'getRequest')
+                      .and.returnValue(throwError(() => errorResponse));
 
-  // recreate fixture/component so the component gets the overridden providers
-  fixture = TestBed.createComponent(ViewaccountsComponent);
-  component = fixture.componentInstance;
+  const errorSpy = spyOn(component, 'displayServiceErrors');
+  const dispatchSpy = spyOn(component['store'], 'dispatch');
 
-  // spy on displayServiceErrors BEFORE calling the method
-  const displaySpy = spyOn(component as any, 'displayServiceErrors');
+  // Act
+  component.GenerateSearchAcctNumTableRows(urlString, queryString);
 
-  // set region id if your code uses it to build the URL
-  (component as any).regionid = 'R001';
-
-  // configure getRequest to return an error observable
-  const backendErr = { error: { statusCode: '500', statusMessage: 'server failed' } };
-  feeApiSpy.getRequest.and.returnValue(throwError(() => backendErr));
-
-  // optionally set initial flags that your code relies on
-  (component as any).loading = true;
-  (component as any).disbleButtonAction = true;
-  (component as any).isData = true;
-
-  // call the method under test and flush microtasks
-  component.InitialDataLoad();
-  tick(); // important to allow the thrown error to be delivered to error handler
-
-  // assertions for error branch
-  expect((component as any).isData).toBeFalse();
-  expect(displaySpy).toHaveBeenCalledWith('server failed');
-  expect((component as any).loading).toBeFalse();
-  expect((component as any).disbleButtonAction).toBeFalse();
-  expect(storeSpy.dispatch).toHaveBeenCalled(); // at least one dispatch happened
-}));
+  // Assert
+  expect(getReqSpy).toHaveBeenCalledWith(urlString + component.regionid + '/' + encodeURIComponent(queryString));
+  expect(component.isData).toBeFalse();
+  expect(component.loading).toBeFalse();
+  expect(errorSpy).toHaveBeenCalledWith('server failed');
+  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
+  expect(component.disbleButtonAction).toBeFalse();
+});
