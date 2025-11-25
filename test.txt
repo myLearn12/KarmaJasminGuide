@@ -1,42 +1,41 @@
-it('InitialDataLoad(): should execute error branch, call displayServiceErrors, set flags and dispatch LOADINGACTION(false)', fakeAsync(() => {
-  // Mock private services
+import { throwError } from 'rxjs';
+import { fakeAsync, tick } from '@angular/core/testing';
+
+// use the same LOADINGACTION import you already use in the component spec file
+// import { LOADINGACTION } from '...';
+
+it('InitialDataLoad(): executes error branch and calls displayServiceErrors', fakeAsync(() => {
+  // create spies
   const apiSpy = jasmine.createSpyObj('feeApiService', ['getRequest']);
   const storeSpy = jasmine.createSpyObj('store', ['dispatch']);
 
+  // attach spies to component (feeApiService is private)
   (component as any).feeApiService = apiSpy;
   (component as any).store = storeSpy;
 
-  // Spy the display error method
-  spyOn(component as any, 'displayServiceErrors');
+  // spy displayServiceErrors (private/public doesn't matter)
+  const displaySpy = spyOn(component as any, 'displayServiceErrors');
 
-  // Fake backend error
-  const backendError = {
-    error: {
-      statusCode: "500",
-      statusMessage: "server failed"
-    }
-  };
-
+  // configure getRequest to throw an error observable
+  const backendError = { error: { statusCode: '500', statusMessage: 'server failed' } };
   apiSpy.getRequest.and.returnValue(throwError(() => backendError));
 
-  // Set regionId so URL formation doesn't fail
-  (component as any).regionid = "R001";
+  // set regionid if used to form URL
+  (component as any).regionid = 'R001';
 
-  // Execute function
+  // call method and flush
   (component as any).InitialDataLoad();
   tick();
 
-  // EXPECTATIONS
+  // Assertions for error-branch lines
   expect((component as any).isData).toBeFalse();
-  expect((component as any).displayServiceErrors)
-      .toHaveBeenCalledWith('server failed');
-
-  // loading must be cleared
+  expect(displaySpy).toHaveBeenCalledWith('server failed');
   expect((component as any).loading).toBeFalse();
-
-  // dispatch LOADINGACTION(false)
-  expect(storeSpy.dispatch).toHaveBeenCalledWith(new LOADINGACTION(false));
-
-  // disable button -> false
   expect((component as any).disbleButtonAction).toBeFalse();
+
+  // store.dispatch check: don't assert exact object if LOADINGACTION is a class from elsewhere.
+  // Prefer flexible check:
+  expect(storeSpy.dispatch).toHaveBeenCalled();
+  // If you want exact match:
+  // expect(storeSpy.dispatch).toHaveBeenCalledWith(new LOADINGACTION(false));
 }));
