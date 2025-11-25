@@ -1,26 +1,29 @@
-it('onCloneClick(): should set clone flag, set account number and redirect', () => {
+it('canProcessRecord(): should hide modal and call processRecord when canProceed=true', () => {
   // Arrange
-  component.account = { accountNbr: 'ACC123' } as any;
+  const hideSpy = jasmine.createSpy('hide');
+  const processSpy = spyOn(component as any, 'processRecord');
 
-  component['acctService'] = {
-    setCloneAccount: jasmine.createSpy('setCloneAccount'),
-    setAccountNumber: jasmine.createSpy('setAccountNumber')
-  } as any;
-
-  component['utils'] = {
-    redirectTo: jasmine.createSpy('redirectTo')
-  } as any;
+  component['_actionModal'] = { hide: hideSpy } as any;
 
   // Act
-  component.onCloneClick();
+  component.canProcessRecord(true);
 
   // Assert
-  expect(component['acctService'].setCloneAccount)
-    .toHaveBeenCalledWith(true);
+  expect(hideSpy).toHaveBeenCalled();
+  expect(processSpy).toHaveBeenCalled();
+});
 
-  expect(component['acctService'].setAccountNumber)
-    .toHaveBeenCalledWith('ACC123');
+it('canProcessRecord(): should hide modal and NOT call processRecord when canProceed=false', () => {
+  // Arrange
+  const hideSpy = jasmine.createSpy('hide');
+  const processSpy = spyOn(component as any, 'processRecord');
 
-  expect(component['utils'].redirectTo)
-    .toHaveBeenCalledWith('/FeeAccrual/account/editaccount');
+  component['_actionModal'] = { hide: hideSpy } as any;
+
+  // Act
+  component.canProcessRecord(false);
+
+  // Assert
+  expect(hideSpy).toHaveBeenCalled();
+  expect(processSpy).not.toHaveBeenCalled();
 });
