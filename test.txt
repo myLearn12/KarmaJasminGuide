@@ -1,10 +1,11 @@
-it('should handle searchByValue=4 and call GenerateSearchAcctNameTableRows', () => {
-  component._searchByRadioButton = { value: '4' } as any;
-  component.selectedSearchText = ' 99887766 ';
-  spyOn(component, 'GenerateSearchAcctNameTableRows');
+it('should handle else branch when string is valid and call GenerateSearchAcctNumTableRows', () => {
+  component._searchByRadioButton = { value: 'X' } as any;
+  component.selectedSearchText = ' 555 ';
+  spyOn(utils, 'isStringValid').and.returnValue(true);
+  spyOn(component, 'GenerateSearchAcctNumTableRows');
 
   component.onSearchButtonClick();
 
-  expect(component.GenerateSearchAcctNameTableRows)
-    .toHaveBeenCalledWith(appConfigService.getAccountByLongNumberUrl, '99887766');
+  expect(component.GenerateSearchAcctNumTableRows)
+    .toHaveBeenCalledWith(appConfigService.getAccountByNumberUrl, '555');
 });
