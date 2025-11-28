@@ -1,24 +1,20 @@
-it('onUpdateModalClick(): else branch -> sets selectedunassignedaccountmap, calls setInitialValues, getRegionComboBoxValue and shows action modal', () => {
-  // arrange: ensure component is in the path that runs the else branch
-  component.isRowSelected = true;
+it('should set _regionComboBox.value with matching region in getRegionComboBoxValue()', () => {
+  // Arrange
+  component.regions = [
+    { regionId: 1, regionDescription: 'Region 1' },
+    { regionId: 2, regionDescription: 'Region 2' }
+  ];
 
-  // give an example unassignedaccountmap object; method will JSON.stringify/parse it
-  component.unassignedaccountmap = { regId: 10, accountNbr: 'A-123' };
+  component.unassignedaccountmap = { regId: 2 };
 
-  // spy the two internal helpers so we can assert they were called
-  const setInitialSpy = spyOn(component as any, 'setIntialValues').and.callThrough();
-  const getRegionSpy = spyOn(component as any, 'getRegionComboBoxValue').and.callThrough();
+  // mock _regionComboBox
+  (component as any)._regionComboBox = { value: null };
 
-  // provide an actionModal object with a show method and spy it
-  (component as any)._actionModal = { show: () => {} };
-  const showSpy = spyOn((component as any)._actionModal, 'show').and.stub();
+  // Act
+  component.getRegionComboBoxValue();
 
-  // act
-  component.onUpdateModalClick();
-
-  // assert
-  expect((component as any).selectedunassignedaccountmap).toEqual(JSON.parse(JSON.stringify(component.unassignedaccountmap)));
-  expect(setInitialSpy).toHaveBeenCalled();
-  expect(getRegionSpy).toHaveBeenCalled();
-  expect(showSpy).toHaveBeenCalled();
+  // Assert
+  expect((component as any)._regionComboBox.value).toEqual([
+    { regionId: 2, regionDescription: 'Region 2' }
+  ]);
 });
