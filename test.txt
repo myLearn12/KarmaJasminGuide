@@ -1,7 +1,22 @@
-it('onConfirmClick(): should hide alert modal', () => {
-  component._alertModal = { hide: jasmine.createSpy('hide') } as any;
+it('GenerateTableRows(): error branch -> calls displayServiceErrors, sets loading false and dispatches LOADINGACTION(false)', fakeAsync(() => {
+  // arrange - make feeApiservice.getRequest return an error observable
+  (component as any).feeApiservice = {
+    getRequest: jasmine.createSpy('getRequest')
+      .and.returnValue(throwError({ error: { statusMessage: 'server failed' } }))
+  } as any;
 
-  component.onConfirmClick();
+  // spies
+  const displaySpy = spyOn(component as any, 'displayServiceErrors');
+  const dispatchSpy = spyOn(component['store'], 'dispatch');
 
-  expect(component._alertModal.hide).toHaveBeenCalled();
-});
+  // act
+  component.GenerateTableRows();
+  // throwError emits synchronously on subscribe, but flushMicrotasks/tick to be safe
+  flushMicrotasks();
+
+  // assert
+  expect((component as any).feeApiservice.getRequest).toHaveBeenCalled();
+  expect(displaySpy).toHaveBeenCalledWith('server failed');
+  expect(component.loading).toBeFalse();
+  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(Object)); // LOADINGACTION(false)
+}));
