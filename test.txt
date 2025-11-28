@@ -1,57 +1,24 @@
-// success / complete branch
-it('LoadDefaultComboBox(): complete -> sets regionComboBox.options and regionComboBoxData and dispatches LOADINGACTION(false)', fakeAsync(() => {
-  // arrange
-  const regions = [
-    { regionId: 1, regionDescription: 'R1' },
-    { regionId: 2, regionDescription: 'R2' }
-  ];
+it('onUpdateModalClick(): else branch -> sets selectedunassignedaccountmap, calls setInitialValues, getRegionComboBoxValue and shows action modal', () => {
+  // arrange: ensure component is in the path that runs the else branch
+  component.isRowSelected = true;
 
-  // make sure component has a regionComboBox object the method can set
-  (component as any).regionComboBox = { options: null };
+  // give an example unassignedaccountmap object; method will JSON.stringify/parse it
+  component.unassignedaccountmap = { regId: 10, accountNbr: 'A-123' };
 
-  // make utils minimal and spy LoadComboBoxData to return what the code expects
-  (component as any).utils = jasmine.createSpyObj('utils', ['LoadComboBoxData']);
-  ((component as any).utils.LoadComboBoxData as jasmine.Spy).and.returnValue([{ value: 1, label: 'R1' }]);
+  // spy the two internal helpers so we can assert they were called
+  const setInitialSpy = spyOn(component as any, 'setIntialValues').and.callThrough();
+  const getRegionSpy = spyOn(component as any, 'getRegionComboBoxValue').and.callThrough();
 
-  // spy feeApiservice.getRequest to return an observable that resolves to regions
-  spyOn((component as any).feeApiservice, 'getRequest').and.callFake((_url: any) => of(regions));
-
-  // spy store.dispatch so we can assert it was called
-  const dispatchSpy = spyOn((component as any).store, 'dispatch').and.stub();
+  // provide an actionModal object with a show method and spy it
+  (component as any)._actionModal = { show: () => {} };
+  const showSpy = spyOn((component as any)._actionModal, 'show').and.stub();
 
   // act
-  (component as any).LoadDefaultComboBox();
-  tick(); // ensure the forkJoin subscription runs
+  component.onUpdateModalClick();
 
   // assert
-  expect((component as any).regions).toEqual(regions);
-  expect((component as any).regionComboBoxData).toEqual([{ options: [{ value: 1, label: 'R1' }] }]);
-  expect((component as any).regionComboBox.options).toEqual(JSON.parse(JSON.stringify(regions)));
-  expect(dispatchSpy).toHaveBeenCalled(); // called with LOADINGACTION(false) in your code
-  expect((component as any).loading).toBeFalse();
-}));
-
-// error branch
-it('LoadDefaultComboBox(): error -> calls displayServiceErrors and dispatches LOADINGACTION(false)', fakeAsync(() => {
-  // arrange
-  const errorResp = { error: { statusMessage: 'server failed', statusCode: '500' } };
-
-  // ensure regionComboBox exists so code won't throw when trying to set options later
-  (component as any).regionComboBox = { options: null };
-
-  // spy getRequest to throw error
-  spyOn((component as any).feeApiservice, 'getRequest').and.callFake((_url: any) => throwError(() => errorResp));
-
-  // spy displayServiceErrors and store.dispatch
-  const displaySpy = spyOn(component as any, 'displayServiceErrors').and.callThrough();
-  const dispatchSpy = spyOn((component as any).store, 'dispatch').and.stub();
-
-  // act
-  (component as any).LoadDefaultComboBox();
-  tick(); // run microtasks
-
-  // assert
-  expect(displaySpy).toHaveBeenCalledWith('server failed');
-  expect(dispatchSpy).toHaveBeenCalled(); // LOADINGACTION(false) should be dispatched
-  expect((component as any).loading).toBeFalse();
-}));
+  expect((component as any).selectedunassignedaccountmap).toEqual(JSON.parse(JSON.stringify(component.unassignedaccountmap)));
+  expect(setInitialSpy).toHaveBeenCalled();
+  expect(getRegionSpy).toHaveBeenCalled();
+  expect(showSpy).toHaveBeenCalled();
+});
