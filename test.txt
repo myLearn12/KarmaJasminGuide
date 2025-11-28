@@ -1,33 +1,48 @@
-it('processRecord(): complete branch -> sets success modal title/message and shows modal', fakeAsync(() => {
+// error branch
+it('ngOnInit(): error branch -> calls displayServiceErrors, LoadDefaultComboBox and stops loading', fakeAsync(() => {
+  // arrange
+  spyOn(component, 'LoadDefaultComboBox');
+  spyOn(component, 'displayServiceErrors');
 
-  // Create a fake modal object so spyOn() works
-  (component as any).successModal = { show: jasmine.createSpy('show') };
+  const err = { error: { statusMessage: 'server failed', statusCode: '404' } };
+  const throw$ = throwError(() => err);
+  // feeApiservice.getRequest is called twice by forkJoin -> return a throwing observable for first call
+  spyOn((component as any).feeApiservice, 'getRequest').and.returnValues(throw$, of([]));
 
-  // Mock feeApiService.putRequest to emit next() and complete()
-  spyOn((component as any).feeApiservice, 'putRequest').and.returnValue(
-    new Observable(observer => {
-      observer.next({});
-      observer.complete();
-    })
-  );
-
-  // Spy store.dispatch
   const storeSpy = spyOn((component as any).store, 'dispatch');
 
-  // Set an account number so message builds correctly
-  (component as any).account = { accountNbr: 'ACCT123' };
-
-  // Initial loading flag
-  (component as any).loading = true;
-
-  // Act
-  component.processRecord();
+  // act
+  component.ngOnInit();
   tick();
 
-  // Assert
-  expect((component as any).loading).toBeFalse();
-  expect(storeSpy).toHaveBeenCalled();
-  expect((component as any).successModalTitle).toBe('Reopen Account');
-  expect((component as any).successModalMessage).toContain('ACCT123');
-  expect((component as any).successModal.show).toHaveBeenCalled();
+  // assert
+  expect(component.displayServiceErrors).toHaveBeenCalledWith('server failed');
+  expect(component.LoadDefaultComboBox).toHaveBeenCalled();
+  // LOADINGACTION(false) dispatch should be invoked after error
+  expect(storeSpy).toHaveBeenCalledWith(jasmine.any(Object));
+  expect(component.loading).toBeFalse();
+}));
+
+// complete branch
+it('ngOnInit(): complete branch -> calls LoadTableRows, sets regions and dispatches loading=false', fakeAsync(() => {
+  // arrange
+  const accounts = [{ id: 1, name: 'A' }];
+  const regions = [{ regionId: 10, regionDescription: 'R1' }];
+
+  // feeApiservice.getRequest called twice -> return accounts and regions
+  spyOn((component as any).feeApiservice, 'getRequest').and.returnValues(of(accounts), of(regions));
+
+  const loadTableRowsSpy = spyOn(component, 'LoadTableRows');
+  const storeSpy = spyOn((component as any).store, 'dispatch');
+
+  // act
+  component.ngOnInit();
+  tick();
+
+  // assert
+  expect(loadTableRowsSpy).toHaveBeenCalledWith(accounts);
+  expect(component.regions).toEqual(regions);
+  // LOADINGACTION(false) dispatch should be called in complete branch
+  expect(storeSpy).toHaveBeenCalledWith(jasmine.any(Object));
+  expect(component.loading).toBeFalse();
 }));
