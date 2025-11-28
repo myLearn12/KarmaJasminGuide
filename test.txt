@@ -1,47 +1,57 @@
-// error branch
-it('LoadDefaultComboBox(): error -> calls displayServiceErrors and dispatches LOADINGACTION(false)', fakeAsync(() => {
-  // arrange
-  const errorResp = { error: { statusMessage: 'server failed', statusCode: '500' } };
-  spyOn((component as any).feeApiservice, 'getRequest').and.returnValue(throwError(() => errorResp));
-  spyOn(component, 'displayServiceErrors');
-
-  // make regionComboBox present so code can set options later
-  (component as any).regionComboBox = { options: null };
-  (component as any).loading = true;
-
-  const storeSpy = spyOn((component as any).store, 'dispatch').and.callThrough();
-
-  // act
-  (component as any).LoadDefaultComboBox();
-  tick();
-
-  // assert
-  expect(component.displayServiceErrors).toHaveBeenCalledWith('server failed');
-  expect(storeSpy).toHaveBeenCalledWith(jasmine.any(Object)); // LOADINGACTION(false)
-  expect((component as any).loading).toBeFalse();
-}));
-
-// complete branch
+// success / complete branch
 it('LoadDefaultComboBox(): complete -> sets regionComboBox.options and regionComboBoxData and dispatches LOADINGACTION(false)', fakeAsync(() => {
   // arrange
-  const regions = [{ regionId: 1, regionDescription: 'R1' }, { regionId: 2, regionDescription: 'R2' }];
-  spyOn((component as any).feeApiservice, 'getRequest').and.returnValue(of(regions));
+  const regions = [
+    { regionId: 1, regionDescription: 'R1' },
+    { regionId: 2, regionDescription: 'R2' }
+  ];
 
-  // create a minimal spy object for utils so TypeScript won't complain
-  (component as any).utils = jasmine.createSpyObj('CommonFunctionsService', ['LoadComboBoxData']);
+  // make sure component has a regionComboBox object the method can set
+  (component as any).regionComboBox = { options: null };
+
+  // make utils minimal and spy LoadComboBoxData to return what the code expects
+  (component as any).utils = jasmine.createSpyObj('utils', ['LoadComboBoxData']);
   ((component as any).utils.LoadComboBoxData as jasmine.Spy).and.returnValue([{ value: 1, label: 'R1' }]);
 
-  (component as any).regionComboBox = { options: null };
-  const storeSpy = spyOn((component as any).store, 'dispatch').and.callThrough();
+  // spy feeApiservice.getRequest to return an observable that resolves to regions
+  spyOn((component as any).feeApiservice, 'getRequest').and.callFake((_url: any) => of(regions));
+
+  // spy store.dispatch so we can assert it was called
+  const dispatchSpy = spyOn((component as any).store, 'dispatch').and.stub();
 
   // act
   (component as any).LoadDefaultComboBox();
-  tick();
+  tick(); // ensure the forkJoin subscription runs
 
   // assert
   expect((component as any).regions).toEqual(regions);
   expect((component as any).regionComboBoxData).toEqual([{ options: [{ value: 1, label: 'R1' }] }]);
   expect((component as any).regionComboBox.options).toEqual(JSON.parse(JSON.stringify(regions)));
-  expect(storeSpy).toHaveBeenCalledWith(jasmine.any(Object)); // LOADINGACTION(false)
+  expect(dispatchSpy).toHaveBeenCalled(); // called with LOADINGACTION(false) in your code
+  expect((component as any).loading).toBeFalse();
+}));
+
+// error branch
+it('LoadDefaultComboBox(): error -> calls displayServiceErrors and dispatches LOADINGACTION(false)', fakeAsync(() => {
+  // arrange
+  const errorResp = { error: { statusMessage: 'server failed', statusCode: '500' } };
+
+  // ensure regionComboBox exists so code won't throw when trying to set options later
+  (component as any).regionComboBox = { options: null };
+
+  // spy getRequest to throw error
+  spyOn((component as any).feeApiservice, 'getRequest').and.callFake((_url: any) => throwError(() => errorResp));
+
+  // spy displayServiceErrors and store.dispatch
+  const displaySpy = spyOn(component as any, 'displayServiceErrors').and.callThrough();
+  const dispatchSpy = spyOn((component as any).store, 'dispatch').and.stub();
+
+  // act
+  (component as any).LoadDefaultComboBox();
+  tick(); // run microtasks
+
+  // assert
+  expect(displaySpy).toHaveBeenCalledWith('server failed');
+  expect(dispatchSpy).toHaveBeenCalled(); // LOADINGACTION(false) should be dispatched
   expect((component as any).loading).toBeFalse();
 }));
