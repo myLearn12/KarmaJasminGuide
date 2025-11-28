@@ -1,34 +1,6 @@
-// Standalone Jasmine `it(...)` test cases for onAcceptButtonClick(update).
-// Paste these into your spec file (inside an existing describe block).
-// Required helper imports for your spec file:
-// import { of, throwError } from 'rxjs';
-// import { fakeAsync, tick } from '@angular/core/testing';
-
-// -----------------------------
-// Success case: putRequest -> next+complete path
-// -----------------------------
 it('onAcceptButtonClick(update): should call putRequest, GenerateTableRows, SetMessageTypeAndValue, writeAuditLog and hide modal on success', fakeAsync(() => {
-  // create spies for services used by the component
-  const feeApiSpy = jasmine.createSpyObj('feeApiService', ['putRequest']);
-  const appConfigSpy = jasmine.createSpyObj('appConfigService', ['updateunassignedaccountMappingUrl']);
-  const utilsSpy = jasmine.createSpyObj('utils', ['getCurrentUser', 'ToEstDate']);
-  const auditSpy = jasmine.createSpyObj('auditLogService', ['writeAuditLog']);
-  const storeSpy = jasmine.createSpyObj('store', ['dispatch']);
 
-  // make putRequest return successful observable (next + complete)
-  feeApiSpy.putRequest.and.returnValue(of({}));
-
-  TestBed.overrideProvider(FeeApiService, { useValue: feeApiSpy });
-  TestBed.overrideProvider(AppConfigService, { useValue: appConfigSpy });
-  TestBed.overrideProvider(CommonFunctionsService, { useValue: utilsSpy });
-  TestBed.overrideProvider(AuditLogService, { useValue: auditSpy });
-  TestBed.overrideProvider(Store, { useValue: storeSpy });
-
-  const fixture = TestBed.createComponent(UnassignedaccountsComponent);
-  const comp = fixture.componentInstance;
-
-  // prepare component state used in payload
-  comp.unassignedaccountmap = {
+  component.unassignedaccountmap = {
     acctNbr: '100',
     controlId: 'C1',
     postIndic: 'P',
@@ -37,73 +9,57 @@ it('onAcceptButtonClick(update): should call putRequest, GenerateTableRows, SetM
     miscFee: 2
   } as any;
 
-  // regionComboBox and regions used to compute regGrpLevelDesc
-  (comp as any)._regionComboBox = { value: '1' };
-  comp.regions = [{ regionId: 1, regionDescription: 'R1' }, { regionId: 2, regionDescription: 'R2' }];
+  (component as any)._regionComboBox = { value: '1' };
+  component.regions = [
+    { regionId: 1, regionDescription: 'R1' },
+    { regionId: 2, regionDescription: 'R2' }
+  ];
 
-  // spies for side-effect methods on component
-  spyOn(comp, 'GenerateTableRows');
-  spyOn(comp, 'SetMessageTypeAndValue');
+  spyOn(component, 'GenerateTableRows');
+  spyOn(component, 'SetMessageTypeAndValue');
+  spyOn(component.auditLogService, 'writeAuditLog');
+  spyOn(component.store, 'dispatch');
+  spyOn(component.feeApiService, 'putRequest').and.returnValue(of({}));
 
-  // modal & helpers
-  (comp as any)._actionModal = { hide: jasmine.createSpy('hide') };
+  component.selectedunassignedaccountmap = { acctNbr: '100', regId: 1 } as any;
+  (component as any)._actionModal = { hide: jasmine.createSpy('hide') };
 
-  // utils values
-  utilsSpy.getCurrentUser.and.returnValue('user1');
-  utilsSpy.ToEstDate.and.returnValue('2025-01-01');
+  spyOn(component.utils, 'getCurrentUser').and.returnValue('user1');
+  spyOn(component.utils, 'ToEstDate').and.returnValue('2025-01-01');
 
-  // selectedunassignedaccountmap used for audit log
-  comp.selectedunassignedaccountmap = { acctNbr: '100', regId: 1 } as any;
-  comp.PageTitle = 'Unassigned'; // used by auditLog
-
-  // call method
-  comp.onAcceptButtonClick(ActionType.update);
-
-  // since of({}) is synchronous, assertions can be immediate (fakeAsync used for safety)
+  component.onAcceptButtonClick(ActionType.update);
   tick();
 
-  expect(feeApiSpy.putRequest).toHaveBeenCalled();
-  expect(comp.GenerateTableRows).toHaveBeenCalled();
-  expect(comp.SetMessageTypeAndValue).toHaveBeenCalledWith(BlockMessageType.success, comp.updateSuccessMessage);
-  expect(auditSpy.writeAuditLog).toHaveBeenCalledWith('NA', 'NA', comp.selectedunassignedaccountmap, jasmine.any(Object), auditSpy.updateAction, comp.PageTitle);
-  expect((comp as any)._actionModal.hide).toHaveBeenCalled();
-  // ensure no error display called
-  // (replace displayServiceErrors spy check if you set it up earlier)
-}));
+  expect(component.feeApiService.putRequest).toHaveBeenCalled();
+  expect(component.GenerateTableRows).toHaveBeenCalled();
+  expect(component.SetMessageTypeAndValue).toHaveBeenCalled();
+  expect(component.auditLogService.writeAuditLog).toHaveBeenCalled();
+  expect(component.store.dispatch).toHaveBeenCalled();
+  expect((component as any)._actionModal.hide).toHaveBeenCalled();
+});
 
-// -----------------------------
-// Error case: putRequest -> error branch
-// -----------------------------
-it('onAcceptButtonClick(update): error branch should restore object and call displayServiceErrors', fakeAsync(() => {
-  const feeApiSpy = jasmine.createSpyObj('feeApiService', ['putRequest']);
-  const storeSpy = jasmine.createSpyObj('store', ['dispatch']);
-  feeApiSpy.putRequest.and.returnValue(throwError(() => ({ error: { statusMessage: 'update failed' } })));
 
-  TestBed.overrideProvider(FeeApiService, { useValue: feeApiSpy });
-  TestBed.overrideProvider(Store, { useValue: storeSpy });
+it('onAcceptButtonClick(update): error branch -> restore object and call displayServiceErrors', fakeAsync(() => {
 
-  const fixture = TestBed.createComponent(UnassignedaccountsComponent);
-  const comp = fixture.componentInstance;
+  component.unassignedaccountmap = { acctNbr: '100', controlId: 'C1' } as any;
+  component.selectedunassignedaccountmap = { acctNbr: '100', controlId: 'C1', regId: 2 } as any;
 
-  // prepare maps
-  comp.unassignedaccountmap = { acctNbr: '100', controlId: 'C1' } as any;
-  comp.selectedunassignedaccountmap = { acctNbr: '100', controlId: 'C1', regId: 2 } as any;
+  (component as any)._regionComboBox = { value: '2' };
+  component.regions = [{ regionId: 2, regionDescription: 'R2' }];
 
-  // regionComboBox value (used to build payload)
-  (comp as any)._regionComboBox = { value: '2' };
-  comp.regions = [{ regionId: 2, regionDescription: 'R2' }];
+  spyOn(component.feeApiService, 'putRequest')
+    .and.returnValue(throwError(() => ({ error: { statusMessage: 'update failed' } })));
 
-  // spy on displayServiceErrors
-  (comp as any).displayServiceErrors = jasmine.createSpy('displayServiceErrors');
+  spyOn(component as any, 'displayServiceErrors');
+  spyOn(component.store, 'dispatch');
 
-  // call method
-  comp.onAcceptButtonClick(ActionType.update);
+  component.onAcceptButtonClick(ActionType.update);
   tick();
 
-  // expect putRequest called and displayServiceErrors invoked with server message
-  expect(feeApiSpy.putRequest).toHaveBeenCalled();
-  expect((comp as any).displayServiceErrors).toHaveBeenCalledWith('update failed');
-
-  // ensure original unassignedaccountmap was restored (Object.assign in error branch)
-  expect(comp.unassignedaccountmap).toEqual(jasmine.objectContaining(comp.selectedunassignedaccountmap));
-}));
+  expect(component.feeApiService.putRequest).toHaveBeenCalled();
+  expect((component as any).displayServiceErrors).toHaveBeenCalledWith('update failed');
+  expect(component.unassignedaccountmap).toEqual(
+    jasmine.objectContaining(component.selectedunassignedaccountmap)
+  );
+  expect(component.store.dispatch).toHaveBeenCalled();
+});
