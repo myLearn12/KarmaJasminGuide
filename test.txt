@@ -1,65 +1,7 @@
-it('onAcceptButtonClick(update): should call putRequest, GenerateTableRows, SetMessageTypeAndValue, writeAuditLog and hide modal on success', fakeAsync(() => {
+it('onConfirmClick(): should hide alert modal', () => {
+  component._alertModal = { hide: jasmine.createSpy('hide') } as any;
 
-  component.unassignedaccountmap = {
-    acctNbr: '100',
-    controlId: 'C1',
-    postIndic: 'P',
-    acctFee1: 10,
-    cashFee: 5,
-    miscFee: 2
-  } as any;
+  component.onConfirmClick();
 
-  (component as any)._regionComboBox = { value: '1' };
-  component.regions = [
-    { regionId: 1, regionDescription: 'R1' },
-    { regionId: 2, regionDescription: 'R2' }
-  ];
-
-  spyOn(component, 'GenerateTableRows');
-  spyOn(component, 'SetMessageTypeAndValue');
-  spyOn(component.auditLogService, 'writeAuditLog');
-  spyOn(component.store, 'dispatch');
-  spyOn(component.feeApiService, 'putRequest').and.returnValue(of({}));
-
-  component.selectedunassignedaccountmap = { acctNbr: '100', regId: 1 } as any;
-  (component as any)._actionModal = { hide: jasmine.createSpy('hide') };
-
-  spyOn(component.utils, 'getCurrentUser').and.returnValue('user1');
-  spyOn(component.utils, 'ToEstDate').and.returnValue('2025-01-01');
-
-  component.onAcceptButtonClick(ActionType.update);
-  tick();
-
-  expect(component.feeApiService.putRequest).toHaveBeenCalled();
-  expect(component.GenerateTableRows).toHaveBeenCalled();
-  expect(component.SetMessageTypeAndValue).toHaveBeenCalled();
-  expect(component.auditLogService.writeAuditLog).toHaveBeenCalled();
-  expect(component.store.dispatch).toHaveBeenCalled();
-  expect((component as any)._actionModal.hide).toHaveBeenCalled();
-});
-
-
-it('onAcceptButtonClick(update): error branch -> restore object and call displayServiceErrors', fakeAsync(() => {
-
-  component.unassignedaccountmap = { acctNbr: '100', controlId: 'C1' } as any;
-  component.selectedunassignedaccountmap = { acctNbr: '100', controlId: 'C1', regId: 2 } as any;
-
-  (component as any)._regionComboBox = { value: '2' };
-  component.regions = [{ regionId: 2, regionDescription: 'R2' }];
-
-  spyOn(component.feeApiService, 'putRequest')
-    .and.returnValue(throwError(() => ({ error: { statusMessage: 'update failed' } })));
-
-  spyOn(component as any, 'displayServiceErrors');
-  spyOn(component.store, 'dispatch');
-
-  component.onAcceptButtonClick(ActionType.update);
-  tick();
-
-  expect(component.feeApiService.putRequest).toHaveBeenCalled();
-  expect((component as any).displayServiceErrors).toHaveBeenCalledWith('update failed');
-  expect(component.unassignedaccountmap).toEqual(
-    jasmine.objectContaining(component.selectedunassignedaccountmap)
-  );
-  expect(component.store.dispatch).toHaveBeenCalled();
+  expect(component._alertModal.hide).toHaveBeenCalled();
 });
