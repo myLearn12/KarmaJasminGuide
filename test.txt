@@ -1,48 +1,48 @@
 // error branch
-it('ngOnInit(): error branch -> calls displayServiceErrors, LoadDefaultComboBox and stops loading', fakeAsync(() => {
+it('LoadDefaultComboBox(): error -> calls displayServiceErrors and dispatches LOADINGACTION(false)', fakeAsync(() => {
   // arrange
-  spyOn(component, 'LoadDefaultComboBox');
+  const errorResp = { error: { statusMessage: 'server failed', statusCode: '500' } };
+  spyOn((component as any).feeApiservice, 'getRequest').and.returnValue(throwError(() => errorResp));
   spyOn(component, 'displayServiceErrors');
-
-  const err = { error: { statusMessage: 'server failed', statusCode: '404' } };
-  const throw$ = throwError(() => err);
-  // feeApiservice.getRequest is called twice by forkJoin -> return a throwing observable for first call
-  spyOn((component as any).feeApiservice, 'getRequest').and.returnValues(throw$, of([]));
-
   const storeSpy = spyOn((component as any).store, 'dispatch');
 
+  // ensure regionComboBox exists (component sets its options in complete branch)
+  component['regionComboBox'] = { options: null };
+  component['loading'] = true;
+
   // act
-  component.ngOnInit();
+  component['LoadDefaultComboBox']();
   tick();
 
   // assert
   expect(component.displayServiceErrors).toHaveBeenCalledWith('server failed');
-  expect(component.LoadDefaultComboBox).toHaveBeenCalled();
-  // LOADINGACTION(false) dispatch should be invoked after error
-  expect(storeSpy).toHaveBeenCalledWith(jasmine.any(Object));
+  expect(storeSpy).toHaveBeenCalledWith(jasmine.any(Object)); // LOADINGACTION(false)
   expect(component.loading).toBeFalse();
 }));
 
 // complete branch
-it('ngOnInit(): complete branch -> calls LoadTableRows, sets regions and dispatches loading=false', fakeAsync(() => {
+it('LoadDefaultComboBox(): complete -> sets regionComboBox.options and regionComboBoxData and dispatches LOADINGACTION(false)', fakeAsync(() => {
   // arrange
-  const accounts = [{ id: 1, name: 'A' }];
-  const regions = [{ regionId: 10, regionDescription: 'R1' }];
+  const regions = [{ regionId: 1, regionDescription: 'R1' }, { regionId: 2, regionDescription: 'R2' }];
+  // feeApiservice.getRequest returns observable of regions (forkJoin expects an observable for "regions" key)
+  spyOn((component as any).feeApiservice, 'getRequest').and.returnValue(of(regions));
 
-  // feeApiservice.getRequest called twice -> return accounts and regions
-  spyOn((component as any).feeApiservice, 'getRequest').and.returnValues(of(accounts), of(regions));
-
-  const loadTableRowsSpy = spyOn(component, 'LoadTableRows');
+  // make sure utils.LoadComboBoxData exists and returns expected data
+  component['utils'] = { LoadComboBoxData: jasmine.createSpy('LoadComboBoxData').and.returnValue([{ value: 1, label: 'R1' }]) };
+  component['regionComboBox'] = { options: null };
   const storeSpy = spyOn((component as any).store, 'dispatch');
 
   // act
-  component.ngOnInit();
+  component['LoadDefaultComboBox']();
   tick();
 
   // assert
-  expect(loadTableRowsSpy).toHaveBeenCalledWith(accounts);
-  expect(component.regions).toEqual(regions);
-  // LOADINGACTION(false) dispatch should be called in complete branch
-  expect(storeSpy).toHaveBeenCalledWith(jasmine.any(Object));
+  // regions property should be set
+  expect(component['regions']).toEqual(regions);
+  // regionComboBoxData created from utils.LoadComboBoxData
+  expect(component['regionComboBoxData']).toEqual([{ options: [{ value: 1, label: 'R1' }] }]);
+  // regionComboBox.options is JSON.parse(JSON.stringify(this.regions)) in code
+  expect(component['regionComboBox'].options).toEqual(JSON.parse(JSON.stringify(regions)));
+  expect(storeSpy).toHaveBeenCalledWith(jasmine.any(Object)); // LOADINGACTION(false)
   expect(component.loading).toBeFalse();
 }));
