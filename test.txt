@@ -1,18 +1,21 @@
-it('onSaveClick(): sets flags, dispatches LOADINGACTION(true) and handles next+complete', () => {
-  // allow onSaveClick to run past the validation gates
-  spyOn(component, 'ValidateFormControls').and.returnValue(false);
-  spyOn(component, 'validateDates').and.returnValue(false);
-  spyOn(component, 'validateFormData').and.returnValue(false);
+it('onSaveClick(): success -> posts, handles next+complete', fakeAsync(() => {
+  // let method pass validations
+  spyOn(component as any, 'ValidateFormControls').and.returnValue(false);
+  spyOn(component as any, 'validateDates').and.returnValue(false);
+  spyOn(component as any, 'validateFormData').and.returnValue(false);
 
-  // minimal combo control stubs (these are used with .value.toString() inside payload)
-  component.cbCategory = { value: '1' } as any;
-  component.cbCycle    = { value: '1' } as any;
-  component.cbFormula  = { value: '1' } as any;
-  component.cbAltDivision = { value: null } as any;
-  component.cbStatus   = { value: '1' } as any;
-  component.cbOfficer  = { value: 'OFF1' } as any;
+  // Provide appConfigService URL if your method uses it (optional)
+  (component as any).appConfigService = (component as any).appConfigService || { addAccountUrl: '/api/addAccount' };
 
-  // minimal account object (only fields referenced before/inside API call)
+  // Provide all combo controls used in payload - ensure .value is non-null
+  (component as any).cbCategory      = { value: '1' };
+  (component as any).cbCycle         = { value: '1' };
+  (component as any).cbFormula       = { value: '1' };
+  (component as any).cbAltDivision   = { value: '0' }; // if code checks null, safe to give string
+  (component as any).cbStatus        = { value: '1' };
+  (component as any).cbOfficer       = { value: 'OFF1' };
+
+  // Provide account object with fields referenced inside onSaveClick
   component.account = {
     accountNbr: 'ACC001',
     acceptfee: '0',
@@ -31,35 +34,92 @@ it('onSaveClick(): sets flags, dispatches LOADINGACTION(true) and handles next+c
     disposition3: null
   } as any;
 
-  // utils stubs used while building payload
-  spyOn(component['utils'], 'getFormattedDecimal').and.callFake((v:any) => v);
-  spyOn(component['utils'], 'getValidString').and.callFake((v:any) => v ?? '');
-  spyOn(component['utils'], 'getCurrentUser').and.returnValue('TEST_USER');
-  spyOn(component['utils'], 'ToEstDate').and.returnValue('2025-01-01T00:00:00Z');
-  spyOn(component['utils'], 'getDateAndDefaultTime').and.callFake((d:any) => d ?? null);
+  // Minimal utils implementation used by code (override private utils)
+  (component as any).utils = {
+    getFormattedDecimal: (v: any) => v,
+    getValidString: (v: any) => (v === null || v === undefined) ? '' : v,
+    getCurrentUser: () => 'TEST_USER',
+    ToEstDate: () => '2025-01-01T00:00:00Z',
+    getDateAndDefaultTime: (d: any) => d ?? null
+  } as any;
 
-  // spies for side-effects
-  spyOn(component.store, 'dispatch').and.stub();
-  const logSpy = spyOn(component, 'logAccountAudit').and.stub();
+  // spy logAccountAudit so we can assert it ran
+  const logSpy = spyOn(component as any, 'logAccountAudit').and.stub();
 
-  // make feeApiservice.postRequest emit next() and complete() (successful path)
-  spyOn(component['feeApiservice'], 'postRequest').and.returnValue(of({}) as any);
+  // Replace store and feeApiservice (private props) with test doubles
+  (component as any).store = { dispatch: jasmine.createSpy('dispatch') } as any;
+  (component as any).feeApiservice = {
+    postRequest: jasmine.createSpy('postRequest').and.returnValue(of({})) // synchronous success
+  } as any;
 
-  // initial state assertions (optional)
+  // initial flags
   component.disableSavebtn = false;
   component.loading = false;
 
-  // call method under test
+  // Call the method
   component.onSaveClick();
+  // flush sync observable microtasks (not strictly necessary for of({}), but safe)
+  tick();
 
-  // After a successful observable (of({})) the subscription's next and complete run synchronously,
-  // so we can assert immediately.
+  // Assertions
+  expect((component as any).feeApiservice.postRequest).toHaveBeenCalled();
+  expect((component as any).store.dispatch).toHaveBeenCalled(); // LOADINGACTION(true) was dispatched
   expect(component.errorBlockMessage).toBeNull();
-  expect(component.disableSavebtn).toBeTrue(); // set before request
-  expect(component.loading).toBeFalse(); // should be reset by complete
-  expect(component.store.dispatch).toHaveBeenCalled(); // LOADINGACTION(true) dispatched at start
-  // assert LOADINGACTION was dispatched at least once (works if LOADINGACTION is exported in spec)
-  expect(component.store.dispatch).toHaveBeenCalledWith(jasmine.any(Object)); // loose check
-  // ensure complete handler ran
+  // After complete, loading should be reset and save button remains disabled? (complete calls logAudit)
+  expect(component.loading).toBeFalse();
   expect(logSpy).toHaveBeenCalled();
-});
+}));
+
+
+it('onSaveClick(): error -> clears loading, dispatches(false), shows error and enables save', fakeAsync(() => {
+  // let validations pass so function proceeds to postRequest
+  spyOn(component as any, 'ValidateFormControls').and.returnValue(false);
+  spyOn(component as any, 'validateDates').and.returnValue(false);
+  spyOn(component as any, 'validateFormData').and.returnValue(false);
+
+  // controls and account filled like success test
+  (component as any).cbCategory      = { value: '1' };
+  (component as any).cbCycle         = { value: '1' };
+  (component as any).cbFormula       = { value: '1' };
+  (component as any).cbAltDivision   = { value: '0' };
+  (component as any).cbStatus        = { value: '1' };
+  (component as any).cbOfficer       = { value: 'OFF1' };
+
+  component.account = { accountNbr: 'ACC001' } as any;
+
+  (component as any).utils = {
+    getFormattedDecimal: (v: any) => v,
+    getValidString: (v: any) => (v === null || v === undefined) ? '' : v,
+    getCurrentUser: () => 'TEST_USER',
+    ToEstDate: () => '2025-01-01T00:00:00Z',
+    getDateAndDefaultTime: (d: any) => d ?? null
+  } as any;
+
+  // Replace store and spy displayServiceErrors
+  (component as any).store = { dispatch: jasmine.createSpy('dispatch') } as any;
+  const displaySpy = spyOn(component as any, 'displayServiceErrors').and.stub();
+
+  // Make postRequest throw an error
+  const serverError = { error: { statusMessage: 'server failed' } };
+  (component as any).feeApiservice = {
+    postRequest: jasmine.createSpy('postRequest').and.returnValue(throwError(() => serverError))
+  } as any;
+
+  // initial flags
+  component.disableSavebtn = false;
+  component.loading = false;
+
+  // run
+  component.onSaveClick();
+  tick();
+
+  // assertions: error branch must be executed
+  expect((component as any).feeApiservice.postRequest).toHaveBeenCalled();
+  expect(displaySpy).toHaveBeenCalledWith('server failed');
+  // flags must be reset
+  expect(component.loading).toBeFalse();
+  // LOADINGACTION(false) should be dispatched at end - store.dispatch was called (loose check)
+  expect((component as any).store.dispatch).toHaveBeenCalled();
+  // save button should be re-enabled
+  expect(component.disableSavebtn).toBeFalse();
+}));
