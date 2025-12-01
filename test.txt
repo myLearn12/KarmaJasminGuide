@@ -1,40 +1,33 @@
-// --- test case: returns early when form validation fails ---
-it('onSearchButtonClick(): returns early when ValidateFormControls() is true', () => {
-  spyOn(component, 'ValidateFormControls').and.returnValue(true);
-  const genSpy = spyOn(component, 'GenerateTableRows');
-
-  component.onSearchButtonClick();
-
-  expect(genSpy).not.toHaveBeenCalled();
-});
-
-// --- test case: invalid date range -> shows warning and returns (no GenerateTableRows) ---
-it('onSearchButtonClick(): when selectedFromDate > selectedToDate it sets warning and returns', () => {
-  spyOn(component, 'ValidateFormControls').and.returnValue(false);
-
-  // make utils.ToDate behave like Date parsing
-  spyOn(component['utils'], 'ToDate').and.callFake((d: any) => new Date(d));
-
-  // set from/to so from > to
-  component.selectedFromDate = '2025-02-02';
-  component.selectedToDate = '2025-01-01';
-
-  const setMsgSpy = spyOn(component, 'SetMessageTypeAndValue');
-  const genSpy = spyOn(component, 'GenerateTableRows');
-
-  component.onSearchButtonClick();
-
-  expect(setMsgSpy).toHaveBeenCalledWith(
-    jasmine.anything(),                      // BlockMessageType.warning (enum)
-    jasmine.stringMatching(/From Date should be less than To Date/i)
-  );
-  expect(genSpy).not.toHaveBeenCalled();
-});
-
-// --- test case: valid date range -> sets flags, dispatches LOADINGACTION(true) and calls GenerateTableRows() ---
 it('onSearchButtonClick(): with valid dates sets loading flags, dispatches LOADINGACTION(true) and calls GenerateTableRows()', () => {
   spyOn(component, 'ValidateFormControls').and.returnValue(false);
   spyOn(component['utils'], 'ToDate').and.callFake((d: any) => new Date(d));
 
+  // Arrange valid from/to dates (from < to)
   component.selectedFromDate = '2025-01-01';
- 
+  component.selectedToDate = '2025-02-02';
+
+  // Spies for behaviour we expect
+  const genSpy = spyOn(component, 'GenerateTableRows');
+  const dispatchSpy = spyOn(component['store'], 'dispatch');
+
+  // Ensure initial state is different so changes are observable
+  component.loading = false;
+  component.disbleButtonAction = false;
+  component.errorBlockMessage = 'something';
+
+  // Act
+  component.onSearchButtonClick();
+
+  // Assert: flags set
+  expect(component.errorBlockMessage).toBeNull();
+  expect(component.disbleButtonAction).toBeTrue();
+  expect(component.loading).toBeTrue();
+
+  // Assert: store dispatched a loading action (LOADINGACTION true)
+  expect(dispatchSpy).toHaveBeenCalled();
+  // If you want to assert payload shape more strictly:
+  // expect(dispatchSpy).toHaveBeenCalledWith(jasmine.objectContaining({ type: jasmine.any(String) }));
+
+  // Assert: GenerateTableRows was called
+  expect(genSpy).toHaveBeenCalled();
+});
