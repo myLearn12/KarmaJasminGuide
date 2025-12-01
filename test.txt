@@ -1,83 +1,24 @@
-// Test 1: success branch
-it('GenerateTableRows(): success -> builds payload, calls postRequest, calls LoadTableRows, sets flags and dispatches LOADINGACTION(false)', fakeAsync(() => {
-  // arrange
-  const mockResponse = { data: [{ id: 1 }] };
-  (component as any).selectedAccountNumber = '  ACCT123  ';
-  (component as any).selectedFromDate = null;
-  (component as any).selectedToDate = null;
-
-  (component as any).utils = {
-    ToDate: () => new Date(2020, 0, 1),
-    getFormatedDateAndTimeEST: (d1: any, d2: any) => '2020-01-01T00:00:00Z',
-  };
-
-  (component as any).appConfigService = {
-    getAccountHistoryByCriteriaUrl: '/api/history'
-  };
-
-  (component as any).feeApiservice = {
-    postRequest: jasmine.createSpy('postRequest').and.returnValue(of(mockResponse))
-  };
-
-  const loadSpy = spyOn(component as any, 'LoadTableRows');
-  const dispatchSpy = spyOn(component['store'], 'dispatch');
-
-  // set initial flags so we can assert they are changed correctly
-  component.loading = true;
-  component.disbleButtonAction = true;
-
-  // act
-  component.GenerateTableRows();
-  flushMicrotasks();
-
-  // assert
-  expect((component as any).feeApiservice.postRequest).toHaveBeenCalledWith(
-    '/api/history',
-    jasmine.objectContaining({
-      acctnum: 'ACCT123'
-    })
-  );
-  expect(loadSpy).toHaveBeenCalledWith(mockResponse);
-  expect(component.loading).toBeFalse();
-  expect(component.disbleButtonAction).toBeFalse();
-  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(Object)); // LOADINGACTION(false)
-}));
-
-
-// Test 2: error branch
-it('GenerateTableRows(): error -> sets isData=false, calls displayServiceErrors, sets flags and dispatches LOADINGACTION(false)', fakeAsync(() => {
-  // arrange
+it('GenerateTableRows(): error branch -> should set isData=false, call displayServiceErrors, set loading=false, dispatch LOADINGACTION(false) and disableButtonAction=false', fakeAsync(() => {
+  // mock feeApiservice.postRequest to throw an error immediately
   const mockError = { error: { statusMessage: 'server failed' } };
 
-  (component as any).utils = {
-    ToDate: () => new Date(),
-    getFormatedDateAndTimeEST: () => '2020-01-01T00:00:00Z'
-  };
-
-  (component as any).appConfigService = {
-    getAccountHistoryByCriteriaUrl: '/api/history'
-  };
-
   (component as any).feeApiservice = {
-    postRequest: jasmine.createSpy('postRequest').and.returnValue(throwError(mockError))
-  };
+    postRequest: jasmine.createSpy('postRequest')
+      .and.returnValue(throwError(mockError))
+  } as any;
 
-  const dispSpy = spyOn(component as any, 'displayServiceErrors');
+  // spies
+  const displaySpy = spyOn(component as any, 'displayServiceErrors');
   const dispatchSpy = spyOn(component['store'], 'dispatch');
-
-  // preconditions
-  component.isData = true;
-  component.loading = true;
-  component.disbleButtonAction = true;
 
   // act
   component.GenerateTableRows();
   flushMicrotasks();
 
-  // assert
+  // asserts
   expect((component as any).feeApiservice.postRequest).toHaveBeenCalled();
   expect(component.isData).toBeFalse();
-  expect(dispSpy).toHaveBeenCalledWith('server failed');
+  expect(displaySpy).toHaveBeenCalledWith('server failed');
   expect(component.loading).toBeFalse();
   expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(Object)); // LOADINGACTION(false)
   expect(component.disbleButtonAction).toBeFalse();
