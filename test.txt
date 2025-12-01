@@ -1,30 +1,28 @@
-it('ValidateFormControls(): should return true when any field has error', () => {
+it('onSearchButtonClick(): with valid dates sets loading flags, dispatches LOADINGACTION(true) and calls GenerateTableRows()', () => {
+  // form validation returns false so execution continues
+  spyOn(component, 'ValidateFormControls').and.returnValue(false);
 
-  // mock form controls
-  component.fcn_AcctNumb = {
-    markAsTouched: () => {},
-    hasError: (name: string) => name === 'required'
-  } as any;
+  // make ToDate return a real Date so the date-comparison path is exercised
+  spyOn(component['utils'], 'ToDate').and.callFake((d: any) => new Date(d));
 
-  component.fcn_EstAccrual = {
-    markAsTouched: () => {},
-    hasError: () => false
-  } as any;
+  // spy the store.dispatch so we can assert it was called
+  spyOn(component['store'], 'dispatch').and.stub();
 
-  // other controls not needed for this branch
-  component.cbStatus = { value: null } as any;
-  component.cbDivision = { value: null } as any;
-  component.cbCycle = { value: null } as any;
-  component.cbFormula = { value: null } as any;
-  component.cbCategory = { value: null } as any;
-  component.cblAltDivision = { value: null } as any;
+  // spy GenerateTableRows to confirm it was invoked
+  spyOn(component, 'GenerateTableRows').and.stub();
 
-  // util isStringValid mock
-  spyOn(component['utils'], 'isStringValid').and.returnValue(false);
+  // arrange valid from/to values (strings are fine since ToDate is faked)
+  component.selectedFromDate = '2020-01-01';
+  component.selectedToDate = '2020-01-02';
 
   // act
-  const result = component.ValidateFormControls();
+  component.onSearchButtonClick();
 
-  // assert - IF branch is hit → return true
-  expect(result).toBeTrue();
+  // assertions: error block cleared, loading flag set, dispatch called and GenerateTableRows invoked
+  expect(component.errorBlockMessage).toBeNull();
+  expect(component.loading).toBeTrue();
+  expect(component.GenerateTableRows).toHaveBeenCalled();
+  expect(component['utils'].ToDate).toHaveBeenCalledWith(component.selectedFromDate);
+  expect(component['utils'].ToDate).toHaveBeenCalledWith(component.selectedToDate);
+  expect(component['store'].dispatch).toHaveBeenCalled();
 });
