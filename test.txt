@@ -1,35 +1,49 @@
-it('onSaveClick(): should set flags, dispatch LOADINGACTION(true), and handle next/error/complete branches', () => {
-
-  // --- BLOCK VALIDATION RETURNS (so code continues) ---
+it('onSaveClick(): sets flags, dispatches LOADINGACTION(true) and handles next+complete', () => {
+  // keep validation passing so method proceeds
   spyOn(component, 'ValidateFormControls').and.returnValue(false);
   spyOn(component, 'validateDates').and.returnValue(false);
   spyOn(component, 'validateFormData').and.returnValue(false);
 
-  // --- SPY DEPENDENCIES ---
+  // spies
   spyOn(component.store, 'dispatch').and.stub();
-  spyOn(component, 'displayServiceErrors').and.stub();
   spyOn(component, 'logAccountAudit').and.stub();
 
-  // Mock API call
-  const mockPost = jasmine.createSpy().and.returnValue(of({}));  
-  spyOn(component['feeApiservice'], 'postRequest').and.returnValue({
-    subscribe: (handlers: any) => {
-      handlers.next({});
-      handlers.complete();
-    }
-  });
+  // make feeApiservice.postRequest return an Observable that emits then completes
+  spyOn(component['feeApiservice'], 'postRequest')
+    .and.returnValue(of({}) as any);
 
-  // --- ACT ---
+  // act
   component.onSaveClick();
 
-  // --- ASSERT FLAGS BEFORE SUBSCRIBE ---
+  // assert pre-subscribe flags
   expect(component.errorBlockMessage).toBeNull();
   expect(component.disableSavebtn).toBeTrue();
   expect(component.loading).toBeTrue();
   expect(component.store.dispatch).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
 
-  // --- ASSERT AFTER NEXT + COMPLETE ---
+  // after observable emits & completes, flags updated
   expect(component.loading).toBeFalse();
   expect(component.disableSavebtn).toBeFalse();
   expect(component.logAccountAudit).toHaveBeenCalled();
+});
+
+it('onSaveClick(): error branch should set loading=false, dispatch(false), call displayServiceErrors, enable save button', () => {
+  spyOn(component, 'ValidateFormControls').and.returnValue(false);
+  spyOn(component, 'validateDates').and.returnValue(false);
+  spyOn(component, 'validateFormData').and.returnValue(false);
+
+  spyOn(component.store, 'dispatch').and.stub();
+  spyOn(component, 'displayServiceErrors').and.stub();
+
+  // simulate observable that errors
+  const apiErr = { error: { error: { statusMessage: 'Server error' } } };
+  spyOn(component['feeApiservice'], 'postRequest')
+    .and.returnValue(throwError(() => apiErr) as any);
+
+  component.onSaveClick();
+
+  expect(component.loading).toBeFalse();
+  expect(component.disableSavebtn).toBeFalse();
+  expect(component.displayServiceErrors).toHaveBeenCalledWith('Server error');
+  expect(component.store.dispatch).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
 });
