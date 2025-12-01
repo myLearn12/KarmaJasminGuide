@@ -1,80 +1,31 @@
-it('InitialDataLoad(): complete branch -> prepares combo data and dispatches LOADINGACTION(false)', fakeAsync(() => {
-  // ensure the component has a region id that will match mock data
-  component.regionid = '10';
+it('onOffcrNumberChange(): when cbOfficer.value is null -> sets officerRequired true, updates selectedofficerNm and calls setIsOfcrNmbrValid', () => {
+  // arrange
+  component.cbOfficer = { value: null } as any;
+  component.fcn_OffcrNumber = { value: 'O1' } as any;
+  component.officers = { O1: { officerNm: 'Bob' } } as any;
+  spyOn(component, 'setIsOfcrNmbrValid');
 
-  // --- set the exact appConfigService URL props the component uses ---
-  // adjust names if your appConfigService has different property names
-  component['appConfigService'].getAllRegionUrl = 'URL_GET_ALL_REGIONS';
-  component['appConfigService'].getAllRegDivMappingUrl = 'URL_GET_REG_DIV_MAP';
-  component['appConfigService'].getAllDivisionUrl = 'URL_GET_DIVISIONS';
-  component['appConfigService'].getAllCycleUrl = 'URL_GET_CYCLES';
-  component['appConfigService'].getAllFormulaUrl = 'URL_GET_FORMULAS';
-  component['appConfigService'].getAllCategoryUrl = 'URL_GET_CATEGORIES';
-  component['appConfigService'].getAllAccrualOfficerUrl = 'URL_GET_OFFICERS';
-  component['appConfigService'].getAllRevShareDivMappingUrl = 'URL_GET_REVSHARE';
+  // act
+  component.onOffcrNumberChange();
 
-  // --- mock arrays that complete branch expects (include regionDescription) ---
-  const mockRegions = [
-    { regionId: 10, regionDescription: 'Region 10' },
-    { regionId: 20, regionDescription: 'Region 20' }
-  ];
-  const mockRegionDivisions = [
-    { regionId: 10, divisionDesc: 'Div A', divisionCd: 'DA', divisionId: 101 },
-    { regionId: 20, divisionDesc: 'Div B', divisionCd: 'DB', divisionId: 201 }
-  ];
-  const mockDivisions = [{ divisionId: 101, divisionDesc: 'Div A' }];
-  const mockCycles: any[] = [];
-  const mockFormulas: any[] = [];
-  const mockCategories: any[] = [];
-  const mockOfficers = [{ officer: 'O1', officerSort: 'O1' }];
-  const mockRevShare: any[] = [];
+  // assert
+  expect(component.officerRequired).toBeTrue();
+  expect(component.selectedofficerNm).toBe('Bob');
+  expect(component.setIsOfcrNmbrValid).toHaveBeenCalled();
+});
 
-  // spy feeApiService.getRequest to return the correct mock for *exact* URL values
-  spyOn(component['feeApiService'], 'getRequest').and.callFake((url: string) => {
-    switch (url) {
-      case component['appConfigService'].getAllRegionUrl: return of(mockRegions);
-      case component['appConfigService'].getAllRegDivMappingUrl: return of(mockRegionDivisions);
-      case component['appConfigService'].getAllDivisionUrl: return of(mockDivisions);
-      case component['appConfigService'].getAllCycleUrl: return of(mockCycles);
-      case component['appConfigService'].getAllFormulaUrl: return of(mockFormulas);
-      case component['appConfigService'].getAllCategoryUrl: return of(mockCategories);
-      case component['appConfigService'].getAllAccrualOfficerUrl: return of(mockOfficers);
-      case component['appConfigService'].getAllRevShareDivMappingUrl: return of(mockRevShare);
-      default: return of([]); // fallback so forkJoin doesn't fail
-    }
-  });
+it('onOffcrNumberChange(): when cbOfficer.value is NOT null -> sets officerRequired false, updates selectedofficerNm and calls setIsOfcrNmbrValid', () => {
+  // arrange
+  component.cbOfficer = { value: 'some-value' } as any;
+  component.fcn_OffcrNumber = { value: 'O2' } as any;
+  component.officers = { O2: { officerNm: 'Alice' } } as any;
+  spyOn(component, 'setIsOfcrNmbrValid');
 
-  // stub utils.LoadComboBoxData to return something the component expects
-  spyOn(component['utils'], 'LoadComboBoxData').and.callFake((arr: any[], label: string, a?: any, b?: any, c?: any) => {
-    return arr.map(item => ({ id: item.regionId ?? item.divisionId, text: item.regionDescription ?? item.divisionDesc ?? label }));
-  });
+  // act
+  component.onOffcrNumberChange();
 
-  // acctService.LoadOfficerData stub
-  spyOn(component['acctService'], 'LoadOfficerData').and.returnValue([{ officerSort: 'O1', officer: 'Officer One' }]);
-
-  // spy store.dispatch
-  const dispatchSpy = spyOn(component['store'], 'dispatch');
-
-  // call InitialDataLoad and flush async
-  component.InitialDataLoad();
-  tick(); // resolve forkJoin observables and subscription handlers
-  fixture.detectChanges();
-
-  // expectations: regionDivisions should be filtered by component.regionid
-  expect(component.regionDivisions).toBeDefined();
-  const filtered = component.regionDivisions.filter((x: any) => x.regionId.toString() === component.regionid.toString());
-  expect(filtered.length).toBeGreaterThan(0);
-
-  // check that combo data arrays were created (these names come from your screenshot)
-  expect(component.cbDivisionData).toBeDefined();
-  expect(component.cbDivisionData.length).toBeGreaterThan(0);
-
-  // acctService helper should have been invoked
-  expect(component['acctService'].LoadOfficerData).toHaveBeenCalled();
-
-  // store.dispatch should have been called for LOADINGACTION(false) in the complete block
-  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(Object));
-
-  // final flags
-  expect(component.loading).toBeFalse();
-}));
+  // assert
+  expect(component.officerRequired).toBeFalse();
+  expect(component.selectedofficerNm).toBe('Alice');
+  expect(component.setIsOfcrNmbrValid).toHaveBeenCalled();
+});
