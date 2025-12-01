@@ -1,31 +1,35 @@
-it('onOffcrNumberChange(): when cbOfficer.value is null -> sets officerRequired true, updates selectedofficerNm and calls setIsOfcrNmbrValid', () => {
+it('onOffNumberChange(): else branch sets isOfficerNumValid = false', () => {
   // arrange
-  component.cbOfficer = { value: null } as any;
-  component.fcn_OffcrNumber = { value: 'O1' } as any;
-  component.officers = { O1: { officerNm: 'Bob' } } as any;
-  spyOn(component, 'setIsOfcrNmbrValid');
+  spyOn(component['utils'], 'isStringValid').and.returnValue(false);
+  component.account = { officer: null } as any;
 
   // act
-  component.onOffcrNumberChange();
+  component.onOffNumberChange();
 
   // assert
-  expect(component.officerRequired).toBeTrue();
-  expect(component.selectedofficerNm).toBe('Bob');
-  expect(component.setIsOfcrNmbrValid).toHaveBeenCalled();
+  expect(component.isOfficerNumValid).toBeFalse();
 });
 
-it('onOffcrNumberChange(): when cbOfficer.value is NOT null -> sets officerRequired false, updates selectedofficerNm and calls setIsOfcrNmbrValid', () => {
+it('onOzIdChange(): else branch sets isOzIdValid = false', () => {
   // arrange
-  component.cbOfficer = { value: 'some-value' } as any;
-  component.fcn_OffcrNumber = { value: 'O2' } as any;
-  component.officers = { O2: { officerNm: 'Alice' } } as any;
-  spyOn(component, 'setIsOfcrNmbrValid');
+  spyOn(component['utils'], 'isStringValid').and.returnValue(false);
+  component.account = { ozId: null } as any;
 
   // act
-  component.onOffcrNumberChange();
+  component.onOzIdChange();
 
   // assert
-  expect(component.officerRequired).toBeFalse();
-  expect(component.selectedofficerNm).toBe('Alice');
-  expect(component.setIsOfcrNmbrValid).toHaveBeenCalled();
+  expect(component.isOzIdValid).toBeFalse();
+});
+
+it('onPcaChange(): else branch sets isPcaValid = false', () => {
+  // arrange
+  spyOn(component['utils'], 'isStringValid').and.returnValue(false);
+  component.account = { pcanumber: null } as any;
+
+  // act
+  component.onPcaChange();
+
+  // assert
+  expect(component.isPcaValid).toBeFalse();
 });
