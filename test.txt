@@ -1,8 +1,19 @@
 it('InitialDataLoad(): complete branch -> prepares combo data and dispatches LOADINGACTION(false)', fakeAsync(() => {
-  // make sure regionid matches what the code compares (it does x.regionId.toString() === this.regionid)
+  // ensure the component has a region id that will match mock data
   component.regionid = '10';
 
-  // --- minimal mock data used in the complete branch (must include regionDescription) ---
+  // --- set the exact appConfigService URL props the component uses ---
+  // adjust names if your appConfigService has different property names
+  component['appConfigService'].getAllRegionUrl = 'URL_GET_ALL_REGIONS';
+  component['appConfigService'].getAllRegDivMappingUrl = 'URL_GET_REG_DIV_MAP';
+  component['appConfigService'].getAllDivisionUrl = 'URL_GET_DIVISIONS';
+  component['appConfigService'].getAllCycleUrl = 'URL_GET_CYCLES';
+  component['appConfigService'].getAllFormulaUrl = 'URL_GET_FORMULAS';
+  component['appConfigService'].getAllCategoryUrl = 'URL_GET_CATEGORIES';
+  component['appConfigService'].getAllAccrualOfficerUrl = 'URL_GET_OFFICERS';
+  component['appConfigService'].getAllRevShareDivMappingUrl = 'URL_GET_REVSHARE';
+
+  // --- mock arrays that complete branch expects (include regionDescription) ---
   const mockRegions = [
     { regionId: 10, regionDescription: 'Region 10' },
     { regionId: 20, regionDescription: 'Region 20' }
@@ -12,55 +23,58 @@ it('InitialDataLoad(): complete branch -> prepares combo data and dispatches LOA
     { regionId: 20, divisionDesc: 'Div B', divisionCd: 'DB', divisionId: 201 }
   ];
   const mockDivisions = [{ divisionId: 101, divisionDesc: 'Div A' }];
-  const mockCycles = [];
-  const mockFormulas = [];
-  const mockCategories = [];
+  const mockCycles: any[] = [];
+  const mockFormulas: any[] = [];
+  const mockCategories: any[] = [];
   const mockOfficers = [{ officer: 'O1', officerSort: 'O1' }];
-  const mockRevShare = [];
+  const mockRevShare: any[] = [];
 
-  // spy feeApiService.getRequest to return appropriate mocks by detecting URL substring
+  // spy feeApiService.getRequest to return the correct mock for *exact* URL values
   spyOn(component['feeApiService'], 'getRequest').and.callFake((url: string) => {
-    if (!url) { return of([]); }
-    if (url.indexOf('getAllRegion') >= 0) return of(mockRegions);
-    if (url.indexOf('getAllRegDivMapping') >= 0) return of(mockRegionDivisions);
-    if (url.indexOf('getAllDivision') >= 0) return of(mockDivisions);
-    if (url.indexOf('getAllCycle') >= 0) return of(mockCycles);
-    if (url.indexOf('getAllFormula') >= 0) return of(mockFormulas);
-    if (url.indexOf('getAllCategory') >= 0) return of(mockCategories);
-    if (url.indexOf('getAllAccrualOfficer') >= 0) return of(mockOfficers);
-    if (url.indexOf('getAllRevShareDivMapping') >= 0) return of(mockRevShare);
-    return of([]); // fallback
+    switch (url) {
+      case component['appConfigService'].getAllRegionUrl: return of(mockRegions);
+      case component['appConfigService'].getAllRegDivMappingUrl: return of(mockRegionDivisions);
+      case component['appConfigService'].getAllDivisionUrl: return of(mockDivisions);
+      case component['appConfigService'].getAllCycleUrl: return of(mockCycles);
+      case component['appConfigService'].getAllFormulaUrl: return of(mockFormulas);
+      case component['appConfigService'].getAllCategoryUrl: return of(mockCategories);
+      case component['appConfigService'].getAllAccrualOfficerUrl: return of(mockOfficers);
+      case component['appConfigService'].getAllRevShareDivMappingUrl: return of(mockRevShare);
+      default: return of([]); // fallback so forkJoin doesn't fail
+    }
   });
 
-  // utils.LoadComboBoxData is used to build combo data in complete block - stub it
+  // stub utils.LoadComboBoxData to return something the component expects
   spyOn(component['utils'], 'LoadComboBoxData').and.callFake((arr: any[], label: string, a?: any, b?: any, c?: any) => {
-    // return a simplified shape the component expects (array of options)
     return arr.map(item => ({ id: item.regionId ?? item.divisionId, text: item.regionDescription ?? item.divisionDesc ?? label }));
   });
 
-  // acctService helper used to build officer combo data
+  // acctService.LoadOfficerData stub
   spyOn(component['acctService'], 'LoadOfficerData').and.returnValue([{ officerSort: 'O1', officer: 'Officer One' }]);
 
-  // watch store.dispatch
+  // spy store.dispatch
   const dispatchSpy = spyOn(component['store'], 'dispatch');
 
-  // call method and allow async forkJoin to resolve
+  // call InitialDataLoad and flush async
   component.InitialDataLoad();
-  tick(); // resolve observables
+  tick(); // resolve forkJoin observables and subscription handlers
+  fixture.detectChanges();
 
-  // expectations - complete branch should populate the component combos and turn loading off
+  // expectations: regionDivisions should be filtered by component.regionid
   expect(component.regionDivisions).toBeDefined();
-  expect(component.regionDivisions.filter((x: any) => x.regionId.toString() === component.regionid.toString()).length).toBeGreaterThan(0);
+  const filtered = component.regionDivisions.filter((x: any) => x.regionId.toString() === component.regionid.toString());
+  expect(filtered.length).toBeGreaterThan(0);
 
+  // check that combo data arrays were created (these names come from your screenshot)
   expect(component.cbDivisionData).toBeDefined();
   expect(component.cbDivisionData.length).toBeGreaterThan(0);
 
-  // acctService LoadOfficerData should have been used to populate officer combo data
+  // acctService helper should have been invoked
   expect(component['acctService'].LoadOfficerData).toHaveBeenCalled();
 
-  // store.dispatch should be called to toggle LOADINGACTION(false) in complete block
+  // store.dispatch should have been called for LOADINGACTION(false) in the complete block
   expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(Object));
 
-  // final flag checks
+  // final flags
   expect(component.loading).toBeFalse();
 }));
