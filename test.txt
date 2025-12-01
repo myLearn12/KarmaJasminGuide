@@ -1,35 +1,30 @@
-it('onOffNumberChange(): else branch sets isOfficerNumValid = false', () => {
-  // arrange
+it('ValidateFormControls(): should return true when any field has error', () => {
+
+  // mock form controls
+  component.fcn_AcctNumb = {
+    markAsTouched: () => {},
+    hasError: (name: string) => name === 'required'
+  } as any;
+
+  component.fcn_EstAccrual = {
+    markAsTouched: () => {},
+    hasError: () => false
+  } as any;
+
+  // other controls not needed for this branch
+  component.cbStatus = { value: null } as any;
+  component.cbDivision = { value: null } as any;
+  component.cbCycle = { value: null } as any;
+  component.cbFormula = { value: null } as any;
+  component.cbCategory = { value: null } as any;
+  component.cblAltDivision = { value: null } as any;
+
+  // util isStringValid mock
   spyOn(component['utils'], 'isStringValid').and.returnValue(false);
-  component.account = { officer: null } as any;
 
   // act
-  component.onOffNumberChange();
+  const result = component.ValidateFormControls();
 
-  // assert
-  expect(component.isOfficerNumValid).toBeFalse();
-});
-
-it('onOzIdChange(): else branch sets isOzIdValid = false', () => {
-  // arrange
-  spyOn(component['utils'], 'isStringValid').and.returnValue(false);
-  component.account = { ozId: null } as any;
-
-  // act
-  component.onOzIdChange();
-
-  // assert
-  expect(component.isOzIdValid).toBeFalse();
-});
-
-it('onPcaChange(): else branch sets isPcaValid = false', () => {
-  // arrange
-  spyOn(component['utils'], 'isStringValid').and.returnValue(false);
-  component.account = { pcanumber: null } as any;
-
-  // act
-  component.onPcaChange();
-
-  // assert
-  expect(component.isPcaValid).toBeFalse();
+  // assert - IF branch is hit → return true
+  expect(result).toBeTrue();
 });
