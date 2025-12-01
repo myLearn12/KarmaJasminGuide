@@ -1,33 +1,104 @@
-it('onSearchButtonClick(): with valid dates sets loading flags, dispatches LOADINGACTION(true) and calls GenerateTableRows()', () => {
-  spyOn(component, 'ValidateFormControls').and.returnValue(false);
-  spyOn(component['utils'], 'ToDate').and.callFake((d: any) => new Date(d));
+it('InitialDataLoad(): next branch -> assigns collections from forkJoin result', fakeAsync(() => {
+  // prepare mocks
+  const mock = {
+    regions: [{ regionId: 1, regionDescription: 'R1' }],
+    regionDivisions: [{ regionId: 1, divisionDesc: 'D1', divisionCd: 'D1', divisionId: 11 }],
+    divisions: [{ divisionId: 11, divisionDesc: 'D1' }],
+    cycles: [{ cycleId: 1, cycleDesc: 'C1' }],
+    formulas: [{ formulaId: 1, formulaDesc: 'F1' }],
+    categories: [{ categoryId: 1, categoryDescription: 'Cat1', categoryCode: 'C1' }],
+    officers: [{ officer: 'O1', value: { officer: 'O1', name: 'Officer One' } }],
+    revShareDivMapping: [{ foo: 'bar' }]
+  };
 
-  // Arrange valid from/to dates (from < to)
-  component.selectedFromDate = '2025-01-01';
-  component.selectedToDate = '2025-02-02';
+  // spy feeApiService.getRequest to return proper part by inspecting the URL argument
+  const feeSpy = spyOn(component['feeApiService'], 'getRequest').and.callFake((url: string) => {
+    if (url?.indexOf('getAllRegion') >= 0) return of(mock.regions);
+    if (url?.indexOf('getAllRegDivMapping') >= 0) return of(mock.regionDivisions);
+    if (url?.indexOf('getAllDivision') >= 0) return of(mock.divisions);
+    if (url?.indexOf('getAllCycle') >= 0) return of(mock.cycles);
+    if (url?.indexOf('getAllFormula') >= 0) return of(mock.formulas);
+    if (url?.indexOf('getAllCategory') >= 0) return of(mock.categories);
+    if (url?.indexOf('getAllAccrualOfficer') >= 0) return of(mock.officers);
+    if (url?.indexOf('getAllRevShareDivMapping') >= 0) return of(mock.revShareDivMapping);
+    // fallback
+    return of({});
+  });
 
-  // Spies for behaviour we expect
-  const genSpy = spyOn(component, 'GenerateTableRows');
+  // spy dispatch so we can assert later
   const dispatchSpy = spyOn(component['store'], 'dispatch');
 
-  // Ensure initial state is different so changes are observable
-  component.loading = false;
-  component.disbleButtonAction = false;
-  component.errorBlockMessage = 'something';
+  // call method
+  component.InitialDataLoad();
+  // run microtasks so forkJoin resolves
+  tick();
 
-  // Act
-  component.onSearchButtonClick();
+  // next branch should set the component properties
+  expect(component.regions).toEqual(mock.regions);
+  expect(component.regionDivisions).toEqual(mock.regionDivisions);
+  expect(component.divisions).toEqual(mock.divisions);
+  expect(component.cycles).toEqual(mock.cycles);
+  expect(component.formulas).toEqual(mock.formulas);
+  expect(component.categories).toEqual(mock.categories);
+  // officers populates mapping keyed by officer value
+  // screenshot code does: result.officers.forEach((value) => { this.officers[value.officer] = value; })
+  expect(component.officers['O1']).toEqual(mock.officers[0].value);
 
-  // Assert: flags set
-  expect(component.errorBlockMessage).toBeNull();
-  expect(component.disbleButtonAction).toBeTrue();
-  expect(component.loading).toBeTrue();
-
-  // Assert: store dispatched a loading action (LOADINGACTION true)
+  // ensure feeApiService.getRequest got called multiple times
+  expect(feeSpy).toHaveBeenCalled();
+  // initial next/complete logic will dispatch at least once to turn loading off in complete
   expect(dispatchSpy).toHaveBeenCalled();
-  // If you want to assert payload shape more strictly:
-  // expect(dispatchSpy).toHaveBeenCalledWith(jasmine.objectContaining({ type: jasmine.any(String) }));
+}));
 
-  // Assert: GenerateTableRows was called
-  expect(genSpy).toHaveBeenCalled();
-});
+it('InitialDataLoad(): complete branch -> prepares combo data and dispatches LOADINGACTION(false)', fakeAsync(() => {
+  // minimal mock where all calls return something (complete branch uses regions & regionDivisions filter + utils/acctService)
+  const mockRegions = [
+    { regionId: 10, regionDescription: 'R-A' },
+    { regionId: 20, regionDescription: 'R-B' }
+  ];
+  const mockRegionDivisions = [
+    { regionId: 10, divisionDesc: 'D-A', divisionCd: 'DA', divisionId: 101 },
+    { regionId: 20, divisionDesc: 'D-B', divisionCd: 'DB', divisionId: 201 }
+  ];
+  // stub getRequest returning appropriate pieces based on URL substring
+  spyOn(component['feeApiService'], 'getRequest').and.callFake((url: string) => {
+    if (url?.indexOf('getAllRegion') >= 0) return of(mockRegions);
+    if (url?.indexOf('getAllRegDivMapping') >= 0) return of(mockRegionDivisions);
+    // other requests not used by complete assertions -> return empty arrays
+    return of([]);
+  });
+
+  // stub utils.LoadComboBoxData to return a deterministic structure used in complete
+  spyOn(component['utils'], 'LoadComboBoxData').and.callFake((arr: any[], label: string) => {
+    // return simple consistent structure for assertions
+    return arr.map((x: any) => ({ id: x.regionId || x.divisionId, label: x[Object.keys(x)[1]] || label }));
+  });
+
+  // stub acctService.LoadOfficerData used in complete
+  spyOn(component['acctService'], 'LoadOfficerData').and.returnValue([{ officerSort: 'O', officer: 'O1' }]);
+
+  // spy dispatch
+  const dispatchSpy = spyOn(component['store'], 'dispatch');
+
+  // set regionid to filter regionDivisions in complete (the code filters regionDivisions by regionid)
+  component.regionid = 10;
+
+  // Invoke
+  component.InitialDataLoad();
+  tick();
+
+  // After complete should have regionDivisions filtered by regionid
+  expect(component.regionDivisions.filter(x => x.regionId === component.regionid).length).toBeGreaterThan(0);
+
+  // The complete block sets cbDivisionData / cbAllDivisionData etc using utils.LoadComboBoxData
+  expect(component.cbDivisionData).toBeDefined();
+  expect(component.cbDivisionData.length).toBeGreaterThanOrEqual(1);
+
+  // acctService.LoadOfficerData should have been called to populate cbOfficerData
+  expect(component['acctService'].LoadOfficerData).toHaveBeenCalled();
+
+  // store.dispatch should be called to turn loading off in complete
+  expect(dispatchSpy).toHaveBeenCalled();
+  // final asserts: loading flag set to false by complete
+  expect(component.loading).toBeFalse();
+}));
