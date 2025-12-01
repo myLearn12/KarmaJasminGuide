@@ -1,23 +1,20 @@
-import { of, throwError } from 'rxjs';
-// ... other imports (LOADINGACTION if required)
-
-it('onSaveClick(): error branch should set loading=false, dispatch(false), call displayServiceErrors, enable save button', () => {
-  // make validations pass so code runs
+it('onSaveClick(): sets flags, dispatches LOADINGACTION(true) and handles next+complete', () => {
+  // allow onSaveClick to run past the validation gates
   spyOn(component, 'ValidateFormControls').and.returnValue(false);
   spyOn(component, 'validateDates').and.returnValue(false);
   spyOn(component, 'validateFormData').and.returnValue(false);
 
-  // minimal stubs for combo controls referenced in payload (value must not be null)
+  // minimal combo control stubs (these are used with .value.toString() inside payload)
   component.cbCategory = { value: '1' } as any;
   component.cbCycle    = { value: '1' } as any;
   component.cbFormula  = { value: '1' } as any;
-  component.cbAltDivision = { value: null } as any; // allowed to be null in code
+  component.cbAltDivision = { value: null } as any;
   component.cbStatus   = { value: '1' } as any;
-  component.cbOfficer  = { value: 'OFF1' } as any; // if code uses officer .value
+  component.cbOfficer  = { value: 'OFF1' } as any;
 
-  // minimal account object used in building payload (only fields used before error)
+  // minimal account object (only fields referenced before/inside API call)
   component.account = {
-    accountNbr: 'ACC123',
+    accountNbr: 'ACC001',
     acceptfee: '0',
     estacc: '0',
     actpp: '0',
@@ -34,32 +31,35 @@ it('onSaveClick(): error branch should set loading=false, dispatch(false), call 
     disposition3: null
   } as any;
 
-  // stub any utils used while preparing payload that might be called before the API call:
-  // (if you already have a mock utils service just spy on the calls; otherwise provide simple stubs)
-  spyOn(component['utils'], 'getFormattedDecimal').and.callFake((v: any) => v);
-  spyOn(component['utils'], 'getValidString').and.callFake((v: any) => v ?? '');
-  spyOn(component['utils'], 'getCurrentUser').and.returnValue('UT');
+  // utils stubs used while building payload
+  spyOn(component['utils'], 'getFormattedDecimal').and.callFake((v:any) => v);
+  spyOn(component['utils'], 'getValidString').and.callFake((v:any) => v ?? '');
+  spyOn(component['utils'], 'getCurrentUser').and.returnValue('TEST_USER');
   spyOn(component['utils'], 'ToEstDate').and.returnValue('2025-01-01T00:00:00Z');
-  spyOn(component['utils'], 'getDateAndDefaultTime').and.callFake((d:any)=> d ?? null);
+  spyOn(component['utils'], 'getDateAndDefaultTime').and.callFake((d:any) => d ?? null);
 
-  // spies for effects
+  // spies for side-effects
   spyOn(component.store, 'dispatch').and.stub();
-  spyOn(component, 'displayServiceErrors').and.stub();
+  const logSpy = spyOn(component, 'logAccountAudit').and.stub();
 
-  // make API throw so we hit error path
-  const apiErr = { error: { statusMessage: 'Server error' } };
-  spyOn(component['feeApiservice'], 'postRequest').and.returnValue(throwError(() => apiErr) as any);
+  // make feeApiservice.postRequest emit next() and complete() (successful path)
+  spyOn(component['feeApiservice'], 'postRequest').and.returnValue(of({}) as any);
 
-  // call
+  // initial state assertions (optional)
+  component.disableSavebtn = false;
+  component.loading = false;
+
+  // call method under test
   component.onSaveClick();
 
-  // assertions: error branch should have run
-  expect(component.loading).toBeFalse();
-  expect(component.disableSavebtn).toBeFalse();
-  expect(component.displayServiceErrors).toHaveBeenCalledWith('Server error');
-
-  // there should be at least one dispatch; specifically a dispatch for LOADINGACTION(false)
-  expect(component.store.dispatch).toHaveBeenCalled();
-  // optionally verify LOADINGACTION(false) was dispatched (if LOADINGACTION is available in spec)
-  // expect(component.store.dispatch).toHaveBeenCalledWith(new LOADINGACTION(false));
+  // After a successful observable (of({})) the subscription's next and complete run synchronously,
+  // so we can assert immediately.
+  expect(component.errorBlockMessage).toBeNull();
+  expect(component.disableSavebtn).toBeTrue(); // set before request
+  expect(component.loading).toBeFalse(); // should be reset by complete
+  expect(component.store.dispatch).toHaveBeenCalled(); // LOADINGACTION(true) dispatched at start
+  // assert LOADINGACTION was dispatched at least once (works if LOADINGACTION is exported in spec)
+  expect(component.store.dispatch).toHaveBeenCalledWith(jasmine.any(Object)); // loose check
+  // ensure complete handler ran
+  expect(logSpy).toHaveBeenCalled();
 });
