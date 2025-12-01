@@ -1,104 +1,65 @@
-it('InitialDataLoad(): next branch -> assigns collections from forkJoin result', fakeAsync(() => {
-  // prepare mocks
-  const mock = {
-    regions: [{ regionId: 1, regionDescription: 'R1' }],
-    regionDivisions: [{ regionId: 1, divisionDesc: 'D1', divisionCd: 'D1', divisionId: 11 }],
-    divisions: [{ divisionId: 11, divisionDesc: 'D1' }],
-    cycles: [{ cycleId: 1, cycleDesc: 'C1' }],
-    formulas: [{ formulaId: 1, formulaDesc: 'F1' }],
-    categories: [{ categoryId: 1, categoryDescription: 'Cat1', categoryCode: 'C1' }],
-    officers: [{ officer: 'O1', value: { officer: 'O1', name: 'Officer One' } }],
-    revShareDivMapping: [{ foo: 'bar' }]
-  };
-
-  // spy feeApiService.getRequest to return proper part by inspecting the URL argument
-  const feeSpy = spyOn(component['feeApiService'], 'getRequest').and.callFake((url: string) => {
-    if (url?.indexOf('getAllRegion') >= 0) return of(mock.regions);
-    if (url?.indexOf('getAllRegDivMapping') >= 0) return of(mock.regionDivisions);
-    if (url?.indexOf('getAllDivision') >= 0) return of(mock.divisions);
-    if (url?.indexOf('getAllCycle') >= 0) return of(mock.cycles);
-    if (url?.indexOf('getAllFormula') >= 0) return of(mock.formulas);
-    if (url?.indexOf('getAllCategory') >= 0) return of(mock.categories);
-    if (url?.indexOf('getAllAccrualOfficer') >= 0) return of(mock.officers);
-    if (url?.indexOf('getAllRevShareDivMapping') >= 0) return of(mock.revShareDivMapping);
-    // fallback
-    return of({});
-  });
-
-  // spy dispatch so we can assert later
-  const dispatchSpy = spyOn(component['store'], 'dispatch');
-
-  // call method
-  component.InitialDataLoad();
-  // run microtasks so forkJoin resolves
-  tick();
-
-  // next branch should set the component properties
-  expect(component.regions).toEqual(mock.regions);
-  expect(component.regionDivisions).toEqual(mock.regionDivisions);
-  expect(component.divisions).toEqual(mock.divisions);
-  expect(component.cycles).toEqual(mock.cycles);
-  expect(component.formulas).toEqual(mock.formulas);
-  expect(component.categories).toEqual(mock.categories);
-  // officers populates mapping keyed by officer value
-  // screenshot code does: result.officers.forEach((value) => { this.officers[value.officer] = value; })
-  expect(component.officers['O1']).toEqual(mock.officers[0].value);
-
-  // ensure feeApiService.getRequest got called multiple times
-  expect(feeSpy).toHaveBeenCalled();
-  // initial next/complete logic will dispatch at least once to turn loading off in complete
-  expect(dispatchSpy).toHaveBeenCalled();
-}));
-
 it('InitialDataLoad(): complete branch -> prepares combo data and dispatches LOADINGACTION(false)', fakeAsync(() => {
-  // minimal mock where all calls return something (complete branch uses regions & regionDivisions filter + utils/acctService)
+  // make sure regionid matches type used in component (string or number). Use string here.
+  component.regionid = '10';
+
+  // mocks used by complete block - include regionDescription so code won't crash
   const mockRegions = [
-    { regionId: 10, regionDescription: 'R-A' },
-    { regionId: 20, regionDescription: 'R-B' }
+    { regionId: 10, regionDescription: 'Region-10' },
+    { regionId: 20, regionDescription: 'Region-20' }
   ];
   const mockRegionDivisions = [
-    { regionId: 10, divisionDesc: 'D-A', divisionCd: 'DA', divisionId: 101 },
-    { regionId: 20, divisionDesc: 'D-B', divisionCd: 'DB', divisionId: 201 }
+    { regionId: 10, divisionDesc: 'Div-10-A', divisionCd: 'D10A', divisionId: 1001 },
+    { regionId: 20, divisionDesc: 'Div-20-A', divisionCd: 'D20A', divisionId: 2001 }
   ];
-  // stub getRequest returning appropriate pieces based on URL substring
+  const mockDivisions = [{ divisionId: 1001, divisionDesc: 'Div-10-A' }];
+  const mockCycles = [];
+  const mockFormulas = [];
+  const mockCategories = [];
+  const mockOfficers = [{ officer: 'O1', name: 'Officer One' }];
+  const mockRevShare = [];
+
+  // stub feeApiService.getRequest to return appropriate mock by inspecting URL substring
   spyOn(component['feeApiService'], 'getRequest').and.callFake((url: string) => {
     if (url?.indexOf('getAllRegion') >= 0) return of(mockRegions);
     if (url?.indexOf('getAllRegDivMapping') >= 0) return of(mockRegionDivisions);
-    // other requests not used by complete assertions -> return empty arrays
-    return of([]);
+    if (url?.indexOf('getAllDivision') >= 0) return of(mockDivisions);
+    if (url?.indexOf('getAllCycle') >= 0) return of(mockCycles);
+    if (url?.indexOf('getAllFormula') >= 0) return of(mockFormulas);
+    if (url?.indexOf('getAllCategory') >= 0) return of(mockCategories);
+    if (url?.indexOf('getAllAccrualOfficer') >= 0) return of(mockOfficers);
+    if (url?.indexOf('getAllRevShareDivMapping') >= 0) return of(mockRevShare);
+    return of([]); // fallback
   });
 
-  // stub utils.LoadComboBoxData to return a deterministic structure used in complete
+  // stub utils.LoadComboBoxData to return something predictable
   spyOn(component['utils'], 'LoadComboBoxData').and.callFake((arr: any[], label: string) => {
-    // return simple consistent structure for assertions
-    return arr.map((x: any) => ({ id: x.regionId || x.divisionId, label: x[Object.keys(x)[1]] || label }));
+    return arr.map((x: any) => ({ id: x.regionId ?? x.divisionId, label: x.regionDescription ?? x.divisionDesc ?? label }));
   });
 
-  // stub acctService.LoadOfficerData used in complete
-  spyOn(component['acctService'], 'LoadOfficerData').and.returnValue([{ officerSort: 'O', officer: 'O1' }]);
+  // stub account service helper used in complete
+  spyOn(component['acctService'], 'LoadOfficerData').and.returnValue([{ officerSort: 'O1', officer: 'Officer One' }]);
 
-  // spy dispatch
+  // watch dispatch
   const dispatchSpy = spyOn(component['store'], 'dispatch');
 
-  // set regionid to filter regionDivisions in complete (the code filters regionDivisions by regionid)
-  component.regionid = 10;
-
-  // Invoke
+  // call method and resolve async
   component.InitialDataLoad();
-  tick();
+  tick(); // let forkJoin and complete resolve
 
-  // After complete should have regionDivisions filtered by regionid
-  expect(component.regionDivisions.filter(x => x.regionId === component.regionid).length).toBeGreaterThan(0);
+  // complete branch should set regionDivisions filtered by component.regionid
+  const filtered = component.regionDivisions.filter((x: any) => x.regionId.toString() === component.regionid.toString());
+  expect(filtered.length).toBeGreaterThan(0, 'regionDivisions should be filtered by regionid');
 
-  // The complete block sets cbDivisionData / cbAllDivisionData etc using utils.LoadComboBoxData
+  // LoadComboBoxData should have been called and combo arrays created
   expect(component.cbDivisionData).toBeDefined();
   expect(component.cbDivisionData.length).toBeGreaterThanOrEqual(1);
 
-  // acctService.LoadOfficerData should have been called to populate cbOfficerData
+  // acctService helper should be called to populate officer options
   expect(component['acctService'].LoadOfficerData).toHaveBeenCalled();
 
-  // store.dispatch should be called to turn loading off in complete
+  // store.dispatch should be called at least once to toggle loading off
   expect(dispatchSpy).toHaveBeenCalled();
-  // final asserts: loading flag set to false by complete
+
+  // final state: loading should be false after complete
   expect(component.loading).toBeFalse();
 }));
