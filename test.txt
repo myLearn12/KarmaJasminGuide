@@ -1,25 +1,40 @@
-it('GenerateTableRows(): error branch -> should set isData=false, call displayServiceErrors, set loading=false, dispatch LOADINGACTION(false) and disableButtonAction=false', fakeAsync(() => {
-  // mock feeApiservice.postRequest to throw an error immediately
-  const mockError = { error: { statusMessage: 'server failed' } };
+// --- test case: returns early when form validation fails ---
+it('onSearchButtonClick(): returns early when ValidateFormControls() is true', () => {
+  spyOn(component, 'ValidateFormControls').and.returnValue(true);
+  const genSpy = spyOn(component, 'GenerateTableRows');
 
-  (component as any).feeApiservice = {
-    postRequest: jasmine.createSpy('postRequest')
-      .and.returnValue(throwError(mockError))
-  } as any;
+  component.onSearchButtonClick();
 
-  // spies
-  const displaySpy = spyOn(component as any, 'displayServiceErrors');
-  const dispatchSpy = spyOn(component['store'], 'dispatch');
+  expect(genSpy).not.toHaveBeenCalled();
+});
 
-  // act
-  component.GenerateTableRows();
-  flushMicrotasks();
+// --- test case: invalid date range -> shows warning and returns (no GenerateTableRows) ---
+it('onSearchButtonClick(): when selectedFromDate > selectedToDate it sets warning and returns', () => {
+  spyOn(component, 'ValidateFormControls').and.returnValue(false);
 
-  // asserts
-  expect((component as any).feeApiservice.postRequest).toHaveBeenCalled();
-  expect(component.isData).toBeFalse();
-  expect(displaySpy).toHaveBeenCalledWith('server failed');
-  expect(component.loading).toBeFalse();
-  expect(dispatchSpy).toHaveBeenCalledWith(jasmine.any(Object)); // LOADINGACTION(false)
-  expect(component.disbleButtonAction).toBeFalse();
-}));
+  // make utils.ToDate behave like Date parsing
+  spyOn(component['utils'], 'ToDate').and.callFake((d: any) => new Date(d));
+
+  // set from/to so from > to
+  component.selectedFromDate = '2025-02-02';
+  component.selectedToDate = '2025-01-01';
+
+  const setMsgSpy = spyOn(component, 'SetMessageTypeAndValue');
+  const genSpy = spyOn(component, 'GenerateTableRows');
+
+  component.onSearchButtonClick();
+
+  expect(setMsgSpy).toHaveBeenCalledWith(
+    jasmine.anything(),                      // BlockMessageType.warning (enum)
+    jasmine.stringMatching(/From Date should be less than To Date/i)
+  );
+  expect(genSpy).not.toHaveBeenCalled();
+});
+
+// --- test case: valid date range -> sets flags, dispatches LOADINGACTION(true) and calls GenerateTableRows() ---
+it('onSearchButtonClick(): with valid dates sets loading flags, dispatches LOADINGACTION(true) and calls GenerateTableRows()', () => {
+  spyOn(component, 'ValidateFormControls').and.returnValue(false);
+  spyOn(component['utils'], 'ToDate').and.callFake((d: any) => new Date(d));
+
+  component.selectedFromDate = '2025-01-01';
+ 
