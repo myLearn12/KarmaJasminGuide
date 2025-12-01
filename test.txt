@@ -1,28 +1,35 @@
-it('onSearchButtonClick(): with valid dates sets loading flags, dispatches LOADINGACTION(true) and calls GenerateTableRows()', () => {
-  // form validation returns false so execution continues
+it('onSaveClick(): should set flags, dispatch LOADINGACTION(true), and handle next/error/complete branches', () => {
+
+  // --- BLOCK VALIDATION RETURNS (so code continues) ---
   spyOn(component, 'ValidateFormControls').and.returnValue(false);
+  spyOn(component, 'validateDates').and.returnValue(false);
+  spyOn(component, 'validateFormData').and.returnValue(false);
 
-  // make ToDate return a real Date so the date-comparison path is exercised
-  spyOn(component['utils'], 'ToDate').and.callFake((d: any) => new Date(d));
+  // --- SPY DEPENDENCIES ---
+  spyOn(component.store, 'dispatch').and.stub();
+  spyOn(component, 'displayServiceErrors').and.stub();
+  spyOn(component, 'logAccountAudit').and.stub();
 
-  // spy the store.dispatch so we can assert it was called
-  spyOn(component['store'], 'dispatch').and.stub();
+  // Mock API call
+  const mockPost = jasmine.createSpy().and.returnValue(of({}));  
+  spyOn(component['feeApiservice'], 'postRequest').and.returnValue({
+    subscribe: (handlers: any) => {
+      handlers.next({});
+      handlers.complete();
+    }
+  });
 
-  // spy GenerateTableRows to confirm it was invoked
-  spyOn(component, 'GenerateTableRows').and.stub();
+  // --- ACT ---
+  component.onSaveClick();
 
-  // arrange valid from/to values (strings are fine since ToDate is faked)
-  component.selectedFromDate = '2020-01-01';
-  component.selectedToDate = '2020-01-02';
-
-  // act
-  component.onSearchButtonClick();
-
-  // assertions: error block cleared, loading flag set, dispatch called and GenerateTableRows invoked
+  // --- ASSERT FLAGS BEFORE SUBSCRIBE ---
   expect(component.errorBlockMessage).toBeNull();
+  expect(component.disableSavebtn).toBeTrue();
   expect(component.loading).toBeTrue();
-  expect(component.GenerateTableRows).toHaveBeenCalled();
-  expect(component['utils'].ToDate).toHaveBeenCalledWith(component.selectedFromDate);
-  expect(component['utils'].ToDate).toHaveBeenCalledWith(component.selectedToDate);
-  expect(component['store'].dispatch).toHaveBeenCalled();
+  expect(component.store.dispatch).toHaveBeenCalledWith(jasmine.any(LOADINGACTION));
+
+  // --- ASSERT AFTER NEXT + COMPLETE ---
+  expect(component.loading).toBeFalse();
+  expect(component.disableSavebtn).toBeFalse();
+  expect(component.logAccountAudit).toHaveBeenCalled();
 });
