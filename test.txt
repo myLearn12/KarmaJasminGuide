@@ -1,19 +1,23 @@
-it('isNullOrEmpty(): should return true when value is null', () => {
-  expect(component.isNullOrEmpty(null)).toBeTrue();
-});
+describe('canProcessRecord()', () => {
 
-it('isNullOrEmpty(): should return true when value is undefined', () => {
-  expect(component.isNullOrEmpty(undefined as any)).toBeTrue();
-});
+  it('should hide confirm modal and call processRecord when canProceed = true', () => {
+    spyOn(component.confirmModal, 'hide');
+    spyOn(component, 'processRecord');
 
-it('isNullOrEmpty(): should return true when value is empty string', () => {
-  expect(component.isNullOrEmpty('')).toBeTrue();
-});
+    component.canProcessRecord(true);
 
-it('isNullOrEmpty(): should return true when value is spaces only', () => {
-  expect(component.isNullOrEmpty('   ')).toBeTrue();
-});
+    expect(component.confirmModal.hide).toHaveBeenCalled();
+    expect(component.processRecord).toHaveBeenCalled();
+  });
 
-it('isNullOrEmpty(): should return false when value contains characters', () => {
-  expect(component.isNullOrEmpty('ABC')).toBeFalse();
+  it('should hide confirm modal and NOT call processRecord when canProceed = false', () => {
+    spyOn(component.confirmModal, 'hide');
+    spyOn(component, 'processRecord');
+
+    component.canProcessRecord(false);
+
+    expect(component.confirmModal.hide).toHaveBeenCalled();
+    expect(component.processRecord).not.toHaveBeenCalled();
+  });
+
 });
