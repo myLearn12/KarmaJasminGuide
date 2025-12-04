@@ -1,27 +1,40 @@
-it('setIsOfcrNmbrValid(): when cbOfficer.value === null sets isOfcrNmbrValid = true', () => {
-  // arrange: ensure cbOfficer exists and value is null
-  (component as any).cbOfficer = { value: null };
+it('setIsRevShareValid(): invalid revshare should set isRevShareValid = false', () => {
+  component.account = { revshare: 'abc' }; // not numeric
 
-  // pre-check (optional)
-  component.isOfcrNmbrValid = false;
+  spyOn(component['utils'], 'isStringValid').and.returnValue(true);
 
-  // act
-  (component as any).setIsOfcrNmbrValid();
+  (component as any).setIsRevShareValid();
 
-  // assert
-  expect(component.isOfcrNmbrValid).toBeTrue();
+  expect(component.isRevShareValid).toBeFalse();
 });
 
-it('setIsOfcrNmbrValid(): when cbOfficer.value is non-null sets isOfcrNmbrValid = false', () => {
-  // arrange: cbOfficer has a non-null value
-  (component as any).cbOfficer = { value: 'OFF123' };
+it('setIsRevShareValid(): valid decimal revshare should set isRevShareValid = true', () => {
+  component.account = { revshare: '0.5' };
 
-  // pre-check (optional)
-  component.isOfcrNmbrValid = true;
+  spyOn(component['utils'], 'isStringValid').and.returnValue(true);
 
-  // act
-  (component as any).setIsOfcrNmbrValid();
+  (component as any).setIsRevShareValid();
 
-  // assert
-  expect(component.isOfcrNmbrValid).toBeFalse();
+  expect(component.isRevShareValid).toBeTrue();
+});
+
+it('setIsRevShareValid(): valid integer revshare should set isRevShareValid = true', () => {
+  component.account = { revshare: '1' };
+
+  spyOn(component['utils'], 'isStringValid').and.returnValue(true);
+
+  (component as any).setIsRevShareValid();
+
+  expect(component.isRevShareValid).toBeTrue();
+});
+
+it('setIsRevShareValid(): one decimal place should convert toFixed(2) and set true', () => {
+  component.account = { revshare: '0.7' };
+
+  spyOn(component['utils'], 'isStringValid').and.returnValue(true);
+
+  (component as any).setIsRevShareValid();
+
+  expect(component.isRevShareValid).toBeTrue();
+  expect(component.account.revshare).toBe('0.70'); // formatted
 });
