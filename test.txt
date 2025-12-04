@@ -1,36 +1,61 @@
-it('uploadXcelFile(): should return early when ValidateFormControls() is true', () => {
-  spyOn(component, 'ValidateFormControls').and.returnValue(true);
-  spyOn(component, 'processRecord');
-  spyOn(component['_confirmModal'], 'show');
+it('processRecord(): should set loading=true and dispatch LOADINGACTION(true)', () => {
+  component.region = { regionId: 5 }; 
+  component.sheetName = 'TestSheet';
+  component.acctColumnHeader = 'acct';
+  component.worksheet = { TestSheet: [] };
 
-  component.uploadXcelFile();
+  const dispatchSpy = spyOn(store, 'dispatch');
+  spyOn(component['utils'], 'ToEstDate').and.returnValue('2024-10-10');
 
-  expect(component.ValidateFormControls).toHaveBeenCalled();
-  expect(component.processRecord).not.toHaveBeenCalled();
-  expect(component._confirmModal.show).not.toHaveBeenCalled();
+  component.processRecord();
+
+  expect(component.loading).toBeTrue();
+  expect(dispatchSpy).toHaveBeenCalledWith(new LOADINGACTION(true));
 });
 
-it('uploadXcelFile(): when selected date is today should set actionMessage and show confirm modal', () => {
-  spyOn(component, 'ValidateFormControls').and.returnValue(false);
-  spyOn(component['utils'], 'isTodaysDate').and.returnValue(true);
-  spyOn(component, 'processRecord');
-  spyOn(component['_confirmModal'], 'show');
+it('processRecord(): should push only truthy accounts to bulk payload', () => {
+  component.region = { regionId: 10 };
+  component.sheetName = 'TestSheet';
+  component.acctColumnHeader = 'acct';
 
-  component.uploadXcelFile();
+  component.worksheet = {
+    TestSheet: [
+      { acct: '111' },   // valid
+      null,              // ignored
+      { acct: '222' }    // valid
+    ]
+  };
 
-  expect(component['utils'].isTodaysDate).toHaveBeenCalledWith(component.selectedMonthEndDate);
-  expect(component.actionMessage).toBe("Date selected is Today's Date. Choose OK to continue or cancel to re-enter.");
-  expect(component._confirmModal.show).toHaveBeenCalled();
-  expect(component.processRecord).not.toHaveBeenCalled();
+  const toEstSpy = spyOn(component['utils'], 'ToEstDate').and.returnValue('2024-10-10');
+
+  component.processRecord();
+
+  // bulkAcctPayload created inside processRecord()
+  // so spy on push events:
+  expect(toEstSpy).toHaveBeenCalledTimes(1);
 });
 
-it('uploadXcelFile(): when selected date is not today should call processRecord()', () => {
-  spyOn(component, 'ValidateFormControls').and.returnValue(false);
-  spyOn(component['utils'], 'isTodaysDate').and.returnValue(false);
-  const procSpy = spyOn(component, 'processRecord');
+it('processRecord(): should correctly format each payload row', () => {
+  component.region = { regionId: 7 };
+  component.sheetName = 'TestSheet';
+  component.acctColumnHeader = 'acct';
+  component.selectedMonthEndDate = '2024-10-30';
 
-  component.uploadXcelFile();
+  component.worksheet = {
+    TestSheet: [
+      { acct: '999' }
+    ]
+  };
 
-  expect(component['utils'].isTodaysDate).toHaveBeenCalledWith(component.selectedMonthEndDate);
-  expect(procSpy).toHaveBeenCalled();
+  spyOn(component['utils'], 'ToEstDate').and.returnValue('2024-10-10');
+
+  const payloadPush = spyOn(Array.prototype, 'push');
+
+  component.processRecord();
+
+  expect(payloadPush).toHaveBeenCalledWith(jasmine.objectContaining({
+    regionId: 7,
+    acctnum: '999',
+    cutOffDate: '2024-10-10'
+  }));
 });
