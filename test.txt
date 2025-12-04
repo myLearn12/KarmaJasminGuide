@@ -1,154 +1,27 @@
-// Paste this as-is into your spec file (standalone it/it blocks, no describe required).
-// Replace `component` with the variable name used in your spec if different.
+it('setIsOfcrNmbrValid(): when cbOfficer.value === null sets isOfcrNmbrValid = true', () => {
+  // arrange: ensure cbOfficer exists and value is null
+  (component as any).cbOfficer = { value: null };
 
-it('onSaveClick(): robust success path (sets all likely inputs and runs next+complete)', fakeAsync(() => {
-  // make validations allow execution
-  spyOn(component as any, 'ValidateFormControls').and.returnValue(false);
-  spyOn(component as any, 'validateDates').and.returnValue(false);
-  spyOn(component as any, 'validateFormData').and.returnValue(false);
+  // pre-check (optional)
+  component.isOfcrNmbrValid = false;
 
-  // --- Provide safe utils with all commonly-used helpers the class might call ---
-  (component as any).utils = {
-    isStringValid: (s: any) => typeof s === 'string' && s.trim().length > 0,
-    ToEstDate: () => '2025-01-01T00:00:00.000Z',
-    getCurrentUser: () => 'TEST_USER',
-    ToDate: (d?: any) => d ? new Date(d) : new Date(),
-    ToExcelTitleDate: () => '2025-01-01',
-    getFormatedString: (s: any) => s == null ? '' : String(s),
-    getDisplayDate: (d:any)=> d ? '2025-01-01' : '',
-    LoadComboBoxData: (arr: any[], label: string) => (arr || []).map(a => ({ label: a[label] || 'L', value: a[label + 'Id'] || a.value || 'v' })),
-    getPerPageItem: () => 10,
-    getFilterTextMaxLength: () => 100,
-    getFormattedDecimal: (v:any) => v
-  } as any;
+  // act
+  (component as any).setIsOfcrNmbrValid();
 
-  // --- Replace private store & feeApiservice & auditLogService & any modals used ---
-  (component as any).store = { dispatch: jasmine.createSpy('dispatch') } as any;
-  (component as any).feeApiservice = {
-    postRequest: jasmine.createSpy('postRequest').and.returnValue(of({})), // success path
-    putRequest: jasmine.createSpy('putRequest').and.returnValue(of({})),
-    getRequest: jasmine.createSpy('getRequest').and.returnValue(of([]))
-  } as any;
-  (component as any).auditLogService = {
-    writeAuditLog: jasmine.createSpy('writeAuditLog'),
-    addAction: 'ADD',
-    updateAction: 'UPDATE'
-  } as any;
+  // assert
+  expect(component.isOfcrNmbrValid).toBeTrue();
+});
 
-  // --- Provide every combo / viewchild or control that the code might call .value/toString() on ---
-  (component as any)._categoryComboBox = { value: '1', options: [] };
-  (component as any)._minorComboBox = { value: 'AM1', options: [] };
-  (component as any)._costCenterComboBox = { value: '100', options: [] };
-  (component as any)._divisionComboBox = { value: '20', options: [] };
-  (component as any)._revenueShareComboBox = { value: '10', options: [] };
-  (component as any)._controlIdComboBox = { value: '200', options: [] };
-  (component as any)._branchCdComboBox = { value: 'B1', options: [] };
-  (component as any)._actionModal = { show: () => {}, hide: () => {} } as any;
-  (component as any)._alertModal = { hide: () => {} } as any;
-  (component as any)._successModal = { show: () => {} } as any;
+it('setIsOfcrNmbrValid(): when cbOfficer.value is non-null sets isOfcrNmbrValid = false', () => {
+  // arrange: cbOfficer has a non-null value
+  (component as any).cbOfficer = { value: 'OFF123' };
 
-  // --- Provide any arrays used with .find() or .filter() ---
-  (component as any).categories = [{ categoryId: 1, categoryDescription: 'Estate', categoryCode: '4' }];
-  (component as any).accountMinors = [{ acctMnrTypeCode: 'AM1', acctMnrTypeDesc: 'Minor A' }];
-  (component as any).costCenters = [{ costCenterNbr: '100', costCenterDesc: 'Cost A', costCenterId: 1 }];
-  (component as any).divisions = [{ divisionId: 20, divisionCd: 'D1', divisionDesc: 'Division A' }];
-  (component as any).revenueShares = [{ revShareTypeId: 10, revShareTypeDesc: 'Revenue A', revShareTypeCd: 'R1' }];
-  (component as any).controlIds = [{ conId: 200, controlDesc: 'Control 200' }];
-  (component as any).branchCds = [{ branchCode: 'B1', branchDesc: 'Branch 1' }];
-  (component as any).revShareDivMappingList = [{ divisionId: 20, revShareTypeId: 10, revShareTypeCd: 'R1', revShareDesc: 'Revenue A' }];
-  (component as any).costCentersList = [{ costCenterId: 1, costCenterNbr: '100' }];
+  // pre-check (optional)
+  component.isOfcrNmbrValid = true;
 
-  // --- Provide the model objects (account, division, etc.) the method reads and updates ---
-  component.account = {
-    accountNbr: 'ACC001',
-    acctNbr: 'ACC001',
-    glAcctNbr: 0,
-    acceptfee: '0',
-    estacc: '0',
-    actpp: '0',
-    cashpp: '0',
-    endpp: '0',
-    feepp: '0',
-    revshare: null,
-    longacctnum: null,
-    pcanumber: null,
-    ozId: null
-  } as any;
+  // act
+  (component as any).setIsOfcrNmbrValid();
 
-  component.division = {
-    divisionId: 11,
-    divisionCd: 'D11',
-    divisionDesc: 'Div 11',
-    costCenterId: 1,
-    abaNbr: '123'
-  } as any;
-
-  // spy any helper methods that should be invoked
-  spyOn(component as any, 'logAccountAudit').and.stub();
-  spyOn(component as any, 'clearSelection').and.stub();
-
-  // initial flags
-  component.disableSavebtn = false;
-  component.loading = false;
-  component.errorBlockMessage = 'initial';
-
-  // Now call. Wrap in try/catch so we can print a clearer message if something still throws.
-  try {
-    component.onSaveClick();
-    tick();
-  } catch (err: any) {
-    // Fail test with the error plus stack to show which property caused .toString()
-    fail('onSaveClick threw: ' + (err && err.message) + '\nSTACK:\n' + (err && err.stack));
-  }
-
-  // Assertions - ensure POST called and store dispatched and audit called on complete
-  expect((component as any).feeApiservice.postRequest).toHaveBeenCalled();
-  expect((component as any).store.dispatch).toHaveBeenCalled();
-  expect((component as any).auditLogService.writeAuditLog).toHaveBeenCalled();
-  expect(component.loading).toBeFalse();
-  expect(component.errorBlockMessage).toBeNull();
-}));
-
-
-it('onSaveClick(): robust error path -> postRequest throws, error branch runs and flags reset', fakeAsync(() => {
-  spyOn(component as any, 'ValidateFormControls').and.returnValue(false);
-  spyOn(component as any, 'validateDates').and.returnValue(false);
-  spyOn(component as any, 'validateFormData').and.returnValue(false);
-
-  // minimal safe setup (same as above but postRequest will throw)
-  (component as any).utils = {
-    isStringValid: (s: any) => typeof s === 'string' && s.trim().length > 0,
-    ToEstDate: () => '2025-01-01T00:00:00.000Z',
-    getCurrentUser: () => 'TEST_USER',
-    getFormatedString: (s: any) => s == null ? '' : String(s)
-  } as any;
-
-  (component as any).store = { dispatch: jasmine.createSpy('dispatch') } as any;
-  const serverErr = { error: { statusMessage: 'server failed', statusCode: '1' } };
-  (component as any).feeApiservice = { postRequest: jasmine.createSpy('postRequest').and.returnValue(throwError(() => serverErr)) } as any;
-
-  // ensure combos and arrays present
-  (component as any)._categoryComboBox = { value: '1' };
-  (component as any)._costCenterComboBox = { value: '100' };
-  component.account = { accountNbr: 'ACC001' } as any;
-  (component as any).categories = [{ categoryId: 1, categoryDescription: 'Estate', categoryCode: '4' }];
-  (component as any).costCenters = [{ costCenterId: 1, costCenterNbr: '100', costCenterDesc: 'Cost A' }];
-
-  // spy displayServiceErrors to assert it was called
-  const dispSpy = spyOn(component as any, 'displayServiceErrors').and.stub();
-
-  // run
-  try {
-    component.onSaveClick();
-    tick();
-  } catch (err: any) {
-    fail('onSaveClick threw unexpectedly: ' + err && err.stack);
-  }
-
-  // asserts for error branch
-  expect((component as any).feeApiservice.postRequest).toHaveBeenCalled();
-  expect(dispSpy).toHaveBeenCalledWith('server failed');
-  expect(component.loading).toBeFalse();
-  expect(component.disableSavebtn).toBeFalse();
-  expect((component as any).store.dispatch).toHaveBeenCalled();
-}));
+  // assert
+  expect(component.isOfcrNmbrValid).toBeFalse();
+});
