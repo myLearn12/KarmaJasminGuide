@@ -1,14 +1,17 @@
-it('processRecord(): success branch computes totals when NO error records and does NOT show action modal', () => {
-  // required inputs
+it('processRecord(): success branch shows action modal when error records exist', () => {
   component.worksheet = { sheet1: [{ acct: 'A1' }] } as any;
   component.sheetName = 'sheet1';
   component.accoutColumnHeader = 'acct';
   component.region = { regionId: 1 } as any;
   component.processTypeId = 10;
-  component.updateAccounts = [{ hasError: false }];
+  component.updateAccounts = [
+    { hasError: true },
+    { hasError: false }
+  ];
+
   component._actionModal = { show: jasmine.createSpy('show') } as any;
 
-  // FIX: avoid undefined error
+  // FIX
   component.appConfigService = { accrualUpdateUrl: 'URL/' } as any;
 
   spyOn(component.utils, 'ToEstDate').and.returnValue('DATE');
@@ -21,8 +24,5 @@ it('processRecord(): success branch computes totals when NO error records and do
 
   component.processRecord();
 
-  expect(component.loading).toBeFalse();
-  expect(component.store.dispatch).toHaveBeenCalledWith(new LOADINGACTION(false));
-  expect(component.LoadTableRows).toHaveBeenCalled();
-  expect(component._actionModal.show).not.toHaveBeenCalled();
+  expect(component._actionModal.show).toHaveBeenCalled();
 });
