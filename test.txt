@@ -1,37 +1,22 @@
-it('InitialDataLoad(): next branch - calls LoadRegionData and dispatches LOADINGACTION(false)', () => {
-  // Arrange - ensure required private/protected properties exist
-  (component as any).regionid = 123;
+it('InitialDataLoad(): error branch - calls displayServiceErrors and dispatches LOADINGACTION(false)', () => {
+  (component as any).regionid = 999;
   (component as any).appConfigService = {
     getRegionByIdUrl: '/regionById/',
     getProcessControlConfigByType: '/procByType/'
   };
-  // spyable service stubs
+
+  // feeApiService stub: make at least one call error (forkJoin will error)
   const feeApiSpy = jasmine.createSpyObj('feeApiService', ['getRequest']);
-  // region endpoint -> object
   feeApiSpy.getRequest.and.callFake((url: string) => {
-    if (url.indexOf('/regionById/') === 0 || url.includes('/regionById/')) {
-      return of({ regionId: 1, regionDescription: 'R1' });
+    if (url.includes('/regionById/')) {
+      // make the region call error
+      return throwError({ error: { statusMessage: 'REGION_ERR' } });
     }
-    // processType endpoint -> object having processType key
-    if (url.indexOf('/procByType/') === 0 || url.includes('/procByType/')) {
-      return of({ processType: { processTypeId: 42 } });
-    }
-    return of([] as any);
+    // other call (if any)
+    return of({ processType: null });
   });
   (component as any).feeApiservice = feeApiSpy;
 
-  // store stub and spies
+  // store + displayServiceErrors spies
   const storeSpy = jasmine.createSpyObj('store', ['dispatch']);
-  (component as any).store = storeSpy;
-
-  // spy LoadRegionData so we can assert it was called with region
-  spyOn(component as any, 'LoadRegionData').and.callThrough();
-
-  // Act
-  (component as any).InitialDataLoad();
-
-  // Assert
-  expect((component as any).LoadRegionData).toHaveBeenCalledWith(jasmine.objectContaining({ regionId: 1, regionDescription: 'R1' }));
-  expect((component as any).processTypeId).toBe(42);
-  expect(storeSpy.dispatch).toHaveBeenCalled(); // LOADINGACTION(false) dispatched at least once
-});
+  (component as any
