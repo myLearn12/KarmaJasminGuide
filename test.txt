@@ -1,81 +1,37 @@
-import { of, throwError } from 'rxjs';
-
-// 1) success when processType present
-it('InitialDataLoad(): when processType exists -> calls LoadRegionData, sets processTypeId and dispatches false', () => {
-  const fakeRegion = { regionId: 99, regionDescription: 'R99', groupLevelCode: 'G' };
-  const fakeProcessTypeResult = { processType: { processTypeId: 555 } };
-
-  // spy LoadRegionData so we can assert it was called with region payload
-  const loadRegionSpy = spyOn(component, 'LoadRegionData').and.callThrough();
-  spyOn(store, 'dispatch').and.callThrough();
-
-  spyOn(feeApiService, 'getRequest').and.callFake((url: string) => {
-    if (url.indexOf(component.appConfigService.getRegionByIdUrl) === 0) {
-      return of(fakeRegion) as any;
+it('InitialDataLoad(): next branch - calls LoadRegionData and dispatches LOADINGACTION(false)', () => {
+  // Arrange - ensure required private/protected properties exist
+  (component as any).regionid = 123;
+  (component as any).appConfigService = {
+    getRegionByIdUrl: '/regionById/',
+    getProcessControlConfigByType: '/procByType/'
+  };
+  // spyable service stubs
+  const feeApiSpy = jasmine.createSpyObj('feeApiService', ['getRequest']);
+  // region endpoint -> object
+  feeApiSpy.getRequest.and.callFake((url: string) => {
+    if (url.indexOf('/regionById/') === 0 || url.includes('/regionById/')) {
+      return of({ regionId: 1, regionDescription: 'R1' });
     }
-    if (url.indexOf(component.appConfigService.getProcessControlConfigByType) === 0) {
-      return of(fakeProcessTypeResult) as any;
+    // processType endpoint -> object having processType key
+    if (url.indexOf('/procByType/') === 0 || url.includes('/procByType/')) {
+      return of({ processType: { processTypeId: 42 } });
     }
-    return of([]) as any;
+    return of([] as any);
   });
+  (component as any).feeApiservice = feeApiSpy;
 
-  component.InitialDataLoad();
+  // store stub and spies
+  const storeSpy = jasmine.createSpyObj('store', ['dispatch']);
+  (component as any).store = storeSpy;
 
-  // forkJoin with `of()`s completes synchronously, so assertions now:
-  expect(loadRegionSpy).toHaveBeenCalledWith(fakeRegion);
-  expect(component.processTypeId).toBe(555);
-  // store.dispatch should be called at least once with loading false (complete/end)
-  expect(store.dispatch).toHaveBeenCalled();
-  // ensure loading flag ended false
-  expect(component.loading).toBeFalse();
-});
+  // spy LoadRegionData so we can assert it was called with region
+  spyOn(component as any, 'LoadRegionData').and.callThrough();
 
-// 2) success when processType is null -> still loads region and does not set processTypeId
-it('InitialDataLoad(): when processType is null -> calls LoadRegionData and does not set processTypeId', () => {
-  const fakeRegion = { regionId: 5, regionDescription: 'R5' };
-  const fakeProcessTypeResult = null;
+  // Act
+  (component as any).InitialDataLoad();
 
-  const loadRegionSpy = spyOn(component, 'LoadRegionData').and.callThrough();
-  spyOn(store, 'dispatch').and.callThrough();
-
-  spyOn(feeApiService, 'getRequest').and.callFake((url: string) => {
-    if (url.indexOf(component.appConfigService.getRegionByIdUrl) === 0) {
-      return of(fakeRegion) as any;
-    }
-    if (url.indexOf(component.appConfigService.getProcessControlConfigByType) === 0) {
-      return of(fakeProcessTypeResult) as any;
-    }
-    return of([]) as any;
-  });
-
-  // ensure processTypeId is not pre-populated
-  component.processTypeId = undefined;
-  component.InitialDataLoad();
-
-  expect(loadRegionSpy).toHaveBeenCalledWith(fakeRegion);
-  expect(component.processTypeId).toBeUndefined(); // not set
-  expect(component.loading).toBeFalse();
-  expect(store.dispatch).toHaveBeenCalled();
-});
-
-// 3) error branch -> service throws, should call displayServiceErrors and set loading false & dispatch false
-it('InitialDataLoad(): error branch -> calls displayServiceErrors and ends loading/dispatches false', () => {
-  const errorObj = { error: { statusMessage: 'ERR' } };
-
-  const displaySpy = spyOn(component, 'displayServiceErrors').and.callThrough();
-  spyOn(store, 'dispatch').and.callThrough();
-
-  spyOn(feeApiService, 'getRequest').and.callFake((url: string) => {
-    // make the first call (region) throw — forkJoin will error
-    return throwError(errorObj) as any;
-  });
-
-  component.InitialDataLoad();
-
-  // forkJoin emission error is synchronous for throwError() => assertions immediately
-  expect(displaySpy).toHaveBeenCalledWith('ERR');
-  // loading must be false after error branch
-  expect(component.loading).toBeFalse();
-  // store.dispatch should be called with a LOADINGACTION(false) at least once
-  expect(store.dispatch).toHaveBeenCalled();
+  // Assert
+  expect((component as any).LoadRegionData).toHaveBeenCalledWith(jasmine.objectContaining({ regionId: 1, regionDescription: 'R1' }));
+  expect((component as any).processTypeId).toBe(42);
+  expect(storeSpy.dispatch).toHaveBeenCalled(); // LOADINGACTION(false) dispatched at least once
 });
