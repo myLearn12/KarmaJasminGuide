@@ -1,23 +1,36 @@
-describe('canProcessRecord()', () => {
+it('uploadXcelFile(): should return early when ValidateFormControls() is true', () => {
+  spyOn(component, 'ValidateFormControls').and.returnValue(true);
+  spyOn(component, 'processRecord');
+  spyOn(component['_confirmModal'], 'show');
 
-  it('should hide confirm modal and call processRecord when canProceed = true', () => {
-    spyOn(component.confirmModal, 'hide');
-    spyOn(component, 'processRecord');
+  component.uploadXcelFile();
 
-    component.canProcessRecord(true);
+  expect(component.ValidateFormControls).toHaveBeenCalled();
+  expect(component.processRecord).not.toHaveBeenCalled();
+  expect(component._confirmModal.show).not.toHaveBeenCalled();
+});
 
-    expect(component.confirmModal.hide).toHaveBeenCalled();
-    expect(component.processRecord).toHaveBeenCalled();
-  });
+it('uploadXcelFile(): when selected date is today should set actionMessage and show confirm modal', () => {
+  spyOn(component, 'ValidateFormControls').and.returnValue(false);
+  spyOn(component['utils'], 'isTodaysDate').and.returnValue(true);
+  spyOn(component, 'processRecord');
+  spyOn(component['_confirmModal'], 'show');
 
-  it('should hide confirm modal and NOT call processRecord when canProceed = false', () => {
-    spyOn(component.confirmModal, 'hide');
-    spyOn(component, 'processRecord');
+  component.uploadXcelFile();
 
-    component.canProcessRecord(false);
+  expect(component['utils'].isTodaysDate).toHaveBeenCalledWith(component.selectedMonthEndDate);
+  expect(component.actionMessage).toBe("Date selected is Today's Date. Choose OK to continue or cancel to re-enter.");
+  expect(component._confirmModal.show).toHaveBeenCalled();
+  expect(component.processRecord).not.toHaveBeenCalled();
+});
 
-    expect(component.confirmModal.hide).toHaveBeenCalled();
-    expect(component.processRecord).not.toHaveBeenCalled();
-  });
+it('uploadXcelFile(): when selected date is not today should call processRecord()', () => {
+  spyOn(component, 'ValidateFormControls').and.returnValue(false);
+  spyOn(component['utils'], 'isTodaysDate').and.returnValue(false);
+  const procSpy = spyOn(component, 'processRecord');
 
+  component.uploadXcelFile();
+
+  expect(component['utils'].isTodaysDate).toHaveBeenCalledWith(component.selectedMonthEndDate);
+  expect(procSpy).toHaveBeenCalled();
 });
