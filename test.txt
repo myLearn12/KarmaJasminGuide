@@ -1,24 +1,95 @@
-it('processRecord(): error branch dispatches LOADINGACTION(false) as last dispatch and calls displayServiceErrors', fakeAsync(() => {
-  component.sheetName = 'sheet1';
-  component.accoutColumnHeader = 'acct';
-  component.worksheet = { sheet1: [{ acct: 'A1' }] } as any;
-  component.region = { regionId: 1 } as any;
-  component.processTypeId = 10;
-  component._actionModal = { show: jasmine.createSpy('show') } as any;
-  component.appConfigService = { accrualUpdateUrl: 'URL/' } as any;
+import { of, throwError, EMPTY } from 'rxjs';
+import { fakeAsync, tick } from '@angular/core/testing';
 
-  spyOn(component.utils, 'ToEstDate').and.returnValue('DATE');
-  spyOn(component.utils, 'getCurrentUser').and.returnValue('USER');
+// test 1: next branch when processType is present
+it('InitialDataLoad(): next branch with processType sets processTypeId, loading false and dispatches LOADINGACTION(false)', fakeAsync(() => {
+  // arrange
+  component.appConfigService = component.appConfigService || {} as any;
+  component.appConfigService.getRegionByIdUrl = 'regionUrl/';
+  component.appConfigService.getProcessControlConfigByType = 'processCtrlUrl/';
+
+  const fakeRegion = { regionId: 10, regionDescription: 'R10', groupLevelCode: 'G' };
+  // component expects result.processType['processTypeId'] based on screenshot
+  const fakeProcessTypeResult = { processType: { processTypeId: 555 } };
+
+  spyOn(feeApiService, 'getRequest').and.callFake((url: string) => {
+    if (url.indexOf(component.appConfigService.getRegionByIdUrl) === 0) {
+      return of(fakeRegion);
+    }
+    if (url.indexOf(component.appConfigService.getProcessControlConfigByType) === 0) {
+      return of(fakeProcessTypeResult);
+    }
+    return of({});
+  });
+
+  const loadRegionSpy = spyOn(component, 'LoadRegionData').and.callThrough();
   const dispatchSpy = spyOn(component.store, 'dispatch');
-  const displaySpy = spyOn(component, 'displayServiceErrors');
-  spyOn(feeApiService, 'postRequest').and.returnValue(throwError(() => ({ error: { statusMessage: 'ERR' } })));
-
-  component.processRecord();
+  // act
+  component.InitialDataLoad();
   tick();
 
-  // last call to dispatch should be LOADINGACTION(false)
-  const lastArg = dispatchSpy.calls.mostRecent().args[0];
-  expect(lastArg.payload).toBeFalse();
+  // assert
+  expect(loadRegionSpy).toHaveBeenCalledWith(fakeRegion);
+  expect(component.processTypeId).toEqual(555);
+  expect(component.loading).toBeFalse();
+  // confirm LOADINGACTION(false) was dispatched at least once
+  const dispatched = dispatchSpy.calls.allArgs().map(a => a[0]);
+  expect(dispatched.some(d => d && d.payload === false)).toBeTrue();
+}));
 
+// test 2: error branch
+it('InitialDataLoad(): error branch should call displayServiceErrors and dispatch LOADINGACTION(false)', fakeAsync(() => {
+  // arrange
+  component.appConfigService = component.appConfigService || {} as any;
+  component.appConfigService.getRegionByIdUrl = 'regionUrl/';
+  component.appConfigService.getProcessControlConfigByType = 'processCtrlUrl/';
+
+  const fakeError = { error: { statusMessage: 'ERR' } };
+
+  spyOn(feeApiService, 'getRequest').and.callFake((url: string) => {
+    // make the first forkJoin request throw
+    if (url.indexOf(component.appConfigService.getRegionByIdUrl) === 0) {
+      return throwError(() => fakeError);
+    }
+    // fallback (not used because error thrown above)
+    return of({});
+  });
+
+  const displaySpy = spyOn(component, 'displayServiceErrors').and.callThrough();
+  const dispatchSpy = spyOn(component.store, 'dispatch');
+
+  // act
+  component.InitialDataLoad();
+  tick();
+
+  // assert
   expect(displaySpy).toHaveBeenCalledWith('ERR');
+  expect(component.loading).toBeFalse();
+  const dispatched = dispatchSpy.calls.allArgs().map(a => a[0]);
+  expect(dispatched.some(d => d && d.payload === false)).toBeTrue();
+}));
+
+// test 3: complete branch (ensures loading false and dispatch false on completion)
+it('InitialDataLoad(): complete branch dispatches LOADINGACTION(false) and sets loading false', fakeAsync(() => {
+  // arrange
+  component.appConfigService = component.appConfigService || {} as any;
+  component.appConfigService.getRegionByIdUrl = 'regionUrl/';
+  component.appConfigService.getProcessControlConfigByType = 'processCtrlUrl/';
+
+  // return simple observables that complete; next() may or may not run but complete() will run after forkJoin completes
+  spyOn(feeApiService, 'getRequest').and.callFake((url: string) => {
+    // return an empty response or minimal object; we want the complete handler to execute
+    return of({});
+  });
+
+  const dispatchSpy = spyOn(component.store, 'dispatch');
+
+  // act
+  component.InitialDataLoad();
+  tick();
+
+  // assert complete side-effects
+  expect(component.loading).toBeFalse();
+  const dispatched = dispatchSpy.calls.allArgs().map(a => a[0]);
+  expect(dispatched.some(d => d && d.payload === false)).toBeTrue();
 }));
