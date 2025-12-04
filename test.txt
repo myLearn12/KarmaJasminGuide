@@ -1,22 +1,121 @@
-it('InitialDataLoad(): error branch - calls displayServiceErrors and dispatches LOADINGACTION(false)', () => {
-  (component as any).regionid = 999;
+// put these imports at top of your spec file
+import { of, throwError } from 'rxjs';
+import { LOADINGACTION } from 'path-to-loading-action'; // if you need it; otherwise keep jasmine checks
+
+// 1) NEXT branch: forkJoin returns region + processType
+it('InitialDataLoad(): next branch - loads region, assigns processTypeId and dispatches LOADINGACTION(false)', () => {
+  // set private/protected services on component
   (component as any).appConfigService = {
     getRegionByIdUrl: '/regionById/',
-    getProcessControlConfigByType: '/procByType/'
+    getProcessControlConfigByType: '/processByType/'
   };
 
-  // feeApiService stub: make at least one call error (forkJoin will error)
-  const feeApiSpy = jasmine.createSpyObj('feeApiService', ['getRequest']);
-  feeApiSpy.getRequest.and.callFake((url: string) => {
-    if (url.includes('/regionById/')) {
-      // make the region call error
-      return throwError({ error: { statusMessage: 'REGION_ERR' } });
-    }
-    // other call (if any)
-    return of({ processType: null });
-  });
-  (component as any).feeApiservice = feeApiSpy;
+  // spy LoadRegionData (private/protected)
+  spyOn(component as any, 'LoadRegionData');
 
-  // store + displayServiceErrors spies
-  const storeSpy = jasmine.createSpyObj('store', ['dispatch']);
-  (component as any
+  // mock feeApiservice.getRequest to return different observables based on URL
+  (component as any).feeApiservice = {
+    getRequest: (url: string) => {
+      if (url.indexOf('/regionById/') === 0 || url.includes('/regionById/')) {
+        return of({ regionId: 123, regionDescription: 'R1' }); // region object
+      }
+      if (url.indexOf('/processByType/') === 0 || url.includes('/processByType/')) {
+        return of({ processType: { processTypeId: 777 } }); // processType result
+      }
+      return of([]); // fallback
+    }
+  };
+
+  // stub store.dispatch
+  const storeSpy = spyOn((component as any).store, 'dispatch').and.callThrough();
+
+  // now call the method under test
+  (component as any).regionid = 1; // required by URL concat
+  (component as any).InitialDataLoad();
+
+  // assertions
+  expect((component as any).LoadRegionData).toHaveBeenCalledWith(jasmine.objectContaining({ regionId: 123 }));
+  expect((component as any).processTypeId).toBe(777);
+
+  // assert that dispatch was called with a LOADINGACTION false - could be called by next AND/OR complete
+  // check at least one dispatch call had payload false
+  const calls = storeSpy.calls.allArgs().map(a => a[0]);
+  const hasFalse = calls.some(c => c && (c.payload === false || c.payload === 0 || c.payload === undefined ? false : c.payload === false));
+  // The above tries to be robust; alternatively inspect most recent call:
+  const lastArg = storeSpy.calls.mostRecent().args[0];
+  // Expect the last dispatch to indicate not-loading (payload false)
+  expect(lastArg).toEqual(jasmine.objectContaining({ payload: false }));
+});
+
+
+/* 2) ERROR branch: make one getRequest throw an error -> error handler should call displayServiceErrors and dispatch(false) */
+it('InitialDataLoad(): error branch - calls displayServiceErrors and dispatches LOADINGACTION(false)', () => {
+  // make minimal config service (to avoid undefined property access)
+  (component as any).appConfigService = {
+    getRegionByIdUrl: '/regionById/',
+    getProcessControlConfigByType: '/processByType/'
+  };
+
+  // stub feeApiservice.getRequest so region request errors out
+  (component as any).feeApiservice = {
+    getRequest: (url: string) => {
+      if (url.indexOf('/regionById/') === 0 || url.includes('/regionById/')) {
+        return throwError({ error: { statusMessage: 'ERR' }});
+      }
+      // process type can return something (not used since forkJoin fails on first error)
+      return of({ processType: null });
+    }
+  };
+
+  // spy displayServiceErrors (private)
+  const displaySpy = spyOn(component as any, 'displayServiceErrors').and.callFake(() => {});
+
+  // spy store.dispatch
+  const storeSpy = spyOn((component as any).store, 'dispatch').and.callThrough();
+
+  (component as any).regionid = 1;
+  (component as any).InitialDataLoad();
+
+  // assertions
+  expect(displaySpy).toHaveBeenCalledWith('ERR');
+  const last = storeSpy.calls.mostRecent().args[0];
+  expect(last).toEqual(jasmine.objectContaining({ payload: false }));
+});
+
+
+/* 3) COMPLETE branch: verify final complete handler runs (dispatch false and loading false). 
+   Here we assert that store.dispatch got called with payload false in the final/most recent call and loading=false.
+*/
+it('InitialDataLoad(): complete branch - ensures complete handler sets loading false and dispatches LOADINGACTION(false)', () => {
+  (component as any).appConfigService = {
+    getRegionByIdUrl: '/regionById/',
+    getProcessControlConfigByType: '/processByType/'
+  };
+
+  // Use observables that emit and complete. Both emiters will trigger next then complete.
+  (component as any).feeApiservice = {
+    getRequest: (url: string) => {
+      if (url.indexOf('/regionById/') === 0 || url.includes('/regionById/')) {
+        // region object
+        return of({ regionId: 55, regionDescription: 'R55' });
+      }
+      if (url.indexOf('/processByType/') === 0 || url.includes('/processByType/')) {
+        return of({ processType: { processTypeId: 999 }});
+      }
+      return of([]);
+    }
+  };
+
+  spyOn(component as any, 'LoadRegionData').and.callThrough();
+  const storeSpy = spyOn((component as any).store, 'dispatch').and.callThrough();
+
+  (component as any).regionid = 1;
+  (component as any).InitialDataLoad();
+
+  // After synchronous emission, final dispatch should represent "false" (not loading)
+  const lastDispatchArg = storeSpy.calls.mostRecent().args[0];
+  expect(lastDispatchArg).toEqual(jasmine.objectContaining({ payload: false }));
+
+  // ensure loading flag is false at end
+  expect((component as any).loading).toBe(false);
+});
