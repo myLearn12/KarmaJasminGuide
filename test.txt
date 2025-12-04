@@ -1,40 +1,59 @@
-it('setIsRevShareValid(): invalid revshare should set isRevShareValid = false', () => {
-  component.account = { revshare: 'abc' }; // not numeric
+it('revShareDivMappingMessage(): when cbAltDivision.value is null sets both messages to empty', () => {
+  component.cbDivision = { value: '1' } as any;
+  component.cbAltDivision = { value: null } as any;
+  component.divisions = [{ divisionId: 1, divisionCd: 'D1' }];
+  component.revShareDivMapping = [{ divisionId: 1, revShareDesc: 'R1' }];
 
-  spyOn(component['utils'], 'isStringValid').and.returnValue(true);
+  (component as any).revShareDivMappingMessage();
 
-  (component as any).setIsRevShareValid();
-
-  expect(component.isRevShareValid).toBeFalse();
+  expect(component.divCdMapMessage).toBe('');
+  expect(component.altDivCdMapMessage).toBe('');
 });
 
-it('setIsRevShareValid(): valid decimal revshare should set isRevShareValid = true', () => {
-  component.account = { revshare: '0.5' };
+it('revShareDivMappingMessage(): when cbAltDivision set but cbDivision null -> divCdMapMessage is empty and alt message computed', () => {
+  component.cbDivision = { value: null } as any;
+  component.cbAltDivision = { value: '2' } as any;
+  component.divisions = [{ divisionId: 2, divisionCd: 'D2' }];
+  component.revShareDivMapping = [{ divisionId: 2, revShareDesc: 'R_ALT' }];
+  spyOn(component['utils'], 'isStringValid').and.callFake((v: any) => !!v);
 
-  spyOn(component['utils'], 'isStringValid').and.returnValue(true);
+  (component as any).revShareDivMappingMessage();
 
-  (component as any).setIsRevShareValid();
-
-  expect(component.isRevShareValid).toBeTrue();
+  expect(component.divCdMapMessage).toBe(''); // cbDivision missing -> empty
+  expect(component.altDivCdMapMessage).toBe('Alt Division Cd D2 is mapped to R_ALT revenue share.');
 });
 
-it('setIsRevShareValid(): valid integer revshare should set isRevShareValid = true', () => {
-  component.account = { revshare: '1' };
-
+it('revShareDivMappingMessage(): both divisions mapped -> both messages show mapped text', () => {
+  component.cbDivision = { value: '1' } as any;
+  component.cbAltDivision = { value: '2' } as any;
+  component.divisions = [
+    { divisionId: 1, divisionCd: 'D1' },
+    { divisionId: 2, divisionCd: 'D2' }
+  ];
+  component.revShareDivMapping = [
+    { divisionId: 1, revShareDesc: 'R1' },
+    { divisionId: 2, revShareDesc: 'R2' }
+  ];
   spyOn(component['utils'], 'isStringValid').and.returnValue(true);
 
-  (component as any).setIsRevShareValid();
+  (component as any).revShareDivMappingMessage();
 
-  expect(component.isRevShareValid).toBeTrue();
+  expect(component.divCdMapMessage).toBe('Division Cd D1 is mapped to R1 revenue share.');
+  expect(component.altDivCdMapMessage).toBe('Alt Division Cd D2 is mapped to R2 revenue share.');
 });
 
-it('setIsRevShareValid(): one decimal place should convert toFixed(2) and set true', () => {
-  component.account = { revshare: '0.7' };
+it('revShareDivMappingMessage(): neither division mapped -> both messages say not mapped', () => {
+  component.cbDivision = { value: '1' } as any;
+  component.cbAltDivision = { value: '2' } as any;
+  component.divisions = [
+    { divisionId: 1, divisionCd: 'D1' },
+    { divisionId: 2, divisionCd: 'D2' }
+  ];
+  component.revShareDivMapping = []; // no mappings
+  spyOn(component['utils'], 'isStringValid').and.returnValue(false);
 
-  spyOn(component['utils'], 'isStringValid').and.returnValue(true);
+  (component as any).revShareDivMappingMessage();
 
-  (component as any).setIsRevShareValid();
-
-  expect(component.isRevShareValid).toBeTrue();
-  expect(component.account.revshare).toBe('0.70'); // formatted
+  expect(component.divCdMapMessage).toBe('Division Cd D1 is not mapped.');
+  expect(component.altDivCdMapMessage).toBe('Alt Division Cd D2 is not mapped.');
 });
