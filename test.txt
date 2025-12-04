@@ -1,61 +1,127 @@
-it('processRecord(): should set loading=true and dispatch LOADINGACTION(true)', () => {
-  component.region = { regionId: 5 }; 
-  component.sheetName = 'TestSheet';
-  component.acctColumnHeader = 'acct';
-  component.worksheet = { TestSheet: [] };
+it('processRecord(): sets loading=true and dispatches LOADINGACTION(true) before posting', () => {
+  // arrange
+  component.region = { regionId: 42 };
+  component.sheetName = 'Sheet1';
+  component.accoutColumnHeader = 'acct';
+  component.selectedMonthEndDate = '2024-10-30';
+  component.processTypeId = 1;
+  component.worksheet = { Sheet1: [ { acct: 'A1' } ] };
 
   const dispatchSpy = spyOn(store, 'dispatch');
-  spyOn(component['utils'], 'ToEstDate').and.returnValue('2024-10-10');
+  spyOn(component['utils'], 'ToEstDate').and.returnValue('2024-10-30');
+  spyOn(component['utils'], 'getCurrentUser').and.returnValue('u1');
 
+  // make feeApiservice.postRequest return a hot observable (synchronous for test)
+  spyOn(feeApiService, 'postRequest').and.returnValue(of({}));
+
+  // act
   component.processRecord();
 
+  // assert
   expect(component.loading).toBeTrue();
   expect(dispatchSpy).toHaveBeenCalledWith(new LOADINGACTION(true));
+  expect(feeApiService.postRequest).toHaveBeenCalled();
 });
 
-it('processRecord(): should push only truthy accounts to bulk payload', () => {
-  component.region = { regionId: 10 };
-  component.sheetName = 'TestSheet';
-  component.acctColumnHeader = 'acct';
-
-  component.worksheet = {
-    TestSheet: [
-      { acct: '111' },   // valid
-      null,              // ignored
-      { acct: '222' }    // valid
-    ]
-  };
-
-  const toEstSpy = spyOn(component['utils'], 'ToEstDate').and.returnValue('2024-10-10');
-
-  component.processRecord();
-
-  // bulkAcctPayload created inside processRecord()
-  // so spy on push events:
-  expect(toEstSpy).toHaveBeenCalledTimes(1);
-});
-
-it('processRecord(): should correctly format each payload row', () => {
+it('processRecord(): on next -> clears loading, dispatches false, calls LoadTableRows, computes totals and shows action modal when there are error records', () => {
+  // arrange
   component.region = { regionId: 7 };
-  component.sheetName = 'TestSheet';
-  component.acctColumnHeader = 'acct';
-  component.selectedMonthEndDate = '2024-10-30';
+  component.sheetName = 'S';
+  component.accoutColumnHeader = 'acct';
+  component.selectedMonthEndDate = '2024-11-30';
+  component.processTypeId = 2;
+  component.worksheet = { S: [ { acct: '100' }, { acct: '200' } ] };
 
-  component.worksheet = {
-    TestSheet: [
-      { acct: '999' }
-    ]
-  };
+  spyOn(component['utils'], 'ToEstDate').and.returnValue('2024-11-30');
+  spyOn(component['utils'], 'getCurrentUser').and.returnValue('tester');
 
-  spyOn(component['utils'], 'ToEstDate').and.returnValue('2024-10-10');
+  // prepare a fake response that LoadTableRows will receive
+  const fakeResponse = { rows: [] };
+  spyOn(feeApiService, 'postRequest').and.returnValue(of(fakeResponse));
 
-  const payloadPush = spyOn(Array.prototype, 'push');
+  // spy internal calls / UI interactions
+  const dispatchSpy = spyOn(store, 'dispatch');
+  const loadSpy = spyOn(component, 'LoadTableRows').and.callFake((r) => {
+    // in real code LoadTableRows probably fills updateAccounts; simulate it
+    component.updateAccounts = [
+      { acctnum: '100', hasError: true },
+      { acctnum: '200', hasError: false }
+    ];
+  });
+  const actionShowSpy = spyOn(component['_actionModal'], 'show');
 
+  // act
   component.processRecord();
 
-  expect(payloadPush).toHaveBeenCalledWith(jasmine.objectContaining({
-    regionId: 7,
-    acctnum: '999',
-    cutOffDate: '2024-10-10'
-  }));
+  // assert
+  expect(loadSpy).toHaveBeenCalledWith(fakeResponse);
+  expect(component.loading).toBeFalse();
+  expect(dispatchSpy).toHaveBeenCalledWith(new LOADINGACTION(false));
+  expect(component.totalRecordCount).toBe(2);
+  expect(component.totalErrorRecordCount).toBe(1);
+  expect(component.totalSuccessRecordCount).toBe(1);
+  expect(component.isData).toBeTrue();            // because there is 1 error record
+  expect(actionShowSpy).toHaveBeenCalled();
+});
+
+it('processRecord(): on next -> computes totals correctly when there are NO error records and does NOT show action modal', () => {
+  // arrange
+  component.region = { regionId: 1 };
+  component.sheetName = 'X';
+  component.accoutColumnHeader = 'acct';
+  component.selectedMonthEndDate = '2024-12-31';
+  component.processTypeId = 1;
+  component.worksheet = { X: [ { acct: 'A' } ] };
+
+  spyOn(component['utils'], 'ToEstDate').and.returnValue('2024-12-31');
+  spyOn(component['utils'], 'getCurrentUser').and.returnValue('me');
+
+  const fakeResponse = { rows: [] };
+  spyOn(feeApiService, 'postRequest').and.returnValue(of(fakeResponse));
+
+  spyOn(store, 'dispatch');
+  spyOn(component, 'LoadTableRows').and.callFake(() => {
+    component.updateAccounts = [
+      { acctnum: 'A', hasError: false }
+    ];
+  });
+  const actionShowSpy = spyOn(component['_actionModal'], 'show');
+
+  // act
+  component.processRecord();
+
+  // assert
+  expect(component.totalRecordCount).toBe(1);
+  expect(component.totalErrorRecordCount).toBe(0);
+  expect(component.totalSuccessRecordCount).toBe(1);
+  expect(component.isData).toBeFalse();
+  expect(actionShowSpy).not.toHaveBeenCalled();
+});
+
+it('processRecord(): error branch -> sets loading=false, dispatches LOADINGACTION(false) and calls displayServiceErrors', () => {
+  // arrange
+  component.region = { regionId: 9 };
+  component.sheetName = 'ErrSheet';
+  component.accoutColumnHeader = 'acct';
+  component.selectedMonthEndDate = '2024-09-30';
+  component.processTypeId = 3;
+  component.worksheet = { ErrSheet: [ { acct: 'Z1' } ] };
+
+  spyOn(component['utils'], 'ToEstDate').and.returnValue('2024-09-30');
+  spyOn(component['utils'], 'getCurrentUser').and.returnValue('userX');
+
+  // make postRequest return an observable that errors
+  const errorObj = { error: { statusMessage: 'API failed' } };
+  spyOn(feeApiService, 'postRequest').and.returnValue(throwError(() => errorObj));
+
+  const dispatchSpy = spyOn(store, 'dispatch');
+  const dispErrSpy = spyOn(component, 'displayServiceErrors');
+
+  // act
+  component.processRecord();
+
+  // assert
+  expect(component.loading).toBeFalse();
+  expect(dispatchSpy).toHaveBeenCalledWith(new LOADINGACTION(false));
+  expect(dispErrSpy).toHaveBeenCalledWith('API failed');
 });
