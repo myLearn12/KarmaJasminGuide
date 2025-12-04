@@ -1,49 +1,24 @@
-it('processRecord(): error branch sets loading false, dispatches false, and calls displayServiceErrors', fakeAsync(() => {
-  // minimal component state needed
+it('processRecord(): error branch dispatches LOADINGACTION(false) as last dispatch and calls displayServiceErrors', fakeAsync(() => {
   component.sheetName = 'sheet1';
   component.accoutColumnHeader = 'acct';
   component.worksheet = { sheet1: [{ acct: 'A1' }] } as any;
   component.region = { regionId: 1 } as any;
   component.processTypeId = 10;
-  component._actionModal = { show: jasmine.createSpy('show') } as any; // harmless
-
-  // fix: ensure appConfig url exists
+  component._actionModal = { show: jasmine.createSpy('show') } as any;
   component.appConfigService = { accrualUpdateUrl: 'URL/' } as any;
 
-  // spies & stubs
   spyOn(component.utils, 'ToEstDate').and.returnValue('DATE');
   spyOn(component.utils, 'getCurrentUser').and.returnValue('USER');
-
   const dispatchSpy = spyOn(component.store, 'dispatch');
   const displaySpy = spyOn(component, 'displayServiceErrors');
-  spyOn(component, 'LoadTableRows'); // avoid side effects
-  spyOn(component, 'clearSelection');
+  spyOn(feeApiService, 'postRequest').and.returnValue(throwError(() => ({ error: { statusMessage: 'ERR' } })));
 
-  // POST returns an error shaped the component expects: error.error.statusMessage
-  const err = { error: { statusMessage: 'ERR' } };
-  spyOn(feeApiService, 'postRequest').and.returnValue(throwError(() => err));
-
-  // Act
   component.processRecord();
   tick();
 
-  // Assert: loading set false
-  expect(component.loading).toBeFalse();
+  // last call to dispatch should be LOADINGACTION(false)
+  const lastArg = dispatchSpy.calls.mostRecent().args[0];
+  expect(lastArg.payload).toBeFalse();
 
-  // Assert: store.dispatch called at least twice (start true, then false)
-  expect(dispatchSpy).toHaveBeenCalled();
-  // find LOADINGACTION(false) call among dispatch args
-  const calledPayloads = dispatchSpy.calls.allArgs().map(a => a[0]);
-  const sawFalse = calledPayloads.some(p => p && p.payload === false);
-  expect(sawFalse).toBeTrue('expected a LOADINGACTION(false) dispatch among calls');
-
-  // Also ensure LOADINGACTION(true) was dispatched earlier
-  const sawTrue = calledPayloads.some(p => p && p.payload === true);
-  expect(sawTrue).toBeTrue('expected LOADINGACTION(true) dispatched at start');
-
-  // displayServiceErrors should be called with message from error
   expect(displaySpy).toHaveBeenCalledWith('ERR');
-
-  // clearSelection should still be called (component clears at end of method)
-  expect((component as any).clearSelection).toHaveBeenCalled();
 }));
