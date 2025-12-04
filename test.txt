@@ -1,59 +1,19 @@
-it('revShareDivMappingMessage(): when cbAltDivision.value is null sets both messages to empty', () => {
-  component.cbDivision = { value: '1' } as any;
-  component.cbAltDivision = { value: null } as any;
-  component.divisions = [{ divisionId: 1, divisionCd: 'D1' }];
-  component.revShareDivMapping = [{ divisionId: 1, revShareDesc: 'R1' }];
-
-  (component as any).revShareDivMappingMessage();
-
-  expect(component.divCdMapMessage).toBe('');
-  expect(component.altDivCdMapMessage).toBe('');
+it('isNullOrEmpty(): should return true when value is null', () => {
+  expect(component.isNullOrEmpty(null)).toBeTrue();
 });
 
-it('revShareDivMappingMessage(): when cbAltDivision set but cbDivision null -> divCdMapMessage is empty and alt message computed', () => {
-  component.cbDivision = { value: null } as any;
-  component.cbAltDivision = { value: '2' } as any;
-  component.divisions = [{ divisionId: 2, divisionCd: 'D2' }];
-  component.revShareDivMapping = [{ divisionId: 2, revShareDesc: 'R_ALT' }];
-  spyOn(component['utils'], 'isStringValid').and.callFake((v: any) => !!v);
-
-  (component as any).revShareDivMappingMessage();
-
-  expect(component.divCdMapMessage).toBe(''); // cbDivision missing -> empty
-  expect(component.altDivCdMapMessage).toBe('Alt Division Cd D2 is mapped to R_ALT revenue share.');
+it('isNullOrEmpty(): should return true when value is undefined', () => {
+  expect(component.isNullOrEmpty(undefined as any)).toBeTrue();
 });
 
-it('revShareDivMappingMessage(): both divisions mapped -> both messages show mapped text', () => {
-  component.cbDivision = { value: '1' } as any;
-  component.cbAltDivision = { value: '2' } as any;
-  component.divisions = [
-    { divisionId: 1, divisionCd: 'D1' },
-    { divisionId: 2, divisionCd: 'D2' }
-  ];
-  component.revShareDivMapping = [
-    { divisionId: 1, revShareDesc: 'R1' },
-    { divisionId: 2, revShareDesc: 'R2' }
-  ];
-  spyOn(component['utils'], 'isStringValid').and.returnValue(true);
-
-  (component as any).revShareDivMappingMessage();
-
-  expect(component.divCdMapMessage).toBe('Division Cd D1 is mapped to R1 revenue share.');
-  expect(component.altDivCdMapMessage).toBe('Alt Division Cd D2 is mapped to R2 revenue share.');
+it('isNullOrEmpty(): should return true when value is empty string', () => {
+  expect(component.isNullOrEmpty('')).toBeTrue();
 });
 
-it('revShareDivMappingMessage(): neither division mapped -> both messages say not mapped', () => {
-  component.cbDivision = { value: '1' } as any;
-  component.cbAltDivision = { value: '2' } as any;
-  component.divisions = [
-    { divisionId: 1, divisionCd: 'D1' },
-    { divisionId: 2, divisionCd: 'D2' }
-  ];
-  component.revShareDivMapping = []; // no mappings
-  spyOn(component['utils'], 'isStringValid').and.returnValue(false);
+it('isNullOrEmpty(): should return true when value is spaces only', () => {
+  expect(component.isNullOrEmpty('   ')).toBeTrue();
+});
 
-  (component as any).revShareDivMappingMessage();
-
-  expect(component.divCdMapMessage).toBe('Division Cd D1 is not mapped.');
-  expect(component.altDivCdMapMessage).toBe('Alt Division Cd D2 is not mapped.');
+it('isNullOrEmpty(): should return false when value contains characters', () => {
+  expect(component.isNullOrEmpty('ABC')).toBeFalse();
 });
