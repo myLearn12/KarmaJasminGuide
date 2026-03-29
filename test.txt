@@ -1,121 +1,188 @@
-// put these imports at top of your spec file
-import { of, throwError } from 'rxjs';
-import { LOADINGACTION } from 'path-to-loading-action'; // if you need it; otherwise keep jasmine checks
+Promo Engine DataMesh Lambda E2E Flow
+Created by Bisen, Tarang (CCB, IND, Consultant)  ·  Last updated Mar 2026  ·  2 minute read
 
-// 1) NEXT branch: forkJoin returns region + processType
-it('InitialDataLoad(): next branch - loads region, assigns processTypeId and dispatches LOADINGACTION(false)', () => {
-  // set private/protected services on component
-  (component as any).appConfigService = {
-    getRegionByIdUrl: '/regionById/',
-    getProcessControlConfigByType: '/processByType/'
-  };
+Overview:
 
-  // spy LoadRegionData (private/protected)
-  spyOn(component as any, 'LoadRegionData');
+The DataMesh Lambda (JPMC.CTLOYALTY.Promo.Engine.DataMeshLambda) is an AWS Lambda function built on .NET 8 that forwards promo-related business events to the DataMesh platform via Kinesis for analytics and business insights. It is triggered by Amazon SQS events, decompresses and deserializes the message body, identifies the entity type, and pushes the structured data to DataMesh using IDataForwarderCore.PushEventDataToDataMeshAsync().
 
-  // mock feeApiservice.getRequest to return different observables based on URL
-  (component as any).feeApiservice = {
-    getRequest: (url: string) => {
-      if (url.indexOf('/regionById/') === 0 || url.includes('/regionById/')) {
-        return of({ regionId: 123, regionDescription: 'R1' }); // region object
-      }
-      if (url.indexOf('/processByType/') === 0 || url.includes('/processByType/')) {
-        return of({ processType: { processTypeId: 777 } }); // processType result
-      }
-      return of([]); // fallback
+Field	Description
+Application Name	nextgen_promo_engine_datamesh_lambda
+API Name	DataMeshLambda
+Namespace	JPMC.CTLOYALTY.Promo.Engine.DataMeshLambda
+Entry Point	Function.cs → FunctionHandler(SQSEvent, ILambdaContext)
+Trigger	Amazon SQS
+Destination	DataMesh Platform via Kinesis
+NuGet Packages Used:
+
+Amazon.Lambda.Core
+Amazon.Lambda.SQSEvents
+Amazon.Lambda.Serialization.SystemTextJson
+Microsoft.Extensions.DependencyInjection
+JPMC.CTLOYALTY.DataMesh
+JPMC.CTLOYALTY.Promo.Engine.Contract
+Flow Diagram:
+
+SQS Queue
+From Apply Lambda
+From Reissue Lambda
+From Reissue Retry Lambda
+→
+DataMesh Lambda (Function.cs)
+Validate SQS Event
+Set Log Settings
+Read EntityType from MessageAttributes
+Decompress Message Body
+Deserialize to DataLakeMessage<T>
+Switch on EntityType
+Push to DataMesh via DataForwarderCore
+Log Success / Failure
+→
+DataMesh Platform
+via Kinesis
+(PushEventDataToDataMeshAsync)
+Flow Description:
+
+FunctionHandler
+
+ValidateSqsEvent: Checks that SQSEvent.Records is not null and not empty. Throws ArgumentException(KeyStore.ErrorConstants.InvalidSqsEvent) if invalid.
+SetLogSettings: Loads log configuration from IConfigurationProvider — sets IsTraceLog, IsApiLog, IsExceptionLog on AllocationCallContext.
+Read EntityType: Reads MessageAttributes["EntityType"] from each SQS message to determine which promo entity the event represents.
+Decompress Message Body: Calls StringHelper.DecompressString(sqsMessage.Body) — messages are compressed before being placed on the queue.
+Deserialize to DataLakeMessage<T>: Uses JsonConvert.DeserializeObject<DataLakeMessage<T>> with NullValueHandling.Ignore. Throws ClientSideError.InvalidRequest() if null or wrong type.
+Switch on EntityType — 4 supported types:
+PromoEntity → DataLakeMessage<PromoResource>
+PromoParticipantEntity → DataLakeMessage<Participant>
+PromoUsageEntity → DataLakeMessage<PromoUsageResource>
+ProvisioningEntity → DataLakeMessage<PromoProvisioningResource>
+Any other value → throws InvalidOperationException("Unsupported event type")
+Push to DataMesh: Calls _dataForwarderCore.PushEventDataToDataMeshAsync(data, headers, additionalParams). Forwards the event to DataMesh platform via Kinesis for business insights generation.
+Log Success / Failure: Logs DataForwarderLambdaSuccess on success. On exception: LogHelper.AddExceptionLog(ex, ex.Message) and rethrows.
+Supported Entity Types & Schema Identifiers:
+
+DataMesh team validates payloads against schema identifiers. All 4 entity types must have at least 1 payload sent for schema validation.
+#	EntityType (MessageAttribute)	DataLakeMessage<T>	Schema Identifier (DataMesh)	Triggered By
+1	PromoEntity	DataLakeMessage<PromoResource>	lnepromocodeprovisionstatus	Apply / Reissue
+2	PromoParticipantEntity	DataLakeMessage<Participant>	lnepromocodeprovisionstatus	Apply / Reissue
+3	PromoUsageEntity	DataLakeMessage<PromoUsageResource>	lnepromocodeusage	Apply Lambda
+4	ProvisioningEntity	DataLakeMessage<PromoProvisioningResource>	lnepromocodeprovisions	Provisioning flow
+Sample Function Input:
+
+SQS Event with EntityType in messageAttributes:
+
+{
+  "Records": [
+    {
+      "messageId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "receiptHandle": "MessageReceiptHandle",
+      "body": "<compressed-base64-encoded-payload>",
+      "attributes": {
+        "ApproximateReceiveCount": "1",
+        "SentTimestamp": "1523232000000",
+        "SenderId": "123456789012",
+        "ApproximateFirstReceiveTimestamp": "1523232000001"
+      },
+      "messageAttributes": {
+        "EntityType": {
+          "stringValue": "PromoUsageEntity",
+          "dataType": "String"
+        }
+      },
+      "eventSource": "aws:sqs",
+      "eventSourceARN": "arn:{partition}:sqs:{region}:123456789012:DataMeshQueue",
+      "awsRegion": "{region}"
     }
-  };
+  ]
+}
+Sample Payloads — All 4 Entity Types:
 
-  // stub store.dispatch
-  const storeSpy = spyOn((component as any).store, 'dispatch').and.callThrough();
+1. PromoEntity (lnepromocodeprovisionstatus)
 
-  // now call the method under test
-  (component as any).regionid = 1; // required by URL concat
-  (component as any).InitialDataLoad();
+{
+  "entityType": "PromoEntity",
+  "correlationId": "abc-111-xyz",
+  "headers": {
+    "cnxTenantId": "CHASE",
+    "cnxProgramId": "CPG-001",
+    "cnxParticipantId": "USR-001",
+    "cnxEnvironmentToken": "qa"
+  },
+  "data": {
+    "promoCodeId": "PROMO-001",
+    "promoCode": "CHASE500",
+    "status": "ACTIVE",
+    "clientTenantId": "CHASE",
+    "validFrom": "2026-01-01",
+    "validTo": "2026-12-31"
+  }
+}
+2. PromoParticipantEntity (lnepromocodeprovisionstatus)
 
-  // assertions
-  expect((component as any).LoadRegionData).toHaveBeenCalledWith(jasmine.objectContaining({ regionId: 123 }));
-  expect((component as any).processTypeId).toBe(777);
+{
+  "entityType": "PromoParticipantEntity",
+  "correlationId": "abc-222-xyz",
+  "headers": {
+    "cnxTenantId": "CHASE",
+    "cnxProgramId": "CPG-001",
+    "cnxParticipantId": "USR-002",
+    "cnxEnvironmentToken": "qa"
+  },
+  "data": {
+    "participantId": "USR-002",
+    "programId": "CPG-001",
+    "promoCodeId": "PROMO-001",
+    "tag": "RETENTION",
+    "assignedAt": "2026-03-01T10:00:00Z"
+  }
+}
+3. PromoUsageEntity (lnepromocodeusage)
 
-  // assert that dispatch was called with a LOADINGACTION false - could be called by next AND/OR complete
-  // check at least one dispatch call had payload false
-  const calls = storeSpy.calls.allArgs().map(a => a[0]);
-  const hasFalse = calls.some(c => c && (c.payload === false || c.payload === 0 || c.payload === undefined ? false : c.payload === false));
-  // The above tries to be robust; alternatively inspect most recent call:
-  const lastArg = storeSpy.calls.mostRecent().args[0];
-  // Expect the last dispatch to indicate not-loading (payload false)
-  expect(lastArg).toEqual(jasmine.objectContaining({ payload: false }));
-});
+{
+  "entityType": "PromoUsageEntity",
+  "correlationId": "abc-333-xyz",
+  "headers": {
+    "cnxTenantId": "CHASE",
+    "cnxProgramId": "CPG-001",
+    "cnxParticipantId": "USR-003",
+    "cnxEnvironmentToken": "qa"
+  },
+  "data": {
+    "promoCodeId": "PROMO-001",
+    "promoCode": "CHASE500",
+    "usedBy": "USR-003",
+    "orderId": "ORDER-9001",
+    "usageCount": 1,
+    "discountApplied": 50.00,
+    "currency": "CASH",
+    "usedAt": "2026-03-15T14:30:00Z"
+  }
+}
+4. ProvisioningEntity (lnepromocodeprovisions)
 
+{
+  "entityType": "ProvisioningEntity",
+  "correlationId": "abc-444-xyz",
+  "headers": {
+    "cnxTenantId": "CHASE",
+    "cnxProgramId": "CPG-001",
+    "cnxParticipantId": "USR-004",
+    "cnxEnvironmentToken": "qa"
+  },
+  "data": {
+    "promoCodeId": "PROMO-002",
+    "promoCode": "SUMMER150",
+    "provisioningStatus": "PROVISIONED",
+    "clientTenantId": "CHASE",
+    "promoType": "ALL_PARTICIPANT",
+    "discountType": "FIXED",
+    "discountValue": 150.00,
+    "currency": "CASH",
+    "provisionedAt": "2026-02-01T09:00:00Z"
+  }
+}
+Why DataMesh Lambda?
 
-/* 2) ERROR branch: make one getRequest throw an error -> error handler should call displayServiceErrors and dispatch(false) */
-it('InitialDataLoad(): error branch - calls displayServiceErrors and dispatches LOADINGACTION(false)', () => {
-  // make minimal config service (to avoid undefined property access)
-  (component as any).appConfigService = {
-    getRegionByIdUrl: '/regionById/',
-    getProcessControlConfigByType: '/processByType/'
-  };
-
-  // stub feeApiservice.getRequest so region request errors out
-  (component as any).feeApiservice = {
-    getRequest: (url: string) => {
-      if (url.indexOf('/regionById/') === 0 || url.includes('/regionById/')) {
-        return throwError({ error: { statusMessage: 'ERR' }});
-      }
-      // process type can return something (not used since forkJoin fails on first error)
-      return of({ processType: null });
-    }
-  };
-
-  // spy displayServiceErrors (private)
-  const displaySpy = spyOn(component as any, 'displayServiceErrors').and.callFake(() => {});
-
-  // spy store.dispatch
-  const storeSpy = spyOn((component as any).store, 'dispatch').and.callThrough();
-
-  (component as any).regionid = 1;
-  (component as any).InitialDataLoad();
-
-  // assertions
-  expect(displaySpy).toHaveBeenCalledWith('ERR');
-  const last = storeSpy.calls.mostRecent().args[0];
-  expect(last).toEqual(jasmine.objectContaining({ payload: false }));
-});
-
-
-/* 3) COMPLETE branch: verify final complete handler runs (dispatch false and loading false). 
-   Here we assert that store.dispatch got called with payload false in the final/most recent call and loading=false.
-*/
-it('InitialDataLoad(): complete branch - ensures complete handler sets loading false and dispatches LOADINGACTION(false)', () => {
-  (component as any).appConfigService = {
-    getRegionByIdUrl: '/regionById/',
-    getProcessControlConfigByType: '/processByType/'
-  };
-
-  // Use observables that emit and complete. Both emiters will trigger next then complete.
-  (component as any).feeApiservice = {
-    getRequest: (url: string) => {
-      if (url.indexOf('/regionById/') === 0 || url.includes('/regionById/')) {
-        // region object
-        return of({ regionId: 55, regionDescription: 'R55' });
-      }
-      if (url.indexOf('/processByType/') === 0 || url.includes('/processByType/')) {
-        return of({ processType: { processTypeId: 999 }});
-      }
-      return of([]);
-    }
-  };
-
-  spyOn(component as any, 'LoadRegionData').and.callThrough();
-  const storeSpy = spyOn((component as any).store, 'dispatch').and.callThrough();
-
-  (component as any).regionid = 1;
-  (component as any).InitialDataLoad();
-
-  // After synchronous emission, final dispatch should represent "false" (not loading)
-  const lastDispatchArg = storeSpy.calls.mostRecent().args[0];
-  expect(lastDispatchArg).toEqual(jasmine.objectContaining({ payload: false }));
-
-  // ensure loading flag is false at end
-  expect((component as any).loading).toBe(false);
-});
+Generates business insights — booking counts, cancellations, promo usage history
+Uses Kinesis for real-time data push to DataMesh platform
+Decoupled from main promo flow — all 3 Lambdas publish events independently
+Supports 4 entity types covering the full promo lifecycle
+Uses Redis + Firehose sinks for logging
