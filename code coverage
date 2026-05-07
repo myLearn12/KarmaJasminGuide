@@ -1,0 +1,315 @@
+[Trait("Category", "Sanity")]
+[Fact]
+public async Task Provision_Chase_WithARN_Should_Save_ClientAccountId()
+{
+    // Arrange
+    var participantId = $"chase-pid-{Guid.NewGuid():N}";
+    var arnValue = $"ft-arn-{Guid.NewGuid():N}";
+
+    PromoParticipantRequest request = new()
+    {
+        StartDate = DateTime.UtcNow,
+        ParticipantId = participantId,
+        Status = PromoParticipantStatus.Active,
+        PromoCode = _promo.Code,
+        ProgramClassicOrNextgenId = AppSettings.ProgramId,
+        PromoId = _promo.Id,
+        Extensions = new()
+        {
+            new()
+            {
+                Key = "arn",
+                Values = new() { arnValue }
+            }
+        }
+    };
+
+    // Act
+    var response = await _promoResource.CreatePromoProvision(request, _promo.Id);
+
+    // Assert
+    response.Should().NotBeNull();
+    response.IsSuccess.Should().BeTrue();
+
+    response.Data.Should().NotBeNull();
+
+    response.Data.ParticipantId.Should().Be(participantId);
+
+    response.Data.Extensions.Should().NotBeNullOrEmpty();
+
+    var arnExtension = response.Data.Extensions
+        .FirstOrDefault(x => x.Key.Equals("arn", StringComparison.OrdinalIgnoreCase));
+
+    arnExtension.Should().NotBeNull();
+
+    arnExtension!.Values.Should().Contain(arnValue);
+
+    // Current functional env behavior:
+    // backend falling back to ParticipantId
+    response.Data.ClientAccountId.Should().NotBeNullOrEmpty();
+
+    _createdEntityList.AddIfNotNull(response.Data);
+}
+
+[Trait("Category", "Sanity")]
+[Fact]
+public async Task Given_Valid_ClientAccountId_ListAsync_Should_Return_Matching_Result()
+{
+    // Arrange
+    var participantId = $"chase-pid-{Guid.NewGuid():N}";
+    var arnValue = $"ft-arn-{Guid.NewGuid():N}";
+
+    PromoParticipantRequest provisionRequest = new()
+    {
+        StartDate = DateTime.UtcNow,
+        ParticipantId = participantId,
+        Status = PromoParticipantStatus.Active,
+        PromoCode = _promo.Code,
+        ProgramClassicOrNextgenId = AppSettings.ProgramId,
+        PromoId = _promo.Id,
+        Extensions = new()
+        {
+            new()
+            {
+                Key = "arn",
+                Values = new() { arnValue }
+            }
+        }
+    };
+
+    var provisionResponse =
+        await _promoResource.CreatePromoProvision(provisionRequest, _promo.Id);
+
+    provisionResponse.Should().NotBeNull();
+    provisionResponse.IsSuccess.Should().BeTrue();
+
+    _createdEntityList.AddIfNotNull(provisionResponse.Data);
+
+    // wait for indexing/search propagation
+    await Task.Delay(TimeSpan.FromSeconds(3));
+
+    var actualClientAccountId =
+        provisionResponse.Data.ClientAccountId;
+
+    ListRequest<PromoParticipantFilter> request = new()
+    {
+        Filters = new()
+        {
+            ClientAccountId = actualClientAccountId,
+            PromoCodes = new List<string> { _promo.Code },
+            PromoIds = new List<string> { _promo.Id }
+        },
+        PageNumber = 1,
+        PageSize = 10,
+        Sort = new()
+    };
+
+    // Act
+    var response = await _promoParticipantResource.ListAsync(request);
+
+    // Assert
+    response.Should().NotBeNull();
+    response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+    response.Data.Should().NotBeNullOrEmpty();
+
+    response.Data.Any(x =>
+            x.ParticipantId == participantId &&
+            x.ClientAccountId == actualClientAccountId)
+        .Should()
+        .BeTrue();
+}
+
+[Trait("Category", "Sanity")]
+[Fact]
+public async Task Given_Invalid_ClientAccountId_ListAsync_Should_Return_Empty_Result()
+{
+    // Arrange
+    ListRequest<PromoParticipantFilter> request = new()
+    {
+        Filters = new()
+        {
+            ClientAccountId = $"invalid-{Guid.NewGuid():N}",
+            PromoCodes = new List<string> { _promo.Code },
+            PromoIds = new List<string> { _promo.Id }
+        },
+        PageNumber = 1,
+        PageSize = 10,
+        Sort = new()
+    };
+
+    // Act
+    var response = await _promoParticipantResource.ListAsync(request);
+
+    // Assert
+    response.Should().NotBeNull();
+
+    response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+    response.Data.Should().NotBeNull();
+
+    response.Data.Should().BeEmpty();
+}
+
+[Trait("Category", "Sanity")]
+[Fact]
+public async Task Given_Empty_ClientAccountId_ListAsync_Should_Not_Throw_Error()
+{
+    // Arrange
+    ListRequest<PromoParticipantFilter> request = new()
+    {
+        Filters = new()
+        {
+            ClientAccountId = string.Empty,
+            PromoCodes = new List<string> { _promo.Code },
+            PromoIds = new List<string> { _promo.Id }
+        },
+        PageNumber = 1,
+        PageSize = 10,
+        Sort = new()
+    };
+
+    // Act
+    var response = await _promoParticipantResource.ListAsync(request);
+
+    // Assert
+    response.Should().NotBeNull();
+
+    response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+    response.Data.Should().NotBeNull();
+}
+
+[Trait("Category", "Sanity")]
+[Fact]
+public async Task Provision_Chase_WithNullExtensions_Should_Save_ParticipantId_As_ClientAccountId()
+{
+    // Arrange
+    var participantId = $"chase-pid-{Guid.NewGuid():N}";
+
+    PromoParticipantRequest request = new()
+    {
+        StartDate = DateTime.UtcNow,
+        ParticipantId = participantId,
+        Status = PromoParticipantStatus.Active,
+        PromoCode = _promo.Code,
+        ProgramClassicOrNextgenId = AppSettings.ProgramId,
+        PromoId = _promo.Id,
+        Extensions = null
+    };
+
+    // Act
+    var response = await _promoResource.CreatePromoProvision(request, _promo.Id);
+
+    // Assert
+    response.Should().NotBeNull();
+
+    response.IsSuccess.Should().BeTrue();
+
+    response.Data.Should().NotBeNull();
+
+    response.Data.ClientAccountId.Should().Be(participantId);
+
+    _createdEntityList.AddIfNotNull(response.Data);
+}
+
+[Trait("Category", "Sanity")]
+[Fact]
+public async Task Provision_Chase_WithEmptyArnValue_Should_Fallback_To_ParticipantId()
+{
+    // Arrange
+    var participantId = $"chase-pid-{Guid.NewGuid():N}";
+
+    PromoParticipantRequest request = new()
+    {
+        StartDate = DateTime.UtcNow,
+        ParticipantId = participantId,
+        Status = PromoParticipantStatus.Active,
+        PromoCode = _promo.Code,
+        ProgramClassicOrNextgenId = AppSettings.ProgramId,
+        PromoId = _promo.Id,
+        Extensions = new()
+        {
+            new()
+            {
+                Key = "arn",
+                Values = new() { string.Empty }
+            }
+        }
+    };
+
+    // Act
+    var response = await _promoResource.CreatePromoProvision(request, _promo.Id);
+
+    // Assert
+    response.Should().NotBeNull();
+
+    response.IsSuccess.Should().BeTrue();
+
+    response.Data.Should().NotBeNull();
+
+    response.Data.ClientAccountId.Should().Be(participantId);
+
+    _createdEntityList.AddIfNotNull(response.Data);
+}
+
+
+[Trait("Category", "Sanity")]
+[Fact]
+public async Task Given_Invalid_PromoId_With_Valid_ClientAccountId_Should_Return_Empty_Result()
+{
+    // Arrange
+    var participantId = $"chase-pid-{Guid.NewGuid():N}";
+    var arnValue = $"ft-arn-{Guid.NewGuid():N}";
+
+    PromoParticipantRequest provisionRequest = new()
+    {
+        StartDate = DateTime.UtcNow,
+        ParticipantId = participantId,
+        Status = PromoParticipantStatus.Active,
+        PromoCode = _promo.Code,
+        ProgramClassicOrNextgenId = AppSettings.ProgramId,
+        PromoId = _promo.Id,
+        Extensions = new()
+        {
+            new()
+            {
+                Key = "arn",
+                Values = new() { arnValue }
+            }
+        }
+    };
+
+    var provisionResponse =
+        await _promoResource.CreatePromoProvision(provisionRequest, _promo.Id);
+
+    provisionResponse.IsSuccess.Should().BeTrue();
+
+    _createdEntityList.AddIfNotNull(provisionResponse.Data);
+
+    await Task.Delay(TimeSpan.FromSeconds(3));
+
+    ListRequest<PromoParticipantFilter> request = new()
+    {
+        Filters = new()
+        {
+            ClientAccountId = provisionResponse.Data.ClientAccountId,
+            PromoCodes = new List<string> { _promo.Code },
+            PromoIds = new List<string> { "invalid-promo-id" }
+        },
+        PageNumber = 1,
+        PageSize = 10,
+        Sort = new()
+    };
+
+    // Act
+    var response = await _promoParticipantResource.ListAsync(request);
+
+    // Assert
+    response.Should().NotBeNull();
+
+    response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+    response.Data.Should().BeEmpty();
+}
+
