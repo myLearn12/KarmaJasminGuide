@@ -27,3 +27,15 @@ actual providerlock.Object.GetTenantConfiguration DataApiAuthenticationSettings>
 actual.Should().BesameAs(expected);
 
 providerlock. Verify(p => p.GetTenantConfiguration DataApiAuthenticationSettings>( KeyStore.Constants. TenantId, KeyStore.ConfigurationSections.DataApiSettings, KeyStore.DataApi.AuthenticationSettings), Times. Once); providerlock. VerifyNootherCalls();
+
+
+
+[Fact]
+
+10 references | Tarang Bisen, Less than 5 minutes ago | 1 author, 1 change
+
+public void DataApiSettings_ConfigurationKeys_HaveExpectedValues() {
+
+KeyStore.Constants.TenantId.Should().Be("tenantid");
+
+KeyStore.ConfigurationSections.DataApiSettings.Should().Be("data_api_settings"); KeyStore.DataApi.AuthenticationSettings.Should().Be("authentication_settings");
