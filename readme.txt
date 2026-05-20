@@ -1,37 +1,29 @@
-public void GetDataApiClient Fet tDataApiConfig_once()
+public void GetTenantConfiguration_IsCalled_WithExpectedKeys_ForDataApiAuthenticationSettings()
 
-const string cnxTenantId = "tenant-123";
+}; Identityllostürl = "https://identity.example",
 
-var dataApiConfig = new DataApiConfig {
+expected nen DataApiAuthenticationSettings
 
-AppName = "PromoEngine",
+TenantId= "tenant-1",
 
-HostLink = "https://data-api.local", TenantId = "fallback-tenant", TimeOutInMs = 60_600,
+Hosturl = "https://data-api.example",
 
-UseHttps = true
+ApplicationId="app-1",
 
-var mockConfigurationProvider = new Mock<IConfigurationProvider>();
+ClientId= "client-1", ClientSecret "secret-1",
 
-mockConfigurationProvider
+ResourceId="res-1", AxsRegion "us-east-1"
 
-Setup(x => x.GetTenantConfiguration<DataApiConfig>( It. IsAny<string>(),
+var providerlock new Rock IConfigurationProvider>();
 
-DataApiConstants.Configurations.Sections.ApplicationSettings, DataApiConstants.Configurations. figurations.Keys.DataAPI_Settings))
+providerflock
 
-Returns(dataApiConfig);
+Setup(pp.GetTenantConfiguration DataApiAuthenticationSettings>( KeyStore.Constants. TenantId KeyStore.ConfigurationSections.DataApiSettings, KeyStore.DataApi.AuthenticationSettings))
 
-var factory = new DataApiClientFactory(mockConfigurationProvider.Object);
+Returns (expected);
 
-var client = factory.GetDataApiClient(cnxTenantId);
+actual providerlock.Object.GetTenantConfiguration DataApiAuthenticationSettings>( KeyStore.Constants. Tenant Id, KayStore.ConfigurationSections.DataApiSettings, KeyStore.DataApi.AuthenticationSettings);
 
-Assert.NotNull(client);
+actual.Should().BesameAs(expected);
 
-mockConfigurationProvider.Verify(
-
-x => x.GetTenantConfiguration<DataApiConfig>(
-
-cnxTenantId,
-
-DataApiConstants.Configurations.Sections.ApplicationSettings, DataApiConstants.Configurations.Keys.DataAPI_Settings),
-
-Times. Once); mockConfigurationProvider. VerifyNoOtherCalls();
+providerlock. Verify(p => p.GetTenantConfiguration DataApiAuthenticationSettings>( KeyStore.Constants. TenantId, KeyStore.ConfigurationSections.DataApiSettings, KeyStore.DataApi.AuthenticationSettings), Times. Once); providerlock. VerifyNootherCalls();
